@@ -1,0 +1,19 @@
+# Build output
+build/
+.gradle/
+
+# IDE
+.idea/
+*.iml
+
+# Local Gradle distribution (the repo uses the Gradle wrapper instead)
+gradle-8.5/
+gradle-8.5-bin.zip
+
+# Local backups / references (not part of the plugin)
+build.gradle.ref
+*.local.bak
+
+# OS files
+.DS_Store
+Thumbs.db

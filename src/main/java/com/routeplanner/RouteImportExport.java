@@ -1,0 +1,151 @@
+package com.routeplanner;
+
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.routeplanner.model.Route;
+import com.routeplanner.util.RouteSerializer;
+import lombok.extern.slf4j.Slf4j;
+
+import javax.swing.*;
+import javax.swing.filechooser.FileNameExtensionFilter;
+import java.awt.*;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
+import java.util.Arrays;
+import java.util.List;
+
+@Slf4j
+public class RouteImportExport {
+
+    private final RoutePlannerPlugin plugin;
+    private final RoutePlannerPanel panel;
+    private final Gson gson;
+
+    public RouteImportExport(RoutePlannerPlugin plugin, RoutePlannerPanel panel) {
+        this.plugin = plugin;
+        this.panel = panel;
+        this.gson = RouteSerializer.buildGson();
+    }
+
+    public void exportRoute(Route route) {
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("Export Route");
+        chooser.setSelectedFile(new File(route.getName().replaceAll("[^a-zA-Z0-9_-]", "_") + ".json"));
+        chooser.setFileFilter(new FileNameExtensionFilter("JSON files", "json"));
+
+        int result = chooser.showSaveDialog(null);
+        if (result != JFileChooser.APPROVE_OPTION) return;
+
+        File file = chooser.getSelectedFile();
+        if (!file.getName().endsWith(".json")) {
+            file = new File(file.getAbsolutePath() + ".json");
+        }
+
+        try {
+            String json = gson.toJson(route);
+            Files.write(file.toPath(), json.getBytes(StandardCharsets.UTF_8));
+            JOptionPane.showMessageDialog(null,
+                "Route exported to:\n" + file.getAbsolutePath(),
+                "Export Successful", JOptionPane.INFORMATION_MESSAGE);
+            log.info("Exported route {} to {}", route.getName(), file.getAbsolutePath());
+        } catch (IOException e) {
+            log.error("Failed to export route", e);
+            JOptionPane.showMessageDialog(null,
+                "Export failed: " + e.getMessage(),
+                "Export Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    public void exportAllRoutes() {
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("Export All Routes");
+        chooser.setSelectedFile(new File("routes_export.json"));
+        chooser.setFileFilter(new FileNameExtensionFilter("JSON files", "json"));
+
+        int result = chooser.showSaveDialog(null);
+        if (result != JFileChooser.APPROVE_OPTION) return;
+
+        File file = chooser.getSelectedFile();
+        if (!file.getName().endsWith(".json")) {
+            file = new File(file.getAbsolutePath() + ".json");
+        }
+
+        try {
+            String json = gson.toJson(plugin.getRoutes());
+            Files.write(file.toPath(), json.getBytes(StandardCharsets.UTF_8));
+            JOptionPane.showMessageDialog(null,
+                "All routes exported to:\n" + file.getAbsolutePath(),
+                "Export Successful", JOptionPane.INFORMATION_MESSAGE);
+        } catch (IOException e) {
+            log.error("Failed to export routes", e);
+            JOptionPane.showMessageDialog(null,
+                "Export failed: " + e.getMessage(),
+                "Export Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    public void importRoute() {
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("Import Route");
+        chooser.setFileFilter(new FileNameExtensionFilter("JSON files", "json"));
+
+        int result = chooser.showOpenDialog(null);
+        if (result != JFileChooser.APPROVE_OPTION) return;
+
+        File file = chooser.getSelectedFile();
+        try {
+            String json = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
+
+            // Try single route first
+            try {
+                Route route = gson.fromJson(json, Route.class);
+                if (route != null) route.migrateIfNeeded();
+                if (route != null && route.getName() != null) {
+                    // Check for duplicate name
+                    String name = route.getName();
+                    boolean exists = plugin.getRoutes().stream()
+                        .anyMatch(r -> r.getName().equalsIgnoreCase(name));
+                    if (exists) {
+                        route.setName(name + " (imported)");
+                    }
+                    plugin.getRoutes().add(route);
+                    plugin.saveRoutesPublic();
+                    plugin.setActiveRoute(route);
+                    JOptionPane.showMessageDialog(null,
+                        "Route \"" + route.getName() + "\" imported!",
+                        "Import Successful", JOptionPane.INFORMATION_MESSAGE);
+                    log.info("Imported route: {}", route.getName());
+                    return;
+                }
+            } catch (Exception ignored) {}
+
+            // Try list of routes
+            Route[] routes = gson.fromJson(json, Route[].class);
+            if (routes != null) for (Route r : routes) r.migrateIfNeeded();
+            if (routes != null && routes.length > 0) {
+                int imported = 0;
+                for (Route route : routes) {
+                    if (route.getName() == null) continue;
+                    String name = route.getName();
+                    boolean exists = plugin.getRoutes().stream()
+                        .anyMatch(r -> r.getName().equalsIgnoreCase(name));
+                    if (exists) route.setName(name + " (imported)");
+                    plugin.getRoutes().add(route);
+                    imported++;
+                }
+                plugin.saveRoutesPublic();
+                panel.refresh();
+                JOptionPane.showMessageDialog(null,
+                    imported + " route(s) imported!",
+                    "Import Successful", JOptionPane.INFORMATION_MESSAGE);
+            }
+
+        } catch (Exception e) {
+            log.error("Failed to import route", e);
+            JOptionPane.showMessageDialog(null,
+                "Import failed: " + e.getMessage(),
+                "Import Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+}
