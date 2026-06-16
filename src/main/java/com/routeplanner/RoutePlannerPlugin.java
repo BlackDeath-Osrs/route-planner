@@ -38,6 +38,7 @@ import java.util.List;
 public class RoutePlannerPlugin extends Plugin {
 
     @Inject @Getter private Client client;
+    @Inject private com.google.gson.Gson gson;
     @Inject @Getter private net.runelite.client.game.SpriteManager spriteManager;
     @Inject private ClientToolbar clientToolbar;
     @Inject private OverlayManager overlayManager;
@@ -252,6 +253,17 @@ public class RoutePlannerPlugin extends Plugin {
         panel.refresh();
     }
 
+    private com.google.gson.Gson routeGson;
+    public com.google.gson.Gson getRouteGson() {
+        if (routeGson == null) {
+            routeGson = gson.newBuilder()
+                .registerTypeAdapter(net.runelite.api.coords.WorldPoint.class, new com.routeplanner.util.RouteSerializer.WorldPointAdapter())
+                .setPrettyPrinting()
+                .create();
+        }
+        return routeGson;
+    }
+
     public void saveRoutesPublic() { saveRoutes(); }
 
     public void rebuildNpcHighlights() { skillingNpcHighlighter.rebuild(); }
@@ -279,12 +291,12 @@ public class RoutePlannerPlugin extends Plugin {
     }
 
     private void saveRoutes() {
-        configManager.setConfiguration("routeplanner", "routes", RouteSerializer.toJson(routes));
+        configManager.setConfiguration("routeplanner", "routes", RouteSerializer.toJson(routes, getRouteGson()));
     }
 
     private void loadRoutes() {
         String json = configManager.getConfiguration("routeplanner", "routes");
-        routes = RouteSerializer.fromJson(json);
+        routes = RouteSerializer.fromJson(json, getRouteGson());
     }
 
 @Subscribe

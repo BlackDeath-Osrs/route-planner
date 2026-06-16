@@ -1,9 +1,6 @@
 package com.routeplanner;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.routeplanner.model.Route;
-import com.routeplanner.util.RouteSerializer;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.swing.*;
@@ -20,12 +17,10 @@ public class RouteImportExport {
 
     private final RoutePlannerPlugin plugin;
     private final RoutePlannerPanel panel;
-    private final Gson gson;
 
     public RouteImportExport(RoutePlannerPlugin plugin, RoutePlannerPanel panel) {
         this.plugin = plugin;
         this.panel = panel;
-        this.gson = RouteSerializer.buildGson();
     }
 
     public void exportRoute(Route route) {
@@ -43,7 +38,7 @@ public class RouteImportExport {
         }
 
         try {
-            String json = gson.toJson(route);
+            String json = plugin.getRouteGson().toJson(route);
             Files.write(file.toPath(), json.getBytes(StandardCharsets.UTF_8));
             JOptionPane.showMessageDialog(null,
                 "Route exported to:\n" + file.getAbsolutePath(),
@@ -72,7 +67,7 @@ public class RouteImportExport {
         }
 
         try {
-            String json = gson.toJson(plugin.getRoutes());
+            String json = plugin.getRouteGson().toJson(plugin.getRoutes());
             Files.write(file.toPath(), json.getBytes(StandardCharsets.UTF_8));
             JOptionPane.showMessageDialog(null,
                 "All routes exported to:\n" + file.getAbsolutePath(),
@@ -99,10 +94,9 @@ public class RouteImportExport {
 
             // Try single route first
             try {
-                Route route = gson.fromJson(json, Route.class);
+                Route route = plugin.getRouteGson().fromJson(json, Route.class);
                 if (route != null) route.migrateIfNeeded();
                 if (route != null && route.getName() != null) {
-                    // Check for duplicate name
                     String name = route.getName();
                     boolean exists = plugin.getRoutes().stream()
                         .anyMatch(r -> r.getName().equalsIgnoreCase(name));
@@ -121,7 +115,7 @@ public class RouteImportExport {
             } catch (Exception ignored) {}
 
             // Try list of routes
-            Route[] routes = gson.fromJson(json, Route[].class);
+            Route[] routes = plugin.getRouteGson().fromJson(json, Route[].class);
             if (routes != null) for (Route r : routes) r.migrateIfNeeded();
             if (routes != null && routes.length > 0) {
                 int imported = 0;
