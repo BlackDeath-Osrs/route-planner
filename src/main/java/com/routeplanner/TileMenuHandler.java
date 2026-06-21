@@ -4,15 +4,14 @@ import com.routeplanner.model.RouteStep;
 import com.routeplanner.model.StepType;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
+import net.runelite.api.KeyCode;
 import net.runelite.api.MenuAction;
 import net.runelite.api.MenuEntry;
+import net.runelite.api.NPC;
 import net.runelite.api.coords.WorldPoint;
+import net.runelite.api.events.MenuEntryAdded;
 import net.runelite.api.events.MenuOpened;
 import net.runelite.api.events.MenuOptionClicked;
-import net.runelite.client.eventbus.Subscribe;
-
-import net.runelite.api.NPC;
-import net.runelite.api.events.MenuEntryAdded;
 import net.runelite.client.eventbus.Subscribe;
 
 import javax.inject.Inject;
@@ -32,14 +31,11 @@ public class TileMenuHandler {
     private final Client client;
     private final RoutePlannerPlugin plugin;
     private final net.runelite.client.game.ItemManager itemManager;
-    private boolean shiftHeld = false;
 
     // Items collected via shift+right-click in shops, pending bundling into one step
     private final java.util.List<String> pendingShopItems = new java.util.ArrayList<>();
     // Item name under the cursor when the menu was opened
     private String lastRightClickedShopItem = null;
-
-    private java.awt.KeyEventDispatcher keyDispatcher;
 
     @Inject
     public TileMenuHandler(Client client, RoutePlannerPlugin plugin,
@@ -50,23 +46,9 @@ public class TileMenuHandler {
     }
 
     public void startUp() {
-        keyDispatcher = e -> {
-            if (e.getKeyCode() == java.awt.event.KeyEvent.VK_SHIFT) {
-                shiftHeld = e.getID() == java.awt.event.KeyEvent.KEY_PRESSED;
-            }
-            return false;
-        };
-        java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager()
-            .addKeyEventDispatcher(keyDispatcher);
     }
 
     public void shutDown() {
-        if (keyDispatcher != null) {
-            java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager()
-                .removeKeyEventDispatcher(keyDispatcher);
-            keyDispatcher = null;
-        }
-        shiftHeld = false;
     }
 
     @Subscribe
@@ -97,7 +79,7 @@ public class TileMenuHandler {
         }
     }
 
-@Subscribe
+    @Subscribe
     public void onMenuOpened(MenuOpened event) {
         if (plugin.getActiveRoute() == null) return;
 
@@ -106,7 +88,7 @@ public class TileMenuHandler {
             if (entry.getOption().equals("Walk here")) hasWalkHere = true;
         }
 
-        if (hasWalkHere && shiftHeld) {
+        if (hasWalkHere && client.isKeyPressed(KeyCode.KC_SHIFT)) {
             client.createMenuEntry(-1)
                 .setOption(ADD_LOCATION_STEP)
                 .setTarget("<col=00ff00>" + MENU_TARGET + "</col>")
