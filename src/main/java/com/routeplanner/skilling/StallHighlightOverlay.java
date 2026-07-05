@@ -76,9 +76,12 @@ public class StallHighlightOverlay extends Overlay {
 
                     Shape hull = obj.getConvexHull();
                     if (hull == null) continue;
-                    graphics.setColor(new Color(255, 140, 0, 50));
+                    Color base = plugin.getConfig().npcHighlightColor();
+                    int outA = base.getAlpha();
+                    int fillA = Math.max(0, Math.min(255, (int) (outA * 0.22)));
+                    graphics.setColor(new Color(base.getRed(), base.getGreen(), base.getBlue(), fillA));
                     graphics.fill(hull);
-                    graphics.setColor(new Color(255, 140, 0, 230));
+                    graphics.setColor(new Color(base.getRed(), base.getGreen(), base.getBlue(), outA));
                     graphics.setStroke(new BasicStroke(2));
                     graphics.draw(hull);
                 }

@@ -264,7 +264,7 @@ public class RoutePlannerPanel extends PluginPanel {
         if (addStepHeaderBtn != null) addStepHeaderBtn.setVisible(dev);
         if (addSectionBtn != null) addSectionBtn.setVisible(dev);
         if (reorderToggle != null) {
-            reorderToggle.setVisible(dev);
+            reorderToggle.setVisible(false);
             if (!dev) {
                 reorderMode = false;
                 reorderToggle.setSelected(false);
@@ -296,8 +296,20 @@ public class RoutePlannerPanel extends PluginPanel {
                 JPopupMenu routeMenu = new JPopupMenu();
                 JMenuItem deleteRoute = new JMenuItem("Delete Route");
                 deleteRoute.addActionListener(e -> plugin.deleteRoute(route));
+                JMenuItem renameRoute = new JMenuItem("Rename Route");
+                renameRoute.addActionListener(e -> {
+                    String newName = JOptionPane.showInputDialog(this,
+                        "Route name:", route.getName());
+                    if (newName != null && !newName.trim().isEmpty()
+                            && !newName.trim().equals(route.getName())) {
+                        route.setName(newName.trim());
+                        plugin.saveRoutesPublic();
+                        refresh();
+                    }
+                });
                 JMenuItem resetRoute = new JMenuItem("Reset Progress");
                 resetRoute.addActionListener(e -> { plugin.resetRoute(route); });
+                routeMenu.add(renameRoute);
                 routeMenu.add(resetRoute);
                 routeMenu.add(deleteRoute);
                 row.addMouseListener(new MouseAdapter() {
@@ -364,6 +376,33 @@ public class RoutePlannerPanel extends PluginPanel {
                             refresh();
                         }
                     });
+                    java.util.List<com.routeplanner.model.RouteSection> secList = active.getSections();
+                    JMenuItem moveSecUp = new JMenuItem("Move Up");
+                    moveSecUp.addActionListener(ev -> {
+                        int i = secList.indexOf(section);
+                        if (i > 0) {
+                            java.util.Collections.swap(secList, i, i - 1);
+                            plugin.saveRoutesPublic();
+                            refresh();
+                        }
+                    });
+                    JMenuItem moveSecDown = new JMenuItem("Move Down");
+                    moveSecDown.addActionListener(ev -> {
+                        int i = secList.indexOf(section);
+                        if (i >= 0 && i < secList.size() - 1) {
+                            java.util.Collections.swap(secList, i, i + 1);
+                            plugin.saveRoutesPublic();
+                            refresh();
+                        }
+                    });
+                    long secDone = section.getSteps().stream().filter(RouteStep::isCompleted).count();
+                    boolean allDone = !section.getSteps().isEmpty() && secDone == section.getSteps().size();
+                    JMenuItem markSec = new JMenuItem(allDone ? "Mark Section Incomplete" : "Mark Section Complete");
+                    markSec.addActionListener(ev -> {
+                        for (RouteStep s : section.getSteps()) s.setCompleted(!allDone);
+                        plugin.saveRoutesPublic();
+                        refresh();
+                    });
                     JMenuItem deleteSec = new JMenuItem("Delete Section");
                     deleteSec.addActionListener(ev -> {
                         int c = JOptionPane.showConfirmDialog(this,
@@ -377,13 +416,14 @@ public class RoutePlannerPanel extends PluginPanel {
                             refresh();
                         }
                     });
-                    if (dev) { secMenu.add(renameSec); secMenu.add(deleteSec); }
+                    if (dev) { secMenu.add(moveSecUp); secMenu.add(moveSecDown); secMenu.add(markSec); secMenu.add(renameSec); secMenu.add(deleteSec); }
+                    else { secMenu.add(markSec); }
 
                     final JPanel finalSecRow = secRow;
                     final com.routeplanner.model.RouteSection finalSection = section;
                     MouseAdapter secMa = new MouseAdapter() {
                         @Override public void mousePressed(MouseEvent e) {
-                            if (e.isPopupTrigger()) { secMenu.show(finalSecRow, e.getX(), e.getY()); return; }
+                            if (e.isPopupTrigger()) { final int mx = e.getX(), my = e.getY(); SwingUtilities.invokeLater(() -> secMenu.show(finalSecRow, mx, my)); return; }
                             if (SwingUtilities.isLeftMouseButton(e)) {
                                 selectedSectionId = finalSection.getId();
                                 finalSection.setCollapsed(!finalSection.isCollapsed());
@@ -392,7 +432,7 @@ public class RoutePlannerPanel extends PluginPanel {
                             }
                         }
                         @Override public void mouseReleased(MouseEvent e) {
-                            if (e.isPopupTrigger()) secMenu.show(finalSecRow, e.getX(), e.getY());
+                            if (e.isPopupTrigger()) { final int mx = e.getX(), my = e.getY(); SwingUtilities.invokeLater(() -> secMenu.show(finalSecRow, mx, my)); }
                         }
                     };
                     secRow.addMouseListener(secMa);
@@ -442,13 +482,37 @@ public class RoutePlannerPanel extends PluginPanel {
                             }
                         });
                         stepMenu.add(completeStep);
-                        if (dev) { stepMenu.add(editStep); stepMenu.add(deleteStep); }
+                        JMenu moveToSection = new JMenu("Move to Section");
+                        {
+                            java.util.List<com.routeplanner.model.RouteSection> allSecs = active.getSections();
+                            int others = 0;
+                            for (com.routeplanner.model.RouteSection ts : allSecs) {
+                                if (ts == section) continue;
+                                others++;
+                                final com.routeplanner.model.RouteSection targetSec = ts;
+                                JMenuItem mv = new JMenuItem(ts.getName());
+                                mv.addActionListener(ev -> {
+                                    active.removeStep(step);
+                                    active.addStepToSection(step, targetSec.getId());
+                                    plugin.saveRoutesPublic();
+                                    refresh();
+                                });
+                                moveToSection.add(mv);
+                            }
+                            if (others == 0) {
+                                JMenuItem none = new JMenuItem("(no other sections)");
+                                none.setEnabled(false);
+                                moveToSection.add(none);
+                            }
+                        }
+
+                        if (dev) { stepMenu.add(moveToSection); stepMenu.add(editStep); stepMenu.add(deleteStep); }
 
                         final JPanel finalRow = row;
                         MouseAdapter ma = new MouseAdapter() {
                             @Override public void mousePressed(MouseEvent e) {
-                                if (e.isPopupTrigger()) { stepMenu.show(finalRow, e.getX(), e.getY()); return; }
-                                if (reorderMode && SwingUtilities.isLeftMouseButton(e)) {
+                                if (e.isPopupTrigger()) { final int mx = e.getX(), my = e.getY(); SwingUtilities.invokeLater(() -> stepMenu.show(finalRow, mx, my)); return; }
+                                if (dev && SwingUtilities.isLeftMouseButton(e)) {
                                     draggedStep = step;
                                     draggedSection = finalSection;
                                     finalRow.setBackground(new Color(95, 95, 95));
@@ -466,7 +530,7 @@ public class RoutePlannerPanel extends PluginPanel {
                                 }
                             }
                             @Override public void mouseDragged(MouseEvent e) {
-                                if (!reorderMode || draggedStep == null) return;
+                                if (!dev || draggedStep == null) return;
                                 java.awt.Point pInList = SwingUtilities.convertPoint(
                                     (java.awt.Component) e.getSource(), e.getPoint(), stepListPanel);
                                 java.awt.Component target = nearestDropRow(pInList.y);
@@ -480,8 +544,8 @@ public class RoutePlannerPanel extends PluginPanel {
                                 }
                             }
                             @Override public void mouseReleased(MouseEvent e) {
-                                if (e.isPopupTrigger()) { stepMenu.show(finalRow, e.getX(), e.getY()); return; }
-                                if (reorderMode && draggedStep != null) {
+                                if (e.isPopupTrigger()) { final int mx = e.getX(), my = e.getY(); SwingUtilities.invokeLater(() -> stepMenu.show(finalRow, mx, my)); return; }
+                                if (dev && draggedStep != null) {
                                     java.awt.Point pInList = SwingUtilities.convertPoint(
                                         (java.awt.Component) e.getSource(), e.getPoint(), stepListPanel);
                                     if (dropTargetRow != null) dropTargetRow.setBackground(dropTargetOrigBg);
@@ -600,7 +664,7 @@ public class RoutePlannerPanel extends PluginPanel {
             String mode = step.getItemMode();
             String prefix = "SHOP".equals(mode) ? "Buy: "
                 : "SELL".equals(mode) ? "Sell: "
-                : "PICKUP".equals(mode) ? "Pickup: " : "Get: ";
+                : "PICKUP".equals(mode) ? "Pickup: " : "Bank: ";
             String firstName = items.split(",")[0].split("/")[0].trim();
             step.setName(prefix + firstName
                 + (items.contains(",") ? " +" + (items.split(",").length - 1) + " more" : ""));
@@ -719,7 +783,7 @@ public class RoutePlannerPanel extends PluginPanel {
             } else if (modeChoice == 2) {
                 mode = "SELL"; promptVerb = "sell"; prefix = "Sell: "; title = "Sell Item Step";
             } else if (modeChoice == 0) {
-                mode = "BANK"; promptVerb = "gather"; prefix = "Get: "; title = "Bank Item Step";
+                mode = "BANK"; promptVerb = "gather"; prefix = "Bank: "; title = "Bank Item Step";
             } else if (modeChoice == 3) {
                 mode = "PICKUP"; promptVerb = "pick up"; prefix = "Pickup: "; title = "Pickup Item Step";
             } else {

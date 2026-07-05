@@ -18,7 +18,6 @@ import java.util.function.Function;
 @Singleton
 public class SkillingNpcHighlighter {
 
-    private static final Color HIGHLIGHT_COLOR = new Color(255, 165, 0, 220);
 
     private final Client client;
     private final RoutePlannerPlugin plugin;
@@ -87,7 +86,7 @@ public class SkillingNpcHighlighter {
 
         return HighlightedNpc.builder()
             .npc(npc)
-            .highlightColor(HIGHLIGHT_COLOR)
+            .highlightColor(plugin.getConfig().npcHighlightColor())
             .outline(true)
             .hull(false)
             .tile(false)

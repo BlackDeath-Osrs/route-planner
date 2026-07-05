@@ -3,6 +3,7 @@ package com.routeplanner;
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
+import net.runelite.client.config.Alpha;
 import java.awt.Color;
 
 @ConfigGroup("routeplanner")
@@ -32,6 +33,7 @@ public interface RoutePlannerConfig extends Config {
     )
     default HudTheme hudTheme() { return HudTheme.OSRS_BROWN; }
 
+    @Alpha
     @ConfigItem(
         keyName = "tileHighlightColor",
         name = "Tile Highlight Color",
@@ -39,6 +41,7 @@ public interface RoutePlannerConfig extends Config {
     )
     default Color tileHighlightColor() { return new Color(0, 255, 0, 100); }
 
+    @Alpha
     @ConfigItem(
         keyName = "npcHighlightColor",
         name = "NPC/Object Highlight Color",
@@ -46,6 +49,7 @@ public interface RoutePlannerConfig extends Config {
     )
     default Color npcHighlightColor() { return new Color(255, 165, 0, 200); }
 
+    @Alpha
     @ConfigItem(
         keyName = "minimapColor",
         name = "Minimap Marker Color",
