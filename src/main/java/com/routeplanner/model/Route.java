@@ -43,6 +43,25 @@ public class Route {
             sections.add(def);
         }
         legacySteps = null;
+        // v1.2: old agility steps (StepType.AGILITY, now removed) deserialize with type==null.
+        // Convert them to the new skilling form (skill=AGILITY) + course start location.
+        for (RouteSection sec : sections) {
+            if (sec.getSteps() == null) continue;
+            for (RouteStep st : sec.getSteps()) {
+                if (st.getType() == null && st.getAgilityCourse() != null) {
+                    st.setType(StepType.SKILLING);
+                    st.setSkillingSkill("AGILITY");
+                    st.setSkillingGoalType(st.getAgilityGoalType() != null ? st.getAgilityGoalType() : "LEVEL");
+                    st.setSkillingGoalValue(st.getAgilityGoalValue());
+                    net.runelite.api.coords.WorldPoint loc =
+                        com.routeplanner.agility.AgilityCoursePresets.startLocation(st.getAgilityCourse());
+                    if (loc != null && st.getWorldPoint() == null) st.setWorldPoint(loc);
+                    if (st.getName() == null || st.getName().isEmpty()) {
+                        st.setName("Agility: " + st.getAgilityCourse());
+                    }
+                }
+            }
+        }
     }
 
     public RouteSection findSection(String id) {

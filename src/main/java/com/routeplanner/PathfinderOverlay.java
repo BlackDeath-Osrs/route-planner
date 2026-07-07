@@ -45,7 +45,7 @@ public class PathfinderOverlay extends Overlay {
         if (plugin.getActiveRoute() == null) return;
         RouteStep step = plugin.getActiveRoute().getActiveStep();
         if (step == null) return;
-        if (step.getType() == StepType.AGILITY) return;
+        if (step.isLocationReached()) { cachedPath = new ArrayList<>(); return; }
 
         WorldPoint target = step.getWorldPoint();
         if (target == null) { cachedPath = new ArrayList<>(); return; }
@@ -114,7 +114,7 @@ public class PathfinderOverlay extends Overlay {
         if (plugin.getActiveRoute() == null) return null;
         RouteStep step = plugin.getActiveRoute().getActiveStep();
         if (step == null) return null;
-        if (step.getType() == StepType.AGILITY) return null;
+        if (step.isLocationReached()) return null;
         if (cachedPath.isEmpty()) return null;
 
         WorldPoint player = client.getLocalPlayer().getWorldLocation();

@@ -42,7 +42,8 @@ public class StallHighlightOverlay extends Overlay {
     public Dimension render(Graphics2D graphics) {
         if (plugin.getActiveRoute() == null) return null;
         RouteStep step = plugin.getActiveRoute().getActiveStep();
-        if (step == null || step.getType() != StepType.SKILLING) return null;
+        if (step == null || !step.isHighlightEnabled() || step.getSkillingTargetObject() == null
+            || step.getSkillingTargetObject().trim().isEmpty()) return null;
         String targetName = step.getSkillingTargetObject();
         if (targetName == null || targetName.trim().isEmpty()) return null;
         String target = targetName.trim().toLowerCase();

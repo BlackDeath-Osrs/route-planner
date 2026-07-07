@@ -2,7 +2,6 @@ package com.routeplanner.bank;
 
 import com.routeplanner.RoutePlannerPlugin;
 import com.routeplanner.model.RouteStep;
-import com.routeplanner.model.StepType;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.widgets.ComponentID;
@@ -41,12 +40,9 @@ public class BankOverlay extends Overlay {
         RouteStep step = plugin.getActiveRoute().getActiveStep();
         if (step == null) return null;
 
-        boolean isItem = step.getType() == StepType.ITEM
-            && step.getItemList() != null && !step.getItemList().trim().isEmpty();
-        boolean isHerblore = step.getType() == StepType.SKILLING
-            && step.getHerblorePotion() != null;
-        boolean isBankSkill = step.getType() == StepType.SKILLING
-            && step.getBankHighlightItems() != null
+        boolean isItem = step.hasItems();
+        boolean isHerblore = step.isHighlightEnabled() && step.getHerblorePotion() != null;
+        boolean isBankSkill = step.isHighlightEnabled() && step.getBankHighlightItems() != null
             && !step.getBankHighlightItems().trim().isEmpty();
         if (!isItem && !isHerblore && !isBankSkill) return null;
 

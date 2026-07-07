@@ -44,7 +44,8 @@ public class DialogHighlightOverlay extends Overlay {
     public Dimension render(Graphics2D graphics) {
         if (plugin.getActiveRoute() == null) return null;
         RouteStep step = plugin.getActiveRoute().getActiveStep();
-        if (step == null || step.getType() != StepType.NOTE) return null;
+        if (step == null || step.getDialogOptions() == null
+            || step.getDialogOptions().trim().isEmpty()) return null;
         String seqStr = step.getDialogOptions();
         if (seqStr == null || seqStr.trim().isEmpty()) return null;
 

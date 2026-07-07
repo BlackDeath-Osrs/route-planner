@@ -122,55 +122,10 @@ public class BankItemManager {
     }
 
     // PICKUP: snapshot current counts of every item referenced in the list (baseline at step start)
-    public Map<String, Long> snapshotPickupBaseline(String itemListStr) {
-        Map<String, Long> all = inventoryQtyMap();
-        Map<String, Long> baseline = new HashMap<>();
-        for (List<String> group : parseItemList(itemListStr)) {
-            for (String alt : group) {
-                String name = parseItemName(alt).toLowerCase();
-                baseline.put(name, all.getOrDefault(name, 0L));
-            }
-        }
-        return baseline;
-    }
 
     // PICKUP: true once enough of each group's item has been gained since the baseline
-    public boolean hasPickedUpAll(String itemListStr, Map<String, Long> baseline) {
-        List<List<String>> groups = parseItemList(itemListStr);
-        if (groups.isEmpty()) return true;
-        Map<String, Long> now = inventoryQtyMap();
-        Map<String, Long> bsln = baseline == null ? Collections.emptyMap() : baseline;
-        for (List<String> group : groups) {
-            boolean satisfied = false;
-            for (String alt : group) {
-                String name = parseItemName(alt).toLowerCase();
-                long required = parseQuantityValue(alt);
-                long gained = now.getOrDefault(name, 0L) - bsln.getOrDefault(name, 0L);
-                if (gained >= required) { satisfied = true; break; }
-            }
-            if (!satisfied) return false;
-        }
-        return true;
-    }
 
     // PICKUP: how many gained so far (summed across groups, best alternative each) -- for HUD
-    public long pickedUpCount(String itemListStr, Map<String, Long> baseline) {
-        List<List<String>> groups = parseItemList(itemListStr);
-        if (groups.isEmpty()) return 0;
-        Map<String, Long> now = inventoryQtyMap();
-        Map<String, Long> bsln = baseline == null ? Collections.emptyMap() : baseline;
-        long total = 0;
-        for (List<String> group : groups) {
-            long best = 0;
-            for (String alt : group) {
-                String name = parseItemName(alt).toLowerCase();
-                long gained = now.getOrDefault(name, 0L) - bsln.getOrDefault(name, 0L);
-                if (gained > best) best = gained;
-            }
-            total += Math.max(0, best);
-        }
-        return total;
-    }
 
     // PICKUP: total required across groups (largest alternative each) -- for HUD
     public long pickupRequired(String itemListStr) {

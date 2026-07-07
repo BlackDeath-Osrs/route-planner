@@ -2,7 +2,6 @@ package com.routeplanner.bank;
 
 import com.routeplanner.RoutePlannerPlugin;
 import com.routeplanner.model.RouteStep;
-import com.routeplanner.model.StepType;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.ScriptID;
@@ -67,8 +66,7 @@ public class BankFilterButton {
     private void addFilterButton() {
         if (plugin.getActiveRoute() == null) return;
         RouteStep step = plugin.getActiveRoute().getActiveStep();
-        if (step == null || step.getType() != StepType.ITEM) return;
-        if (step.getItemList() == null || step.getItemList().trim().isEmpty()) return;
+        if (step == null || !step.hasItems()) return;
 
         Widget bankContainer = client.getWidget(ComponentID.BANK_CONTAINER);
         if (bankContainer == null) return;

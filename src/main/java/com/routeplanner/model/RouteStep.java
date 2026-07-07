@@ -10,6 +10,7 @@ public class RouteStep {
     private WorldPoint worldPoint;
     private int targetId;
     private boolean completed;
+    private transient boolean locationReached; // true once player reached worldPoint; nav visuals off (sticky)
     private String sectionId;   // which RouteSection this step belongs to
 
     // Agility task fields
@@ -35,6 +36,9 @@ public class RouteStep {
     private net.runelite.api.coords.WorldPoint teleportDestination; // destination WorldPoint
     private int teleportSpellId;      // widget child ID for highlighting  // matches net.runelite.api.Quest enum name
 
+    private String teleportMethod;    // Phase 2: "SPELL" or "ITEM" (null = walk only)
+    private String teleportItem;      // Phase 2: item name for ITEM teleports (e.g. "Amulet of glory")
+
     // Skilling step fields
     private String skillingSkill;      // e.g. "THIEVING"
     private String skillingGoalType;   // "XP_GAIN", "XP_TARGET", "LEVEL"
@@ -50,6 +54,8 @@ public class RouteStep {
     // Note step (informational, not tracked)
     private String noteText;
     private String npcHighlight; // NOTE step: optional NPC name to highlight
+    private boolean highlightEnabled; // master toggle: light up this step's in-game targets (default off)
+    private String recipeLabel; // editor: the exact recipe/method dropdown label chosen (for reverse-prefill)
     private int npcKillCount;    // NOTE step: kills to auto-complete (0 = manual)
     private transient int npcKillProgress; // kills so far while this step is active
     private String dialogOptions;          // NOTE step: chat option sequence to highlight, e.g. "3,1""
@@ -60,17 +66,6 @@ public class RouteStep {
         this.worldPoint = worldPoint;
         this.targetId = targetId;
         this.completed = false;
-    }
-
-    public RouteStep(String name, String agilityCourse, String agilityGoalType, long agilityGoalValue) {
-        this.name = name;
-        this.type = StepType.AGILITY;
-        this.worldPoint = null;
-        this.targetId = -1;
-        this.completed = false;
-        this.agilityCourse = agilityCourse;
-        this.agilityGoalType = agilityGoalType;
-        this.agilityGoalValue = agilityGoalValue;
     }
 
     // Constructor for skilling steps
@@ -85,5 +80,31 @@ public class RouteStep {
         this.skillingGoalValue = goalValue;
         this.skillingStartXp = startXp;
         this.skillingProgress = 0;
+    }
+
+    // --- Component presence helpers (Phase 2) ---
+    // A component is a view over fields the step already carries.
+    // Descriptive only; nothing branches on these yet.
+
+    public boolean hasLocation() {
+        return worldPoint != null || teleportMethod != null;
+    }
+
+    public boolean hasItems() {
+        return itemList != null && !itemList.trim().isEmpty();
+    }
+
+    public boolean hasSkillGoal() {
+        return skillingSkill != null && !skillingSkill.trim().isEmpty();
+    }
+
+    public boolean hasHighlight() {
+        return (skillingTargetNpc != null && !skillingTargetNpc.trim().isEmpty())
+            || (skillingTargetObject != null && !skillingTargetObject.trim().isEmpty())
+            || (npcHighlight != null && !npcHighlight.trim().isEmpty());
+    }
+
+    public boolean hasNote() {
+        return noteText != null && !noteText.trim().isEmpty();
     }
 }

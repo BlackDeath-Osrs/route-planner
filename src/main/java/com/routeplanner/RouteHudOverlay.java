@@ -1,7 +1,5 @@
 package com.routeplanner;
 
-import com.routeplanner.agility.AgilityTask;
-import com.routeplanner.agility.AgilityObstacle;
 import com.routeplanner.model.Route;
 import com.routeplanner.model.RouteStep;
 import net.runelite.api.Client;
@@ -59,12 +57,11 @@ public class RouteHudOverlay extends Overlay {
     @Override
     public Dimension render(Graphics2D graphics) {
         Route activeRoute = plugin.getActiveRoute();
-        AgilityTask agilityTask = plugin.getAgilityTaskManager().getActiveTask();
 
-        if (activeRoute == null && agilityTask == null) return null;
+        if (activeRoute == null) return null;
 
         int fontStyle = config.hudFontBold() ? Font.BOLD : Font.PLAIN;
-        graphics.setFont(new Font("Arial", fontStyle, config.hudFontSize()));
+        graphics.setFont(config.hudFontFamily().toFont(config.hudFontSize(), fontStyle));
         FontMetrics fm = graphics.getFontMetrics();
         int lineHeight = fm.getHeight() + 3;
         int padding = 7;
@@ -87,6 +84,11 @@ public class RouteHudOverlay extends Overlay {
             }
         }
 
+        // Route fully complete (or empty): hide the HUD entirely
+        if (activeRoute != null && !routeHasIncompleteStep) {
+            return null;
+        }
+
         // Show route name as title always
         if (activeRoute != null) {
             lines.add(new String[]{activeRoute.getName(), "TITLE"});
@@ -100,45 +102,12 @@ public class RouteHudOverlay extends Overlay {
                 RouteStep next = steps.get(routeCurrentIdx + 1);
                 lines.add(new String[]{"   " + (routeCurrentIdx + 2) + ". " + next.getName(), "NEXT"});
             }
-        } else if (agilityTask != null) {
-            // Route complete or no route — show agility task
-            List<AgilityObstacle> obstacles = agilityTask.getCourse().getObstacles();
-            int currentIdx = agilityTask.getCurrentObstacleIndex();
-
-            AgilityObstacle current = agilityTask.getCurrentObstacle();
-            if (current != null) {
-                // Skilling progress inline
-                com.routeplanner.model.RouteStep curStep = steps.get(currentIdx);
-                String stepLine;
-                if (curStep.getType() == com.routeplanner.model.StepType.SKILLING && curStep.getSkillingGoalType() != null) {
-                    String sk = curStep.getSkillingSkill() != null ? curStep.getSkillingSkill().substring(0,1).toUpperCase() + curStep.getSkillingSkill().substring(1).toLowerCase() : "?";
-                    String gt = curStep.getSkillingGoalType();
-                    if (gt.equals("XP_GAIN")) {
-                        stepLine = ">> " + (currentIdx+1) + ". " + sk + ": +" + String.format("%,d", curStep.getSkillingProgress()) + "/+" + String.format("%,d", curStep.getSkillingGoalValue()) + " xp";
-                    } else if (gt.equals("XP_TARGET")) {
-                        net.runelite.api.Skill apiSk = null; try { apiSk = net.runelite.api.Skill.valueOf(curStep.getSkillingSkill().toUpperCase()); } catch (Exception e2) {}
-                        long curXp = apiSk != null ? client.getSkillExperience(apiSk) : 0;
-                        stepLine = ">> " + (currentIdx+1) + ". " + sk + ": " + String.format("%,d", curXp) + "/" + String.format("%,d", curStep.getSkillingGoalValue()) + " xp";
-                    } else if (gt.equals("LEVEL")) {
-                        net.runelite.api.Skill apiSk = null; try { apiSk = net.runelite.api.Skill.valueOf(curStep.getSkillingSkill().toUpperCase()); } catch (Exception e2) {}
-                        int curLvl = apiSk != null ? client.getRealSkillLevel(apiSk) : 0;
-                        stepLine = ">> " + (currentIdx+1) + ". " + sk + " level: " + curLvl + "/" + curStep.getSkillingGoalValue();
-                    } else { stepLine = ">> " + (currentIdx+1) + ". " + curStep.getName(); }
-                } else { stepLine = ">> " + (currentIdx+1) + ". " + curStep.getName(); }
-                lines.add(new String[]{stepLine, "CURRENT"});
-            }
-            int nextIdx = (currentIdx + 1) % obstacles.size();
-            AgilityObstacle next = obstacles.get(nextIdx);
-            lines.add(new String[]{"   " + (nextIdx + 1) + ". " + next.getName(), "NEXT"});
-        } else if (!routeHasIncompleteStep && activeRoute != null) {
-            lines.add(new String[]{"Route Complete!", "CURRENT"});
         }
 
         // Item checklist section for ITEM steps
         if (routeHasIncompleteStep) {
             RouteStep curStep = steps.get(routeCurrentIdx);
-            if (curStep.getType() == com.routeplanner.model.StepType.ITEM
-                    && curStep.getItemList() != null && !curStep.getItemList().trim().isEmpty()) {
+            if (curStep.hasItems()) {
                 lines.add(new String[]{"---", "DIM"});
                 String mode = curStep.getItemMode();
                 if ("SELL".equals(mode)) {
@@ -163,7 +132,7 @@ public class RouteHudOverlay extends Overlay {
         // Note step section (informational, not tracked)
         if (routeHasIncompleteStep) {
             RouteStep curStep = steps.get(routeCurrentIdx);
-            if (curStep.getType() == com.routeplanner.model.StepType.NOTE) {
+            if (curStep.hasNote()) {
                 lines.add(new String[]{"---", "DIM"});
                 String note = (curStep.getNoteText() != null && !curStep.getNoteText().isEmpty())
                     ? curStep.getNoteText() : curStep.getName();
@@ -185,7 +154,7 @@ public class RouteHudOverlay extends Overlay {
         // Add XP tracker section if there is an active skilling step
         if (plugin.getActiveRoute() != null) {
             for (com.routeplanner.model.RouteStep s : plugin.getActiveRoute().getSteps()) {
-                if (!s.isCompleted() && s.getType() == com.routeplanner.model.StepType.SKILLING
+                if (!s.isCompleted() && s.hasSkillGoal()
                         && s.getSkillingGoalType() != null) {
                     String sk = s.getSkillingSkill() != null
                         ? s.getSkillingSkill().substring(0,1).toUpperCase()
@@ -237,6 +206,15 @@ public class RouteHudOverlay extends Overlay {
             haveC    = new Color(0, 255, 0);
             dimC     = new Color(170, 170, 170);
             dividerC = new Color(255, 255, 255, 40);
+        } else if (theme == com.routeplanner.HudTheme.CUSTOM) {
+            bgC      = config.hudBgColor();
+            borderC  = config.hudBorderColor();
+            titleC   = config.hudTitleColor();
+            currentC = config.hudCurrentColor();
+            nextC    = config.hudNextColor();
+            haveC    = config.hudHaveColor();
+            dimC     = config.hudDimColor();
+            dividerC = config.hudDividerColor();
         } else { // OSRS_BROWN (default)
             bgC      = BG_COLOR;
             borderC  = BORDER_COLOR;
@@ -251,9 +229,13 @@ public class RouteHudOverlay extends Overlay {
         // Background
         graphics.setColor(bgC);
         graphics.fillRoundRect(0, 0, width, totalHeight, 6, 6);
-        graphics.setColor(borderC);
-        graphics.setStroke(new BasicStroke(1));
-        graphics.drawRoundRect(0, 0, width - 1, totalHeight - 1, 6, 6);
+        boolean drawOutline = theme != com.routeplanner.HudTheme.CUSTOM || config.hudOutline();
+        if (drawOutline) {
+            int thickness = theme == com.routeplanner.HudTheme.CUSTOM ? Math.max(1, config.hudBorderThickness()) : 1;
+            graphics.setColor(borderC);
+            graphics.setStroke(new BasicStroke(thickness));
+            graphics.drawRoundRect(0, 0, width - 1, totalHeight - 1, 6, 6);
+        }
 
         // Text
         int y = padding + fm.getAscent();

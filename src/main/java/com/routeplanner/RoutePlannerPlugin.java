@@ -4,8 +4,6 @@ import com.google.inject.Provides;
 import com.routeplanner.model.Route;
 import com.routeplanner.model.RouteStep;
 import com.routeplanner.model.StepType;
-import com.routeplanner.agility.AgilityOverlay;
-import com.routeplanner.agility.AgilityTaskManager;
 import com.routeplanner.util.RouteSerializer;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -40,6 +38,7 @@ public class RoutePlannerPlugin extends Plugin {
     @Inject @Getter private Client client;
     @Inject private com.google.gson.Gson gson;
     @Inject @Getter private net.runelite.client.game.SpriteManager spriteManager;
+    @Inject @Getter private net.runelite.client.game.ItemManager itemManager;
     @Inject private ClientToolbar clientToolbar;
     @Inject private OverlayManager overlayManager;
     @Inject @Getter private net.runelite.client.callback.ClientThread clientThread;
@@ -52,13 +51,13 @@ public class RoutePlannerPlugin extends Plugin {
     @Inject private WorldMapPathOverlay worldMapPathOverlay;
     @Inject private RouteHudOverlay routeHudOverlay;
     @Inject @Getter private PathfinderOverlay pathfinderOverlay;
-    @Inject private com.routeplanner.agility.MarkOfGraceOverlay markOfGraceOverlay;
     @Inject private com.routeplanner.bank.BankOverlay bankOverlay;
     @Inject private com.routeplanner.bank.BankItemManager bankItemManager;
     private com.routeplanner.model.RouteStep lastKillStep = null;
-    private com.routeplanner.model.RouteStep lastPickupStep = null;
     @Inject private com.routeplanner.dialog.DialogHighlightOverlay dialogHighlightOverlay;
     @Inject private com.routeplanner.skilling.StallHighlightOverlay stallHighlightOverlay;
+    @Inject private com.routeplanner.teleport.SpellbookOverlay spellbookOverlay;
+    @Inject private com.routeplanner.teleport.TeleportItemOverlay teleportItemOverlay;
     private com.routeplanner.model.RouteStep lastDialogStep = null;
     private int dialogProgress = 0;
     private boolean dialogOptionsVisibleLast = false;
@@ -85,9 +84,7 @@ public class RoutePlannerPlugin extends Plugin {
     @Inject private com.routeplanner.bank.ShopOverlay shopOverlay;
     @Inject private com.routeplanner.bank.GroundItemOverlay groundItemOverlay;
     @Inject @Getter private TileMenuHandler tileMenuHandler;
-    @Inject @Getter private AgilityTaskManager agilityTaskManager;
     @Inject private SkillingNpcHighlighter skillingNpcHighlighter;
-    @Inject private AgilityOverlay agilityOverlay;
 
     private static final net.runelite.api.Skill[] NPC_GOAL_SKILLS = {
         net.runelite.api.Skill.THIEVING, net.runelite.api.Skill.ATTACK,
@@ -132,20 +129,18 @@ public class RoutePlannerPlugin extends Plugin {
         overlayManager.add(minimapArrowOverlay);
         overlayManager.add(worldMapPathOverlay);
         overlayManager.add(routeHudOverlay);
-        overlayManager.add(markOfGraceOverlay);
-        eventBus.register(markOfGraceOverlay);
         overlayManager.add(bankOverlay);
         overlayManager.add(shopOverlay);
         overlayManager.add(groundItemOverlay);
         overlayManager.add(dialogHighlightOverlay);
         overlayManager.add(stallHighlightOverlay);
+        overlayManager.add(spellbookOverlay);
+        overlayManager.add(teleportItemOverlay);
         eventBus.register(bankFilterButton);
         eventBus.register(tileMenuHandler);
         tileMenuHandler.startUp();
-        eventBus.register(agilityTaskManager);
         skillingNpcHighlighter.startUp();
         eventBus.register(skillingNpcHighlighter);
-        overlayManager.add(agilityOverlay);
     }
 
     @Override
@@ -158,21 +153,19 @@ public class RoutePlannerPlugin extends Plugin {
         overlayManager.remove(minimapArrowOverlay);
         overlayManager.remove(worldMapPathOverlay);
         overlayManager.remove(routeHudOverlay);
-        overlayManager.remove(markOfGraceOverlay);
-        eventBus.unregister(markOfGraceOverlay);
         overlayManager.remove(bankOverlay);
         overlayManager.remove(shopOverlay);
         overlayManager.remove(groundItemOverlay);
         overlayManager.remove(dialogHighlightOverlay);
         overlayManager.remove(stallHighlightOverlay);
+        overlayManager.remove(spellbookOverlay);
+        overlayManager.remove(teleportItemOverlay);
         eventBus.unregister(bankFilterButton);
         bankFilterButton.reset();
         eventBus.unregister(tileMenuHandler);
         tileMenuHandler.shutDown();
-        eventBus.unregister(agilityTaskManager);
         eventBus.unregister(skillingNpcHighlighter);
         skillingNpcHighlighter.shutDown();
-        overlayManager.remove(agilityOverlay);
     }
 
     public void createRoute(String name) {
@@ -205,27 +198,181 @@ public class RoutePlannerPlugin extends Plugin {
         saveRoutes();
         panel.refresh();
         // Rebuild NPC highlights immediately when a skilling step is added
-        if ((step.getType() == StepType.SKILLING && step.getSkillingTargetNpc() != null)
-                || (step.getType() == StepType.NOTE && step.getNpcHighlight() != null)) {
+        if (step.hasHighlight()) {
             skillingNpcHighlighter.rebuild();
         }
     }
 
     public void removeStep(Route route, RouteStep step) {
-        // Stop agility task if we're removing an agility step
-        if (step.getType() == StepType.AGILITY && agilityTaskManager.getActiveTask() != null) {
-            agilityTaskManager.stopTask();
-        }
         route.removeStep(step);
         saveRoutes();
         panel.refresh();
     }
 
+    /**
+     * Complete a step only when EVERY trackable component present on it is satisfied.
+     * A component that is absent is vacuously satisfied. This is the multi-component rule:
+     * e.g. a Bank-items + Skill-goal step completes only after BOTH the items are held
+     * AND the skill goal is reached.
+     */
+    private void tryCompleteStep(RouteStep step) {
+        if (step == null) return;
+        boolean itemsOk = !step.hasItems() || itemsSatisfied(step);
+        boolean skillOk = !step.hasSkillGoal() || skillGoalSatisfied(step);
+        if (itemsOk && skillOk) {
+            completeStep(step);
+        }
+    }
+
+    private boolean itemsSatisfied(RouteStep step) {
+        if (!step.hasItems()) return true;
+        if ("SELL".equals(step.getItemMode())) {
+            return step.isSellArmed() && bankItemManager.hasSoldAll(step.getItemList());
+        }
+        return bankItemManager.hasAllItems(step.getItemList());
+    }
+
+    private boolean skillGoalSatisfied(RouteStep step) {
+        if (!step.hasSkillGoal()) return true;
+        if (step.getSkillingSkill() == null || step.getSkillingGoalType() == null) return false;
+        net.runelite.api.Skill skill;
+        try {
+            skill = net.runelite.api.Skill.valueOf(step.getSkillingSkill().toUpperCase());
+        } catch (Exception e) {
+            return false;
+        }
+        String goalType = step.getSkillingGoalType();
+        if ("XP_GAIN".equals(goalType)) {
+            return step.getSkillingProgress() >= step.getSkillingGoalValue();
+        } else if ("XP_TARGET".equals(goalType)) {
+            return client.getSkillExperience(skill) >= step.getSkillingGoalValue();
+        } else if ("LEVEL".equals(goalType)) {
+            return client.getRealSkillLevel(skill) >= step.getSkillingGoalValue();
+        }
+        return false;
+    }
+
+    /**
+     * Clear all transient per-step progress so an un-completed (or re-activated) step
+     * behaves as if fresh: location nav re-arms, SELL re-arms, XP_GAIN re-baselines.
+     */
+    public void resetStepProgress(RouteStep step) {
+        if (step == null) return;
+        step.setLocationReached(false);
+        step.setSellArmed(false);
+        step.setSkillingProgress(0);
+        if ("XP_GAIN".equals(step.getSkillingGoalType())) {
+            step.setSkillingStartXp(0); // re-capture baseline on next StatChanged
+        }
+    }
+
+    /** Force overlays/panel to re-read the active step immediately (e.g. after an edit). */
+    public void refreshHighlights() {
+        if (panel != null) panel.refresh();
+        if (skillingNpcHighlighter != null) skillingNpcHighlighter.rebuild();
+    }
+
+    /**
+     * Read the resource pack's overlay background color (RuneLite config "overlayBackgroundColor",
+     * which resource packs set) and derive a matching HUD palette. Instant + exact + pack-aware,
+     * and updates whenever the pack changes. Falls back to sprite sampling if the value is absent.
+     */
+    private void sampleInterfacePalette() {
+        Integer argb = configManager.getConfiguration("runelite", "overlayBackgroundColor", Integer.class);
+        if (argb != null) {
+            java.awt.Color base = new java.awt.Color(argb, true); // decode ARGB, keep it opaque for the base
+            java.awt.Color solid = new java.awt.Color(base.getRed(), base.getGreen(), base.getBlue());
+            log.info("HUD match: read overlayBackgroundColor = {},{},{}", solid.getRed(), solid.getGreen(), solid.getBlue());
+            applyDerivedPalette(solid);
+            return;
+        }
+        log.info("HUD match: overlayBackgroundColor not set, falling back to sprite sampling");
+        trySampleSprite(0);
+    }
+
+    /** Sprite IDs to try if the config color is unavailable (fallback path). */
+    private static final int[] SAMPLE_SPRITE_IDS = { 297, 1035, 172, 173 };
+
+    private void trySampleSprite(int idx) {
+        if (idx >= SAMPLE_SPRITE_IDS.length) {
+            log.info("HUD match: no usable sprite color found");
+            return;
+        }
+        final int spriteId = SAMPLE_SPRITE_IDS[idx];
+        spriteManager.getSpriteAsync(spriteId, 0, img -> {
+            java.awt.Color avg = averageColor(img);
+            if (avg == null) {
+                trySampleSprite(idx + 1);
+                return;
+            }
+            applyDerivedPalette(avg);
+        });
+    }
+
+    /** Mean RGB of the opaque pixels; null if the image is empty/too transparent. */
+    private java.awt.Color averageColor(java.awt.image.BufferedImage img) {
+        if (img == null) return null;
+        long r = 0, g = 0, b = 0, n = 0;
+        int w = img.getWidth(), h = img.getHeight();
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                int argb = img.getRGB(x, y);
+                int a = (argb >>> 24) & 0xFF;
+                if (a < 128) continue; // skip transparent
+                r += (argb >> 16) & 0xFF;
+                g += (argb >> 8) & 0xFF;
+                b += argb & 0xFF;
+                n++;
+            }
+        }
+        if (n == 0) return null;
+        return new java.awt.Color((int)(r / n), (int)(g / n), (int)(b / n));
+    }
+
+    private java.awt.Color lighten(java.awt.Color c, double f) {
+        int r = (int) Math.min(255, c.getRed()   + (255 - c.getRed())   * f);
+        int g = (int) Math.min(255, c.getGreen() + (255 - c.getGreen()) * f);
+        int b = (int) Math.min(255, c.getBlue()  + (255 - c.getBlue())  * f);
+        return new java.awt.Color(r, g, b);
+    }
+
+    private java.awt.Color darken(java.awt.Color c, double f) {
+        return new java.awt.Color(
+            (int)(c.getRed() * (1 - f)),
+            (int)(c.getGreen() * (1 - f)),
+            (int)(c.getBlue() * (1 - f)));
+    }
+
+    /** Derive a full HUD palette from one sampled base color and write it to config (Theme -> Custom). */
+    private void applyDerivedPalette(java.awt.Color base) {
+        java.awt.Color body    = new java.awt.Color(base.getRed(), base.getGreen(), base.getBlue(), 64);
+        java.awt.Color border  = new java.awt.Color(lighten(base, 0.35).getRed(), lighten(base, 0.35).getGreen(), lighten(base, 0.35).getBlue(), 180);
+        java.awt.Color title   = lighten(base, 0.75);
+        java.awt.Color current = lighten(base, 0.9);
+        java.awt.Color next    = lighten(base, 0.55);
+        java.awt.Color have    = new java.awt.Color(110, 210, 90); // keep green (functional signal)
+        java.awt.Color dim     = lighten(darken(base, 0.1), 0.4);
+        java.awt.Color divider = new java.awt.Color(lighten(base, 0.4).getRed(), lighten(base, 0.4).getGreen(), lighten(base, 0.4).getBlue(), 45);
+
+        setCol("hudBgColor", body);
+        setCol("hudBorderColor", border);
+        setCol("hudTitleColor", title);
+        setCol("hudCurrentColor", current);
+        setCol("hudNextColor", next);
+        setCol("hudHaveColor", have);
+        setCol("hudDimColor", dim);
+        setCol("hudDividerColor", divider);
+        configManager.setConfiguration("routeplanner", "hudTheme", com.routeplanner.HudTheme.CUSTOM);
+        refreshHighlights();
+        log.info("HUD match: derived palette from base {},{},{}", base.getRed(), base.getGreen(), base.getBlue());
+    }
+
+    private void setCol(String key, java.awt.Color c) {
+        configManager.setConfiguration("routeplanner", key, c);
+    }
+
     public void completeStep(RouteStep step) {
         step.setCompleted(true);
-        if (step.getType() == StepType.AGILITY && agilityTaskManager.getActiveTask() != null) {
-            agilityTaskManager.stopTask();
-        }
         autoAdvanceSections();
         saveRoutes();
         panel.refresh();
@@ -290,7 +437,7 @@ public class RoutePlannerPlugin extends Plugin {
         }
     }
 
-    private void saveRoutes() {
+    public void saveRoutes() {
         configManager.setConfiguration("routeplanner", "routes", RouteSerializer.toJson(routes, getRouteGson()));
     }
 
@@ -311,8 +458,7 @@ public class RoutePlannerPlugin extends Plugin {
         RouteStep step = activeRoute.getActiveStep();
 
         // Rebuild NPC highlights when skilling step is active
-        if (step != null && step.getType() == StepType.SKILLING
-                && step.getSkillingTargetNpc() != null) {
+        if (step != null && step.getSkillingTargetNpc() != null) {
             // Rebuild every 10 ticks to catch any missed spawns
             if (client.getTickCount() % 10 == 0) {
                 skillingNpcHighlighter.rebuild();
@@ -320,8 +466,7 @@ public class RoutePlannerPlugin extends Plugin {
         }
 
         // Check item step completion
-        if (step != null && step.getType() == StepType.ITEM
-                && step.getItemList() != null) {
+        if (step != null && step.hasItems()) {
             boolean done;
             if ("SELL".equals(step.getItemMode())) {
                 // Arm once the items are seen in inventory, complete only after they're gone
@@ -330,26 +475,19 @@ public class RoutePlannerPlugin extends Plugin {
                 }
                 done = step.isSellArmed() && bankItemManager.hasSoldAll(step.getItemList());
             } else if ("PICKUP".equals(step.getItemMode())) {
-                // Count only items picked up while THIS step is active (snapshot baseline on activation)
-                if (step != lastPickupStep) {
-                    if (lastPickupStep != null) lastPickupStep.setPickupBaseline(null);
-                    step.setPickupBaseline(bankItemManager.snapshotPickupBaseline(step.getItemList()));
-                    lastPickupStep = step;
-                } else if (step.getPickupBaseline() == null) {
-                    step.setPickupBaseline(bankItemManager.snapshotPickupBaseline(step.getItemList()));
-                }
-                done = bankItemManager.hasPickedUpAll(step.getItemList(), step.getPickupBaseline());
+                // "Have N in inventory" -- same absolute check as BANK; where you got them
+                // only matters for highlighting, handled by GroundItemOverlay.
+                done = bankItemManager.hasAllItems(step.getItemList());
             } else {
                 done = bankItemManager.hasAllItems(step.getItemList());
             }
             if (done) {
-                completeStep(step);
+                tryCompleteStep(step);
             }
         }
 
         // Reset kill progress + light up the NPC when a note-kill step becomes active
-        if (step != null && step.getType() == StepType.NOTE
-                && step.getNpcHighlight() != null && step.getNpcKillCount() > 0) {
+        if (step != null && step.getNpcHighlight() != null && step.getNpcKillCount() > 0 && step.isHighlightEnabled()) {
             if (step != lastKillStep) {
                 step.setNpcKillProgress(0);
                 lastKillStep = step;
@@ -358,8 +496,7 @@ public class RoutePlannerPlugin extends Plugin {
         }
 
         // Dialogue option highlighting: advance through the sequence as menus open/close
-        if (step != null && step.getType() == StepType.NOTE
-                && step.getDialogOptions() != null && !step.getDialogOptions().trim().isEmpty()) {
+        if (step != null && step.getDialogOptions() != null && !step.getDialogOptions().trim().isEmpty()) {
             if (step != lastDialogStep) {
                 lastDialogStep = step;
                 dialogProgress = 0;
@@ -375,7 +512,7 @@ public class RoutePlannerPlugin extends Plugin {
             if (!optionsVisible && dialogOptionsVisibleLast) {
                 dialogProgress++;
                 if (dialogProgress >= step.getDialogOptions().split(",").length) {
-                    completeStep(step);
+                    tryCompleteStep(step);
                 }
             }
             dialogOptionsVisibleLast = optionsVisible;
@@ -385,8 +522,8 @@ public class RoutePlannerPlugin extends Plugin {
         }
 
         // Check teleport completion - detect when player is within 25 tiles of destination
-        if (step != null && step.getType() == StepType.TELEPORT
-                && step.getTeleportDestination() != null) {
+        if (step != null && step.getTeleportDestination() != null
+                && !step.hasSkillGoal() && !step.hasItems() && !step.hasNote()) {
             net.runelite.api.coords.WorldPoint playerPos = client.getLocalPlayer().getWorldLocation();
             int dist = playerPos.distanceTo(step.getTeleportDestination());
             if (dist <= 25) {
@@ -395,30 +532,18 @@ public class RoutePlannerPlugin extends Plugin {
             }
         }
 
-        // Auto-start agility task when it becomes the active step
-        if (step != null && step.getType() == StepType.AGILITY
-                && !step.isCompleted()
-                && agilityTaskManager.getActiveTask() == null) {
-            com.routeplanner.agility.AgilityCourse course =
-                com.routeplanner.agility.AgilityCoursePresets.ALL.stream()
-                    .filter(c -> c.getName().equals(step.getAgilityCourse()))
-                    .findFirst().orElse(null);
-            if (course != null) {
-                try {
-                    com.routeplanner.agility.GoalType goalType =
-                        com.routeplanner.agility.GoalType.valueOf(step.getAgilityGoalType());
-                    agilityTaskManager.startTask(course, goalType, step.getAgilityGoalValue());
-                    log.info("Auto-started agility task: {}", course.getName());
-                } catch (Exception e) {
-                    log.warn("Failed to auto-start agility task", e);
-                }
-            }
-            return;
-        }
 
         if (step == null) return;
 
-        if (step.getType() == StepType.LOCATION) {
+        // Sticky "reached": once we arrive, nav visuals (line + tile) switch off for the rest of the step
+        if (step.getWorldPoint() != null && !step.isLocationReached()
+                && client.getLocalPlayer() != null
+                && client.getLocalPlayer().getWorldLocation().distanceTo(step.getWorldPoint()) <= 3) {
+            step.setLocationReached(true);
+        }
+
+        if (step.getWorldPoint() != null
+                && !step.hasSkillGoal() && !step.hasItems() && !step.hasNote()) {
             WorldPoint playerPos = client.getLocalPlayer().getWorldLocation();
             if (playerPos.distanceTo(step.getWorldPoint()) <= 3) {
                 completeStep(step);
@@ -430,7 +555,7 @@ public class RoutePlannerPlugin extends Plugin {
     public void onStatChanged(net.runelite.api.events.StatChanged event) {
         if (activeRoute == null) return;
         RouteStep step = activeRoute.getActiveStep();
-        if (step == null || step.getType() != StepType.SKILLING) return;
+        if (step == null || !step.hasSkillGoal()) return;
         if (step.getSkillingSkill() == null || step.getSkillingGoalType() == null) return;
 
         // Dynamically resolve skill by name
@@ -455,18 +580,18 @@ public class RoutePlannerPlugin extends Plugin {
             log.info("Skilling XP gained: {}/{}", gained, step.getSkillingGoalValue());
             if (gained >= step.getSkillingGoalValue()) {
                 log.info("Skilling XP gain goal reached!");
-                completeStep(step);
+                tryCompleteStep(step);
             }
             if (panel != null) panel.refresh();
         } else if (goalType.equals("XP_TARGET")) {
             if (event.getXp() >= step.getSkillingGoalValue()) {
                 log.info("Skilling XP target reached: {}", event.getXp());
-                completeStep(step);
+                tryCompleteStep(step);
             }
         } else if (goalType.equals("LEVEL")) {
             if (event.getLevel() >= step.getSkillingGoalValue()) {
                 log.info("Skilling level goal reached: {}", event.getLevel());
-                completeStep(step);
+                tryCompleteStep(step);
             }
         }
     }
@@ -486,7 +611,7 @@ public class RoutePlannerPlugin extends Plugin {
     public void onItemDespawned(ItemDespawned event) {
         if (activeRoute == null) return;
         RouteStep step = activeRoute.getActiveStep();
-        if (step == null || step.getType() != StepType.ITEM) return;
+        if (step == null || !step.hasItems()) return;
         if (event.getTile().getWorldLocation().equals(step.getWorldPoint())) {
             completeStep(step);
         }
@@ -501,8 +626,8 @@ public class RoutePlannerPlugin extends Plugin {
     public void onActorDeath(net.runelite.api.events.ActorDeath event) {
         if (activeRoute == null) return;
         RouteStep step = activeRoute.getActiveStep();
-        if (step == null || step.getType() != StepType.NOTE) return;
-        if (step.getNpcHighlight() == null || step.getNpcKillCount() <= 0) return;
+        if (step == null) return;
+        if (step.getNpcHighlight() == null || step.getNpcKillCount() <= 0 || !step.isHighlightEnabled()) return;
         if (!(event.getActor() instanceof net.runelite.api.NPC)) return;
         String name = ((net.runelite.api.NPC) event.getActor()).getName();
         if (name == null) return;
@@ -520,10 +645,15 @@ public class RoutePlannerPlugin extends Plugin {
 
     @Subscribe
     public void onConfigChanged(ConfigChanged event) {
-        if ("routeplanner".equals(event.getGroup()) && "mode".equals(event.getKey())) {
+        if (!"routeplanner".equals(event.getGroup())) return;
+        if ("mode".equals(event.getKey())) {
             if (panel != null) {
                 javax.swing.SwingUtilities.invokeLater(panel::refresh);
             }
+        }
+        if ("hudMatchInterface".equals(event.getKey()) && "true".equals(event.getNewValue())) {
+            sampleInterfacePalette();
+            configManager.setConfiguration("routeplanner", "hudMatchInterface", false);
         }
     }
 }

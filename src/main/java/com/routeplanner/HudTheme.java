@@ -2,7 +2,8 @@ package com.routeplanner;
 
 public enum HudTheme {
     OSRS_BROWN("OSRS Brown"),
-    QUEST_HELPER("Quest Helper style");
+    QUEST_HELPER("Quest Helper style"),
+    CUSTOM("Custom (use options below)");
 
     private final String label;
 

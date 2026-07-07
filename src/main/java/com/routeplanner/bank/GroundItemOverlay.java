@@ -2,7 +2,6 @@ package com.routeplanner.bank;
 
 import com.routeplanner.RoutePlannerPlugin;
 import com.routeplanner.model.RouteStep;
-import com.routeplanner.model.StepType;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.Perspective;
@@ -47,9 +46,8 @@ public class GroundItemOverlay extends Overlay {
     public Dimension render(Graphics2D graphics) {
         if (plugin.getActiveRoute() == null) return null;
         RouteStep step = plugin.getActiveRoute().getActiveStep();
-        if (step == null || step.getType() != StepType.ITEM) return null;
+        if (step == null || !step.hasItems()) return null;
         if (!"PICKUP".equals(step.getItemMode())) return null;
-        if (step.getItemList() == null || step.getItemList().trim().isEmpty()) return null;
 
         // Collect target item names (lowercased), supporting "/" alternatives
         List<List<String>> groups = bankItemManager.parseItemList(step.getItemList());

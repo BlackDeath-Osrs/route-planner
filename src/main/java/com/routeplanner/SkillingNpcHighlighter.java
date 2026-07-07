@@ -58,12 +58,12 @@ public class SkillingNpcHighlighter {
         if (plugin.getActiveRoute() == null) return null;
 
         RouteStep step = plugin.getActiveRoute().getActiveStep();
-        if (step == null) return null;
+        if (step == null || !step.isHighlightEnabled()) return null;
 
         String targetName;
-        if (step.getType() == StepType.SKILLING) {
+        if (step.getSkillingTargetNpc() != null) {
             targetName = step.getSkillingTargetNpc();
-        } else if (step.getType() == StepType.NOTE) {
+        } else if (step.getNpcHighlight() != null) {
             targetName = step.getNpcHighlight();
         } else {
             return null;

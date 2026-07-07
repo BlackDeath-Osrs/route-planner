@@ -34,6 +34,22 @@ public class AgilityCoursePresets {
         }
     }
 
+    // Start tile for each course (walk-to destination). null = no location known yet.
+    public static WorldPoint startLocation(String courseName) {
+        if (courseName == null) return null;
+        switch (courseName) {
+            case "Draynor Village": return new WorldPoint(3098, 3274, 0);
+            case "Al Kharid":       return new WorldPoint(3273, 3196, 0);
+            case "Varrock":         return new WorldPoint(3221, 3414, 0);
+            case "Canifis":         return new WorldPoint(3505, 3488, 0);
+            case "Falador":         return new WorldPoint(3036, 3341, 0);
+            case "Seers Village":   return new WorldPoint(2729, 3485, 0);
+            case "Rellekka":        return new WorldPoint(2626, 3676, 0);
+            case "Ardougne":        return new WorldPoint(2673, 3320, 0);
+            default:                return null;
+        }
+    }
+
     public static AgilityCourse gnome() {
         return new AgilityCourse("Gnome Stronghold", 1, 86.5, Arrays.asList(
             new AgilityObstacle("Log Balance",      null, 23145),
