@@ -53,6 +53,14 @@ public class StepEditorDialog extends JFrame {
     private JTextField noteDialog;
 
     public StepEditorDialog(RoutePlannerPlugin plugin, Route route, RouteStep editing) {
+        this(plugin, route, editing, null);
+    }
+
+    /**
+     * @param seedTile when creating a new step (editing == null), pre-fills the Location component
+     *                 with this tile -- used by the shift+right-click "Add Location Step" menu.
+     */
+    public StepEditorDialog(RoutePlannerPlugin plugin, Route route, RouteStep editing, WorldPoint seedTile) {
         this.plugin = plugin;
         this.route = route;
         this.editing = editing;
@@ -236,6 +244,12 @@ public class StepEditorDialog extends JFrame {
         save.addActionListener(e -> onSave());
         buttons.add(cancel); buttons.add(save);
         root.add(buttons);
+
+        // seed the location from a shift+right-clicked tile when creating a new step
+        if (editing == null && seedTile != null) {
+            tileField.setText(seedTile.getX() + ", " + seedTile.getY());
+            locationCheck.setSelected(true);
+        }
 
         // prefill in edit mode
         if (editing != null) {

@@ -99,6 +99,7 @@ public class RoutePlannerPlugin extends Plugin {
     };
 
     @Getter private List<Route> routes = new ArrayList<>();
+    @Getter private final RouteHistory routeHistory = new RouteHistory();
     @Getter private Route activeRoute = null;
 
 
@@ -175,6 +176,7 @@ public class RoutePlannerPlugin extends Plugin {
     }
 
     public void deleteRoute(Route route) {
+        routeHistory.forget(route);
         if (activeRoute == route) activeRoute = null;
         routes.remove(route);
         saveRoutes();
@@ -204,6 +206,7 @@ public class RoutePlannerPlugin extends Plugin {
     }
 
     public void removeStep(Route route, RouteStep step) {
+        routeHistory.push(route, "Delete step \"" + step.getName() + "\"", getRouteGson());
         route.removeStep(step);
         saveRoutes();
         panel.refresh();
@@ -412,6 +415,38 @@ public class RoutePlannerPlugin extends Plugin {
     }
 
     public void saveRoutesPublic() { saveRoutes(); }
+
+    /**
+     * Flip edit mode. Backed by the "mode" config key so the choice survives restarts; the panel
+     * toggle is just the control surface. onConfigChanged refreshes the panel in response.
+     */
+    public void setMode(RouteMode mode) {
+        configManager.setConfiguration("routeplanner", "mode", mode);
+    }
+
+    /** Undo the last structural edit on the active route. @return label undone, or null. */
+    public String undoActive() {
+        Route r = getActiveRoute();
+        if (r == null) return null;
+        String label = routeHistory.undo(r, getRouteGson());
+        if (label != null) {
+            saveRoutesPublic();
+            if (panel != null) panel.refresh();
+        }
+        return label;
+    }
+
+    /** Redo the last undone structural edit on the active route. @return label redone, or null. */
+    public String redoActive() {
+        Route r = getActiveRoute();
+        if (r == null) return null;
+        String label = routeHistory.redo(r, getRouteGson());
+        if (label != null) {
+            saveRoutesPublic();
+            if (panel != null) panel.refresh();
+        }
+        return label;
+    }
 
     public void rebuildNpcHighlights() { skillingNpcHighlighter.rebuild(); }
 

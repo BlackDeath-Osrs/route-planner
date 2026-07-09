@@ -21,6 +21,9 @@ public class RoutePlannerPanel extends PluginPanel {
     private net.runelite.client.game.SpriteManager spriteManager;
     private RouteImportExport importExport;
     private final JPanel routeListPanel = new JPanel();
+    private javax.swing.JButton undoButton;
+    private javax.swing.JButton redoButton;
+    private javax.swing.JCheckBox editModeToggle;
     private int dropLineY = -1; // y position of the drag drop-line indicator (-1 = hidden)
     private final JPanel stepListPanel = new JPanel() {
         @Override protected void paintComponent(java.awt.Graphics g) {
@@ -60,23 +63,36 @@ public class RoutePlannerPanel extends PluginPanel {
 
     private void handleStepDrop(java.awt.Point pInList) {
         if (draggedStep == null || draggedSection == null) return;
-        com.routeplanner.model.RouteStep target = null;
-        int best = Integer.MAX_VALUE;
-        for (java.awt.Component comp : stepListPanel.getComponents()) {
-            com.routeplanner.model.RouteStep s = rowStepMap.get(comp);
-            if (s == null || rowSectionMap.get(comp) != draggedSection) continue;
-            java.awt.Rectangle b = comp.getBounds();
-            int center = b.y + b.height / 2;
-            int dist = Math.abs(center - pInList.y);
-            if (dist < best) { best = dist; target = s; }
-        }
-        if (target == null || target == draggedStep) return;
-        java.util.List<com.routeplanner.model.RouteStep> steps = draggedSection.getSteps();
-        int from = steps.indexOf(draggedStep);
-        int to = steps.indexOf(target);
-        if (from < 0 || to < 0 || from == to) return;
-        steps.remove(from);
-        steps.add(to, draggedStep);
+
+        java.awt.Component targetRow = nearestDropRow(pInList.y);
+        if (targetRow == null) return;
+
+        com.routeplanner.model.RouteSection targetSection = rowSectionMap.get(targetRow);
+        if (targetSection == null) return;
+
+        // A row with a section but no step is a section header: drop there means "append".
+        com.routeplanner.model.RouteStep targetStep = rowStepMap.get(targetRow);
+        if (targetStep == draggedStep) return;
+
+        java.util.List<com.routeplanner.model.RouteStep> src = draggedSection.getSteps();
+        java.util.List<com.routeplanner.model.RouteStep> dst = targetSection.getSteps();
+
+        int from = src.indexOf(draggedStep);
+        if (from < 0) return;
+        int to = (targetStep == null) ? dst.size() : dst.indexOf(targetStep);
+        if (to < 0) return;
+        if (src == dst && from == to) return;
+
+        plugin.getRouteHistory().push(plugin.getActiveRoute(),
+            "Move step \"" + draggedStep.getName() + "\"", plugin.getRouteGson());
+
+        src.remove(from);
+        if (to > dst.size()) to = dst.size();
+        dst.add(to, draggedStep);
+
+        // Otherwise the step would silently disappear into a collapsed section.
+        if (targetSection.isCollapsed()) targetSection.setCollapsed(false);
+
         plugin.saveRoutesPublic();
         refresh();
     }
@@ -85,8 +101,10 @@ public class RoutePlannerPanel extends PluginPanel {
         java.awt.Component best = null;
         int bestDist = Integer.MAX_VALUE;
         for (java.awt.Component comp : stepListPanel.getComponents()) {
-            if (rowStepMap.get(comp) == null) continue;
-            if (rowSectionMap.get(comp) != draggedSection) continue;
+            // Step rows and section header rows are both valid targets; struts and other
+            // filler have no section mapping at all. Headers let a step be dropped into an
+            // empty or collapsed section, which has no step rows to aim at.
+            if (rowSectionMap.get(comp) == null) continue;
             java.awt.Rectangle b = comp.getBounds();
             int center = b.y + b.height / 2;
             int dist = Math.abs(center - y);
@@ -98,6 +116,50 @@ public class RoutePlannerPanel extends PluginPanel {
     @Inject
     public RoutePlannerPanel() {
         super(false);
+    }
+
+    /** Flat, borderless glyph button used for the undo/redo controls in the header. */
+    private javax.swing.JButton historyButton(String glyph) {
+        javax.swing.JButton b = new javax.swing.JButton(glyph);
+        b.setFocusPainted(false);
+        b.setBorderPainted(false);
+        b.setContentAreaFilled(false);
+        b.setOpaque(false);
+        b.setMargin(new java.awt.Insets(0, 4, 0, 4));
+        b.setFont(b.getFont().deriveFont(Font.BOLD, 16f));
+        b.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+        b.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
+        return b;
+    }
+
+    /**
+     * Keep the header toggle in step with the config value. setSelected does not fire an
+     * ActionListener, so this cannot loop back into setMode.
+     */
+    private void syncEditModeToggle(boolean dev) {
+        if (editModeToggle == null) return;
+        if (editModeToggle.isSelected() != dev) editModeToggle.setSelected(dev);
+    }
+
+    /** Sync the header undo/redo controls with the active route's history. Dev mode only. */
+    private void updateHistoryButtons(boolean dev) {
+        if (undoButton == null || redoButton == null) return;
+        undoButton.setVisible(dev);
+        redoButton.setVisible(dev);
+        if (!dev) return;
+
+        com.routeplanner.model.Route active = plugin.getActiveRoute();
+        RouteHistory history = plugin.getRouteHistory();
+        String undoLabel = history.peekUndoLabel(active);
+        String redoLabel = history.peekRedoLabel(active);
+
+        Color off = new Color(74, 74, 74);
+        undoButton.setEnabled(undoLabel != null);
+        redoButton.setEnabled(redoLabel != null);
+        undoButton.setForeground(undoLabel != null ? ColorScheme.LIGHT_GRAY_COLOR : off);
+        redoButton.setForeground(redoLabel != null ? ColorScheme.LIGHT_GRAY_COLOR : off);
+        undoButton.setToolTipText(undoLabel != null ? "Undo: " + undoLabel : "Nothing to undo");
+        redoButton.setToolTipText(redoLabel != null ? "Redo: " + redoLabel : "Nothing to redo");
     }
 
     public RoutePlannerPlugin getPlugin() { return plugin; }
@@ -112,7 +174,41 @@ public class RoutePlannerPanel extends PluginPanel {
         JLabel title = new JLabel("Route Planner");
         title.setForeground(Color.WHITE);
         title.setFont(title.getFont().deriveFont(Font.BOLD, 14f));
-        add(title, BorderLayout.NORTH);
+
+        JPanel titleRow = new JPanel(new BorderLayout());
+        titleRow.setBackground(ColorScheme.DARK_GRAY_COLOR);
+        titleRow.add(title, BorderLayout.WEST);
+
+        JPanel historyRow = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.RIGHT, 2, 0));
+        historyRow.setBackground(ColorScheme.DARK_GRAY_COLOR);
+        undoButton = historyButton("\u21B6");
+        redoButton = historyButton("\u21B7");
+        undoButton.addActionListener(e -> plugin.undoActive());
+        redoButton.addActionListener(e -> plugin.redoActive());
+        historyRow.add(undoButton);
+        historyRow.add(redoButton);
+        titleRow.add(historyRow, BorderLayout.EAST);
+
+        editModeToggle = new javax.swing.JCheckBox("Edit mode");
+        editModeToggle.setBackground(ColorScheme.DARK_GRAY_COLOR);
+        editModeToggle.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+        editModeToggle.setFocusPainted(false);
+        editModeToggle.setFont(editModeToggle.getFont().deriveFont(11f));
+        editModeToggle.setToolTipText("Add, edit, reorder and delete steps. Turn off to just follow the route.");
+        editModeToggle.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
+        editModeToggle.addActionListener(e -> plugin.setMode(
+            editModeToggle.isSelected() ? com.routeplanner.RouteMode.DEVELOPER
+                                        : com.routeplanner.RouteMode.PLAYER));
+
+        JPanel modeRow = new JPanel(new BorderLayout());
+        modeRow.setBackground(ColorScheme.DARK_GRAY_COLOR);
+        modeRow.add(editModeToggle, BorderLayout.WEST);
+
+        JPanel northPanel = new JPanel(new BorderLayout());
+        northPanel.setBackground(ColorScheme.DARK_GRAY_COLOR);
+        northPanel.add(titleRow, BorderLayout.NORTH);
+        northPanel.add(modeRow, BorderLayout.SOUTH);
+        add(northPanel, BorderLayout.NORTH);
 
         JPanel centerPanel = new JPanel();
         centerPanel.setLayout(new BoxLayout(centerPanel, BoxLayout.Y_AXIS));
@@ -282,6 +378,8 @@ public class RoutePlannerPanel extends PluginPanel {
         if (exportBtn != null) exportBtn.setVisible(dev);
         if (addStepHeaderBtn != null) addStepHeaderBtn.setVisible(dev);
         if (addSectionBtn != null) addSectionBtn.setVisible(dev);
+        updateHistoryButtons(dev);
+        syncEditModeToggle(dev);
         if (reorderToggle != null) {
             reorderToggle.setVisible(false);
             if (!dev) {
@@ -314,7 +412,13 @@ public class RoutePlannerPanel extends PluginPanel {
                 // Right-click context menu for route
                 JPopupMenu routeMenu = new JPopupMenu();
                 JMenuItem deleteRoute = new JMenuItem("Delete Route");
-                deleteRoute.addActionListener(e -> plugin.deleteRoute(route));
+                deleteRoute.addActionListener(e -> {
+                    int c = JOptionPane.showConfirmDialog(RoutePlannerPanel.this,
+                        "Delete route \"" + route.getName() + "\" and its "
+                            + route.getAllSteps().size() + " step(s)?\nThis cannot be undone.",
+                        "Delete Route", JOptionPane.YES_NO_OPTION);
+                    if (c == JOptionPane.YES_OPTION) plugin.deleteRoute(route);
+                });
                 JMenuItem renameRoute = new JMenuItem("Rename Route");
                 renameRoute.addActionListener(e -> {
                     String newName = JOptionPane.showInputDialog(this,
@@ -460,6 +564,7 @@ public class RoutePlannerPanel extends PluginPanel {
                     secRow.addMouseListener(secMa);
                     secLabel.addMouseListener(secMa);
 
+                    rowSectionMap.put(secRow, section);
                     stepListPanel.add(secRow);
                     stepListPanel.add(Box.createVerticalStrut(2));
 

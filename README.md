@@ -9,12 +9,15 @@ Routes are organised into **sections** and **steps**, tracked with live progress
 ### Routes and steps
 - Create named routes split into sections, each containing an ordered list of steps.
 - Live progress tracking with completion marks; steps advance as you go.
-- Drag steps to reorder them within a section, with a drop-line showing where they'll land.
+- Drag steps to reorder them, or to move them between sections — a drop-line shows where they'll land. Drop onto a section header to send a step to the end of it.
+- Undo and redo structural edits from the panel header. Each route keeps its own history.
+- Deleting a route or a section asks for confirmation first.
 - Import and export routes as text so you can share them or back them up.
 
-### Two modes
-- **Developer mode** — build and edit: add, reorder, and configure every step.
-- **Player mode** — a clean follow-along view; left-click a step to mark it complete. Editing controls are hidden so you can focus on the route.
+### Edit mode
+- Toggle **Edit mode** at the top of the panel to add, edit, reorder, and delete steps.
+- With it off, the panel is a clean follow-along view: left-click a step to mark it complete, and the editing controls get out of your way.
+- Following someone else's route? Flip Edit mode on to add your own notes or reorder a step you skipped, then turn it back off.
 
 ### Component-based steps
 Each step is built from optional **components** in a single editor, and any combination can be attached to one step:
@@ -33,6 +36,15 @@ Steps complete automatically when every tracked component on them is satisfied �
 - Dialogue option highlighting nudges you through conversations.
 - All in-game highlighting is opt-in per step via the Highlight component.
 
+### Waypoint path
+Draw the route to your next destination as a line, as highlighted tiles, or both.
+
+- **Line** — solid, dashed, dotted, or dash-dot, with adjustable colour, transparency, thickness, and an optional glow. Dashes can take their own colour over a faint base line, and can flow toward your destination.
+- **Tiles** — adjustable fill and border colour, border thickness, optional rounded corners and a gentle pulse, and fading for tiles further along the path.
+- **Arrows** — none, spaced along the line, or one at the destination.
+- The path is clipped to the client's draw distance, or to a limit you set.
+- **Preview in game** draws a short demo path beside you so you can judge your settings without an active route.
+
 ### HUD customization
 - Preset themes (OSRS Brown, Quest Helper style) or a fully **Custom** theme.
 - Per-element colors for the body, outline, title, step text, and dividers, each with transparency control.
@@ -42,8 +54,9 @@ Steps complete automatically when every tracked component on them is satisfied �
 ## Getting started
 1. Open the **Route Planner** side panel from the RuneLite toolbar.
 2. Create a route, add a section, then start adding steps.
-3. Use **Developer mode** to build the route, then switch to **Player mode** to follow it.
+3. Turn on **Edit mode** to build the route, then turn it off to follow it.
 4. Right-click a spot on the world map to set a waypoint destination for pathfinding.
+5. Shift + right-click a tile in the game world and choose **Add Location Step** to open the step editor with that tile already filled in.
 
 ## Credits
 Pathfinding relies on collision-map and transport data from the excellent [Shortest Path](https://github.com/Skretzo/shortest-path) plugin by Runemoro and Skretzo. See [`LICENSE`](LICENSE) for the full third-party notice.

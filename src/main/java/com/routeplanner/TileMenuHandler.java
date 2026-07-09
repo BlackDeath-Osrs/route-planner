@@ -157,12 +157,8 @@ public class TileMenuHandler {
                 JOptionPane.showMessageDialog(null, "Select or create a route first.");
                 return;
             }
-            String msg = "Step name: (Coordinates: " + tile.getX() + ", " + tile.getY() + ")";
-            String name = JOptionPane.showInputDialog(null, msg, "Add Location Step", JOptionPane.PLAIN_MESSAGE);
-            if (name != null && !name.trim().isEmpty()) {
-                plugin.addStep(plugin.getActiveRoute(), new RouteStep(name.trim(), StepType.LOCATION, tile, -1));
-                log.info("Added location step: {} at {}", name, tile);
-            }
+            new StepEditorDialog(plugin, plugin.getActiveRoute(), null, tile).setVisible(true);
+            log.info("Opened step editor seeded at {}", tile);
         });
     }
 }
