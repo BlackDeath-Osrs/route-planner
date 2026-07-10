@@ -59,7 +59,7 @@ Draw the route to your next destination as a line, as highlighted tiles, or both
 5. Shift + right-click a tile in the game world and choose **Add Location Step** to open the step editor with that tile already filled in.
 
 ## Credits
-Pathfinding relies on collision-map and transport data from the excellent [Shortest Path](https://github.com/Skretzo/shortest-path) plugin by Runemoro and Skretzo. See [`LICENSE`](LICENSE) for the full third-party notice.
+Pathfinding relies on collision-map and transport data from the excellent [Shortest Path](https://github.com/Skretzo/shortest-path) plugin by Runemoro and Skretzo. See [`NOTICE`](NOTICE) for third-party attribution.
 
 ## License
 Released under the BSD 2-Clause License. See [`LICENSE`](LICENSE). Created by BlackDeath_Osrs.
