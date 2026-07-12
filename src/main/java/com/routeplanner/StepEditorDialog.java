@@ -653,7 +653,7 @@ public class StepEditorDialog extends JFrame {
         header.setBorder(new EmptyBorder(2, 6, 2, 8));
         header.add(check, BorderLayout.WEST);
         body.setVisible(check.isSelected()); // start state matches checkbox
-        JButton collapseChevron = new JButton(body.isVisible() ? "▾" : "▸");
+        JButton collapseChevron = new JButton(body.isVisible() ? "-" : "+");
         collapseChevron.setForeground(Color.WHITE);
         collapseChevron.setBackground(ColorScheme.DARKER_GRAY_COLOR);
         collapseChevron.setBorderPainted(false);
@@ -665,13 +665,13 @@ public class StepEditorDialog extends JFrame {
         p.add(body);
         collapseChevron.addActionListener(e -> {
             body.setVisible(!body.isVisible());
-            collapseChevron.setText(body.isVisible() ? "▾" : "▸");
+            collapseChevron.setText(body.isVisible() ? "-" : "+");
             p.revalidate(); p.repaint();
         });
         // Checking the box auto-expands; unchecking collapses.
         check.addActionListener(e -> {
             body.setVisible(check.isSelected());
-            collapseChevron.setText(body.isVisible() ? "▾" : "▸");
+            collapseChevron.setText(body.isVisible() ? "-" : "+");
             p.revalidate(); p.repaint();
         });
         return p;

@@ -45,8 +45,6 @@ public class RoutePlannerPanel extends PluginPanel {
     private JButton addStepHeaderBtn;
     private JButton addSectionBtn;
     private String selectedSectionId = null;
-    private boolean reorderMode = false;
-    private javax.swing.JToggleButton reorderToggle;
     private com.routeplanner.model.RouteStep draggedStep = null;
     private com.routeplanner.model.RouteSection draggedSection = null;
     private final java.util.Map<java.awt.Component, com.routeplanner.model.RouteStep> rowStepMap = new java.util.HashMap<>();
@@ -119,17 +117,47 @@ public class RoutePlannerPanel extends PluginPanel {
     }
 
     /** Flat, borderless glyph button used for the undo/redo controls in the header. */
-    private javax.swing.JButton historyButton(String glyph) {
-        javax.swing.JButton b = new javax.swing.JButton(glyph);
+    private javax.swing.JButton historyButton(boolean redo) {
+        javax.swing.JButton b = new javax.swing.JButton(new ArrowIcon(redo));
         b.setFocusPainted(false);
         b.setBorderPainted(false);
         b.setContentAreaFilled(false);
         b.setOpaque(false);
         b.setMargin(new java.awt.Insets(0, 4, 0, 4));
-        b.setFont(b.getFont().deriveFont(Font.BOLD, 16f));
-        b.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
         b.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
         return b;
+    }
+
+    /**
+     * A drawn undo/redo icon: a curved arrow, mirrored for redo. Painted rather than set as a
+     * glyph so it renders identically regardless of the font the client resolves for Swing --
+     * the Unicode arrows we used before fell back to a missing-glyph box on the live client.
+     * Colour tracks the button's foreground so enabled/disabled states still work.
+     */
+    private static final class ArrowIcon implements javax.swing.Icon {
+        private final boolean redo;
+        ArrowIcon(boolean redo) { this.redo = redo; }
+        public int getIconWidth() { return 16; }
+        public int getIconHeight() { return 16; }
+        public void paintIcon(java.awt.Component comp, java.awt.Graphics g, int x, int y) {
+            java.awt.Graphics2D g2 = (java.awt.Graphics2D) g.create();
+            g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING,
+                java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.translate(x, y);
+            if (redo) { g2.translate(16, 0); g2.scale(-1, 1); } // mirror horizontally
+            g2.setColor(comp.getForeground());
+            g2.setStroke(new BasicStroke(1.8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            // arc: an open loop from upper-right sweeping down to the left
+            java.awt.geom.Arc2D arc = new java.awt.geom.Arc2D.Float(3, 3, 10, 10, 30, 220, java.awt.geom.Arc2D.OPEN);
+            g2.draw(arc);
+            // arrowhead at the tail end of the arc (lower-left)
+            int hx = 4, hy = 11;
+            java.awt.Polygon head = new java.awt.Polygon(
+                new int[]{ hx, hx + 4, hx - 1 },
+                new int[]{ hy - 4, hy + 1, hy + 3 }, 3);
+            g2.fill(head);
+            g2.dispose();
+        }
     }
 
     /**
@@ -181,8 +209,8 @@ public class RoutePlannerPanel extends PluginPanel {
 
         JPanel historyRow = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.RIGHT, 2, 0));
         historyRow.setBackground(ColorScheme.DARK_GRAY_COLOR);
-        undoButton = historyButton("\u21B6");
-        redoButton = historyButton("\u21B7");
+        undoButton = historyButton(false);
+        redoButton = historyButton(true);
         undoButton.addActionListener(e -> plugin.undoActive());
         redoButton.addActionListener(e -> plugin.redoActive());
         historyRow.add(undoButton);
@@ -302,24 +330,9 @@ public class RoutePlannerPanel extends PluginPanel {
         JLabel stepsLabel = new JLabel("Steps");
         stepsLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
         stepsLabel.setFont(stepsLabel.getFont().deriveFont(Font.BOLD, 16f));
-        reorderToggle = new javax.swing.JToggleButton("\u21C5 Reorder");
-        reorderToggle.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-        reorderToggle.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-        reorderToggle.setBorderPainted(false);
-        reorderToggle.setFocusPainted(false);
-        reorderToggle.setFont(reorderToggle.getFont().deriveFont(Font.BOLD, 11f));
-        reorderToggle.setToolTipText("Drag steps to reorder within a section");
-        reorderToggle.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
-        reorderToggle.addActionListener(e -> {
-            reorderMode = reorderToggle.isSelected();
-            reorderToggle.setForeground(reorderMode ? new Color(255, 180, 80) : ColorScheme.LIGHT_GRAY_COLOR);
-            refresh();
-        });
-
         JPanel stepsLabelRow = new JPanel(new BorderLayout());
         stepsLabelRow.setBackground(ColorScheme.DARK_GRAY_COLOR);
         stepsLabelRow.add(stepsLabel, BorderLayout.WEST);
-        stepsLabelRow.add(reorderToggle, BorderLayout.EAST);
         stepHeader.add(stepsLabelRow, BorderLayout.SOUTH);
 
 
@@ -380,14 +393,6 @@ public class RoutePlannerPanel extends PluginPanel {
         if (addSectionBtn != null) addSectionBtn.setVisible(dev);
         updateHistoryButtons(dev);
         syncEditModeToggle(dev);
-        if (reorderToggle != null) {
-            reorderToggle.setVisible(false);
-            if (!dev) {
-                reorderMode = false;
-                reorderToggle.setSelected(false);
-                reorderToggle.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-            }
-        }
     }
 
     public void refresh() {
@@ -483,7 +488,7 @@ public class RoutePlannerPanel extends PluginPanel {
 
                     int total = section.getSteps().size();
                     long done = section.getSteps().stream().filter(RouteStep::isCompleted).count();
-                    String arrow = section.isCollapsed() ? "\u25B8 " : "\u25BE ";
+                    String arrow = section.isCollapsed() ? "+ " : "- ";
                     JLabel secLabel = new JLabel(arrow + section.getName() + "  (" + done + "/" + total + ")");
                     secLabel.setForeground(isSelected ? new Color(255, 180, 80) : Color.WHITE);
                     secLabel.setFont(secLabel.getFont().deriveFont(Font.BOLD, 13f));
