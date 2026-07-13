@@ -80,9 +80,29 @@ public class RouteImportExport {
         }
     }
 
-    public void importRoute() {
+    /**
+     * A JFileChooser using the platform's native look and feel (GTK on Linux, etc.) instead of
+     * Swing's default cross-platform "Metal" theme, which several users found looked out of place
+     * and confusing to navigate. Falls back silently to the default chooser if the system L&F
+     * can't be set for any reason -- this is cosmetic, never worth failing an import/export over.
+     */
+    private JFileChooser newSystemFileChooser(String title) {
+        try {
+            String current = javax.swing.UIManager.getLookAndFeel().getClass().getName();
+            String system = javax.swing.UIManager.getSystemLookAndFeelClassName();
+            if (!current.equals(system)) {
+                javax.swing.UIManager.setLookAndFeel(system);
+            }
+        } catch (Exception ignored) {
+            // Best-effort only; the default cross-platform chooser still works fine.
+        }
         JFileChooser chooser = new JFileChooser();
-        chooser.setDialogTitle("Import Route");
+        chooser.setDialogTitle(title);
+        return chooser;
+    }
+
+    public void importRoute() {
+        JFileChooser chooser = newSystemFileChooser("Import Route");
         chooser.setFileFilter(new FileNameExtensionFilter("JSON files", "json"));
 
         int result = chooser.showOpenDialog(null);
