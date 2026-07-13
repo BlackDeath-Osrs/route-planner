@@ -1,5 +1,7 @@
 package com.routeplanner;
 
+import com.routeplanner.util.RouteTextValidator;
+
 import com.routeplanner.model.Route;
 import com.routeplanner.model.RouteStep;
 import com.routeplanner.model.StepType;
@@ -192,12 +194,21 @@ public class RoutePlannerPanel extends PluginPanel {
 
     public RoutePlannerPlugin getPlugin() { return plugin; }
 
+    private final java.awt.CardLayout cardLayout = new java.awt.CardLayout();
+    private JPanel mainView;
+    private com.routeplanner.hub.RouteHubPanel hubPanel;
+
     public void init(RoutePlannerPlugin plugin) {
         this.plugin = plugin;
         this.spriteManager = plugin.getSpriteManager();
-        setLayout(new BorderLayout(0, 8));
-        setBorder(new EmptyBorder(8, 8, 8, 8));
-        setBackground(ColorScheme.DARK_GRAY_COLOR);
+
+        // The panel root is a two-card swap: "main" (everything below, unchanged) and "hub"
+        // (the Route Hub browse view). Only mainView's construction differs from before --
+        // it gets what "this" used to get directly.
+        setLayout(cardLayout);
+        mainView = new JPanel(new BorderLayout(0, 8));
+        mainView.setBorder(new EmptyBorder(8, 8, 8, 8));
+        mainView.setBackground(ColorScheme.DARK_GRAY_COLOR);
 
         JLabel title = new JLabel("Route Planner");
         title.setForeground(Color.WHITE);
@@ -236,7 +247,7 @@ public class RoutePlannerPanel extends PluginPanel {
         northPanel.setBackground(ColorScheme.DARK_GRAY_COLOR);
         northPanel.add(titleRow, BorderLayout.NORTH);
         northPanel.add(modeRow, BorderLayout.SOUTH);
-        add(northPanel, BorderLayout.NORTH);
+        mainView.add(northPanel, BorderLayout.NORTH);
 
         JPanel centerPanel = new JPanel();
         centerPanel.setLayout(new BoxLayout(centerPanel, BoxLayout.Y_AXIS));
@@ -272,35 +283,60 @@ public class RoutePlannerPanel extends PluginPanel {
         // Import button row
         JPanel routeBottomRow = new JPanel(new GridLayout(1, 2, 4, 0));
         routeBottomRow.setBackground(ColorScheme.DARK_GRAY_COLOR);
-        JButton importBtn = new JButton("Import");
+        JButton importBtn = new JButton("Import \u25be");
         importBtn.setForeground(new Color(100, 180, 255));
         importBtn.setBackground(ColorScheme.DARKER_GRAY_COLOR);
         importBtn.setBorderPainted(false);
         importBtn.setFocusPainted(false);
         importBtn.setFont(importBtn.getFont().deriveFont(Font.PLAIN, 15f));
-        importBtn.setToolTipText("Import Route from JSON");
+        importBtn.setToolTipText("Import a route from a file, or browse the Route Hub");
         importBtn.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
-        importBtn.addActionListener(e -> importExport.importRoute());
+
+        JPopupMenu importMenu = new JPopupMenu();
+        JMenuItem importFromFile = new JMenuItem("Import from file");
+        importFromFile.addActionListener(e -> importExport.importRoute());
+        JMenuItem browseHub = new JMenuItem("Browse Route Hub");
+        browseHub.addActionListener(e -> showHub());
+        importMenu.add(importFromFile);
+        importMenu.add(browseHub);
+        importBtn.addActionListener(e -> importMenu.show(importBtn, 0, importBtn.getHeight()));
+
         routeBottomRow.add(importBtn);
 
-        exportBtn = new JButton("Export");
+        exportBtn = new JButton("Export \u25be");
         exportBtn.setForeground(new Color(220, 50, 50));
         exportBtn.setBackground(ColorScheme.DARKER_GRAY_COLOR);
         exportBtn.setBorderPainted(false);
         exportBtn.setFocusPainted(false);
         exportBtn.setFont(exportBtn.getFont().deriveFont(Font.PLAIN, 15f));
-        exportBtn.setToolTipText("Export active route to JSON");
+        exportBtn.setToolTipText("Export the active route, or share one to the Route Hub");
         exportBtn.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
-        exportBtn.addActionListener(e -> {
+
+        JPopupMenu exportMenu = new JPopupMenu();
+        JMenuItem exportToFile = new JMenuItem("Export to file");
+        exportToFile.addActionListener(e -> {
             if (plugin.getActiveRoute() != null) {
                 importExport.exportRoute(plugin.getActiveRoute());
             } else {
                 JOptionPane.showMessageDialog(null, "No active route to export.");
             }
         });
+        JMenuItem shareToHub = new JMenuItem("Share a route to the Hub");
+        shareToHub.setToolTipText("Opens the routes repo on GitHub \u2014 submitting is a pull "
+            + "request, not an upload from the plugin. See the repo's README for the how-to.");
+        shareToHub.addActionListener(e ->
+            net.runelite.client.util.LinkBrowser.browse("https://github.com/BlackDeath-Osrs/route-planner-routes"));
+        exportMenu.add(exportToFile);
+        exportMenu.add(shareToHub);
+        exportBtn.addActionListener(e -> exportMenu.show(exportBtn, 0, exportBtn.getHeight()));
+
         routeBottomRow.add(exportBtn);
 
-        routeHeader.add(routeBottomRow, BorderLayout.SOUTH);
+        JPanel routeButtonsStack = new JPanel();
+        routeButtonsStack.setLayout(new BoxLayout(routeButtonsStack, BoxLayout.Y_AXIS));
+        routeButtonsStack.setOpaque(false);
+        routeButtonsStack.add(routeBottomRow);
+        routeHeader.add(routeButtonsStack, BorderLayout.SOUTH);
 
         JPanel routeContainer = new JPanel(new BorderLayout());
         routeContainer.setBackground(ColorScheme.DARK_GRAY_COLOR);
@@ -376,7 +412,23 @@ public class RoutePlannerPanel extends PluginPanel {
         stepContainer.add(stepScroll, BorderLayout.CENTER);
         centerPanel.add(stepContainer);
 
-        add(centerPanel, BorderLayout.CENTER);
+        mainView.add(centerPanel, BorderLayout.CENTER);
+
+        add(mainView, "main");
+        hubPanel = new com.routeplanner.hub.RouteHubPanel(plugin, plugin.getRouteHubCatalog(), this::showMain);
+        add(hubPanel, "hub");
+        cardLayout.show(this, "main");
+    }
+
+    /** Switches the panel to the Route Hub browse view. */
+    public void showHub() {
+        cardLayout.show(this, "hub");
+        hubPanel.onShown();
+    }
+
+    /** Switches back to the normal route-building view. */
+    public void showMain() {
+        cardLayout.show(this, "main");
 
 
         importExport = new RouteImportExport(plugin, this);
@@ -499,6 +551,8 @@ public class RoutePlannerPanel extends PluginPanel {
                     renameSec.addActionListener(ev -> {
                         String nn = JOptionPane.showInputDialog(this, "Section name:", section.getName());
                         if (nn != null && !nn.trim().isEmpty()) {
+                            String rnErr = RouteTextValidator.checkField("Section name", nn.trim());
+                            if (rnErr != null) { JOptionPane.showMessageDialog(this, rnErr, "Links not allowed", JOptionPane.WARNING_MESSAGE); return; }
                             section.setName(nn.trim());
                             plugin.saveRoutesPublic();
                             refresh();
@@ -720,6 +774,8 @@ public class RoutePlannerPanel extends PluginPanel {
     private void onNewRoute() {
         String name = JOptionPane.showInputDialog(this, "Route name:", "New Route", JOptionPane.PLAIN_MESSAGE);
         if (name != null && !name.trim().isEmpty()) {
+            String err = RouteTextValidator.checkField("Route name", name.trim());
+            if (err != null) { JOptionPane.showMessageDialog(this, err, "Links not allowed", JOptionPane.WARNING_MESSAGE); return; }
             plugin.createRoute(name.trim());
         }
     }
@@ -733,6 +789,8 @@ public class RoutePlannerPanel extends PluginPanel {
         }
         String name = JOptionPane.showInputDialog(this, "Section name:", "New Section", JOptionPane.PLAIN_MESSAGE);
         if (name == null || name.trim().isEmpty()) return;
+        String secErr = RouteTextValidator.checkField("Section name", name.trim());
+        if (secErr != null) { JOptionPane.showMessageDialog(this, secErr, "Links not allowed", JOptionPane.WARNING_MESSAGE); return; }
         com.routeplanner.model.RouteSection sec = new com.routeplanner.model.RouteSection(
             java.util.UUID.randomUUID().toString(), name.trim());
         plugin.getActiveRoute().getSections().add(sec);

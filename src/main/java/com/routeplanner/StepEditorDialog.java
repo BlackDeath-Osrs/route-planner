@@ -1,5 +1,7 @@
 package com.routeplanner;
 
+import com.routeplanner.util.RouteTextValidator;
+
 import com.routeplanner.model.Route;
 import com.routeplanner.model.RouteStep;
 import com.routeplanner.model.StepType;
@@ -95,12 +97,12 @@ public class StepEditorDialog extends JFrame {
         locBody.setLayout(new BoxLayout(locBody, BoxLayout.Y_AXIS));
         locBody.setBackground(ColorScheme.DARKER_GRAY_COLOR);
         locBody.setBorder(new EmptyBorder(6, 8, 8, 8));
-        locBody.add(labeled("Tile (x, y)", tileField));
+        locBody.add(labeled("Tile (x, y, plane - plane optional, default 0)", tileField));
         JButton useTile = new JButton("Use my current tile");
         styleButton(useTile);
         useTile.addActionListener(e -> {
             WorldPoint wp = plugin.getLastPlayerLocation();
-            if (wp != null) tileField.setText(wp.getX() + ", " + wp.getY());
+            if (wp != null) tileField.setText(formatTile(wp));
         });
         useTile.setAlignmentX(Component.LEFT_ALIGNMENT);
         locBody.add(Box.createVerticalStrut(6));
@@ -247,7 +249,7 @@ public class StepEditorDialog extends JFrame {
 
         // seed the location from a shift+right-clicked tile when creating a new step
         if (editing == null && seedTile != null) {
-            tileField.setText(seedTile.getX() + ", " + seedTile.getY());
+            tileField.setText(formatTile(seedTile));
             locationCheck.setSelected(true);
         }
 
@@ -255,7 +257,7 @@ public class StepEditorDialog extends JFrame {
         if (editing != null) {
             if (editing.getName() != null) nameField.setText(editing.getName());
             WorldPoint wp = editing.getWorldPoint();
-            if (wp != null) tileField.setText(wp.getX() + ", " + wp.getY());
+            if (wp != null) tileField.setText(formatTile(wp));
             if (editing.getItemList() != null && !editing.getItemList().isEmpty()) {
                 itemsCheck.setSelected(true);
                 itemsField.setText(editing.getItemList());
@@ -303,6 +305,17 @@ public class StepEditorDialog extends JFrame {
 
     private void onSave() {
         String name = nameField.getText() != null ? nameField.getText().trim() : "";
+
+        // Block links in any free-text field before anything is persisted.
+        String linkErr = RouteTextValidator.checkField("Step name", name);
+        if (linkErr == null && noteArea != null) linkErr = RouteTextValidator.checkField("Note", noteArea.getText());
+        if (linkErr == null && noteNpc != null) linkErr = RouteTextValidator.checkField("Highlight NPC", noteNpc.getText());
+        if (linkErr == null && noteDialog != null) linkErr = RouteTextValidator.checkField("Dialogue options", noteDialog.getText());
+        if (linkErr == null && itemsField != null) linkErr = RouteTextValidator.checkField("Items", itemsField.getText());
+        if (linkErr != null) {
+            JOptionPane.showMessageDialog(this, linkErr, "Links not allowed", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
         WorldPoint wp = (locationCheck == null || locationCheck.isSelected()) ? parseTile(tileField.getText()) : null;
         if (name.isEmpty()) name = wp != null ? ("Go to " + wp.getX() + ", " + wp.getY()) : "Location";
 
@@ -603,6 +616,13 @@ public class StepEditorDialog extends JFrame {
         com.routeplanner.teleport.TeleportItem it = list.getSelectedValue();
         if (it == null) return;
         teleMethod = "ITEM"; chosenItem = it; chosenSpell = null; updateTeleLabel();
+    }
+
+    /** Formats a tile for the text field. Plane is included unless it's 0, so ground-floor tiles keep
+     *  looking like plain "x, y" while upper floors round-trip correctly through parseTile. */
+    private static String formatTile(WorldPoint wp) {
+        return wp.getPlane() == 0 ? (wp.getX() + ", " + wp.getY())
+                                   : (wp.getX() + ", " + wp.getY() + ", " + wp.getPlane());
     }
 
     private WorldPoint parseTile(String s) {

@@ -51,6 +51,7 @@ public class RoutePlannerPlugin extends Plugin {
     @Inject private WorldMapPathOverlay worldMapPathOverlay;
     @Inject private RouteHudOverlay routeHudOverlay;
     @Inject @Getter private PathfinderOverlay pathfinderOverlay;
+    @Inject @Getter private com.routeplanner.hub.RouteHubCatalog routeHubCatalog;
     @Inject private com.routeplanner.bank.BankOverlay bankOverlay;
     @Inject private com.routeplanner.bank.BankItemManager bankItemManager;
     private com.routeplanner.model.RouteStep lastKillStep = null;
@@ -173,6 +174,20 @@ public class RoutePlannerPlugin extends Plugin {
         routes.add(new Route(name));
         saveRoutes();
         panel.refresh();
+    }
+
+    private static final String HUB_WARNING_COLLAPSED_KEY = "hubWarningCollapsed";
+
+    /** Whether the Route Hub's "Community content" warning banner is collapsed. Defaults to
+     *  expanded (false) the first time anyone opens the Hub, same convention as everything else
+     *  persisted outside the formal config UI (ACTIVE_ROUTE_KEY, the routes blob itself). */
+    public boolean isHubWarningCollapsed() {
+        String v = configManager.getConfiguration("routeplanner", HUB_WARNING_COLLAPSED_KEY);
+        return "true".equals(v);
+    }
+
+    public void setHubWarningCollapsed(boolean collapsed) {
+        configManager.setConfiguration("routeplanner", HUB_WARNING_COLLAPSED_KEY, collapsed);
     }
 
     public void deleteRoute(Route route) {

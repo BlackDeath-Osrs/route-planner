@@ -12,6 +12,12 @@ public class Route {
     private String name;
     private List<RouteSection> sections = new ArrayList<>();
 
+    /** Set only when this route was installed from the Route Hub; holds the hub catalog's entry id.
+     *  Null for manually created or file-imported routes. This is how the browse panel knows a route
+     *  is already installed (and can offer Remove instead of Install) without a second, separate
+     *  persisted set that could drift out of sync with the real route list. */
+    private String hubSourceId;
+
     // Legacy flat-step format; migrated into a default section on load.
     @SerializedName("steps")
     private List<RouteStep> legacySteps;
