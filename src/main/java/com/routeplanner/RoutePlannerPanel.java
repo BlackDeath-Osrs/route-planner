@@ -419,6 +419,12 @@ public class RoutePlannerPanel extends PluginPanel {
         add(hubPanel, "hub");
         cardLayout.show(this, "main");
 
+        // importExport must be constructed here, unconditionally, during startup -- it was
+        // previously only assigned inside showMain(), meaning a session that never visited the
+        // Route Hub (and so never triggered showMain()) left this permanently null, causing a
+        // NullPointerException the moment "Import from file" or "Export" was clicked.
+        importExport = new RouteImportExport(plugin, this);
+
         // init() builds the route-list scaffolding above but never populates it -- refresh() is
         // the one method that actually draws rows from plugin.getRoutes(). Without this call, any
         // route that exists purely because loadRoutes() loaded it from saved config at startup
@@ -436,10 +442,6 @@ public class RoutePlannerPanel extends PluginPanel {
     /** Switches back to the normal route-building view. */
     public void showMain() {
         cardLayout.show(this, "main");
-
-
-        importExport = new RouteImportExport(plugin, this);
-
         refresh();
     }
 
