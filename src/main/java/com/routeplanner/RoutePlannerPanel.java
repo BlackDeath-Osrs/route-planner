@@ -418,6 +418,13 @@ public class RoutePlannerPanel extends PluginPanel {
         hubPanel = new com.routeplanner.hub.RouteHubPanel(plugin, plugin.getRouteHubCatalog(), this::showMain);
         add(hubPanel, "hub");
         cardLayout.show(this, "main");
+
+        // init() builds the route-list scaffolding above but never populates it -- refresh() is
+        // the one method that actually draws rows from plugin.getRoutes(). Without this call, any
+        // route that exists purely because loadRoutes() loaded it from saved config at startup
+        // (with no subsequent in-session action like create/import/install to trigger a refresh)
+        // silently never appears until something else happens to call refresh() later.
+        refresh();
     }
 
     /** Switches the panel to the Route Hub browse view. */

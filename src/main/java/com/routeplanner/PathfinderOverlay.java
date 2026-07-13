@@ -27,6 +27,16 @@ public class PathfinderOverlay extends Overlay {
     private WorldCollisionMap collisionMap = null;
     private boolean loadAttempted = false;
     private java.util.Map<WorldPoint, java.util.List<WorldPoint>> transports = new java.util.HashMap<>();
+    private java.util.List<com.routeplanner.transport.Transport> planeTransitions = new java.util.ArrayList<>();
+    private static final int PLANE_TRANSITION_SEARCH_RADIUS = 30;
+    /** The transition currently being routed to, if the active step is on a different plane than
+     *  the player. Null whenever no plane redirect is in effect. Read by the overlay/highlight code
+     *  to know what (if anything) to highlight as the "climb this" object. */
+    private com.routeplanner.transport.Transport activeTransition;
+    /** The transition currently committed to, persisted across ticks so the lookup can apply
+     *  hysteresis (see TransportHintLookup.SWITCH_MARGIN) instead of re-deciding from scratch
+     *  every tick, which is what caused visible flip-flopping between near-equal candidates. */
+    private com.routeplanner.transport.Transport committedTransition;
     private static final int TRANSPORT_COST = 5;
 
     private WorldPoint lastPlayer = null;
@@ -44,8 +54,8 @@ public class PathfinderOverlay extends Overlay {
         if (tickCount % 2 != 0) return;
         if (plugin.getActiveRoute() == null) return;
         RouteStep step = plugin.getActiveRoute().getActiveStep();
-        if (step == null) return;
-        if (step.isLocationReached()) { cachedPath = new ArrayList<>(); return; }
+        if (step == null) { committedTransition = null; return; }
+        if (step.isLocationReached()) { committedTransition = null; cachedPath = new ArrayList<>(); return; }
 
         WorldPoint target = step.getWorldPoint();
         if (target == null) { cachedPath = new ArrayList<>(); return; }
@@ -53,7 +63,30 @@ public class PathfinderOverlay extends Overlay {
 
         WorldPoint player = client.getLocalPlayer().getWorldLocation();
 
-        if (player.getPlane() != target.getPlane()) { cachedPath = new ArrayList<>(); return; }
+        // If the step's destination is on a different plane, redirect the path target to the
+        // nearest known transition (staircase/ladder/etc.) instead of giving up. Everything below
+        // this point -- trim/rebuild, distance checks, render() -- operates on whatever "target"
+        // is, so substituting the transition's origin tile here is enough to path to it using the
+        // exact same machinery as any other destination. The moment the player actually climbs it,
+        // player.getPlane() will equal step.getWorldPoint().getPlane() again on the very next tick,
+        // this branch stops firing, and normal pathing to the real destination resumes with no
+        // special "arrived, now continue" logic needed.
+        activeTransition = null;
+        if (player.getPlane() != target.getPlane()) {
+            activeTransition = com.routeplanner.transport.TransportHintLookup.findNearest(
+                planeTransitions, player, target, PLANE_TRANSITION_SEARCH_RADIUS, committedTransition);
+            if (activeTransition == null) {
+                committedTransition = null;
+                cachedPath = new ArrayList<>();
+                return; // Level 1 fallback: no known route up/down from here
+            }
+            committedTransition = activeTransition;
+            // Path to a verified-walkable tile adjacent to the transition, not the transition's own
+            // tile -- staircases/ladders can sit in collision-map spots that don't resolve reliably
+            // as a destination from a distance. The existing 3-tile "arrived" check below then
+            // triggers highlighting the transition object once the player is genuinely close.
+            target = com.routeplanner.transport.TransitionAnchor.pickAnchor(activeTransition.origin, player, collisionMap);
+        }
         if (player.distanceTo(target) <= 3) { cachedPath = new ArrayList<>(); return; }
 
         // Only rebuild if player moved to a new tile or target changed
@@ -115,6 +148,8 @@ public class PathfinderOverlay extends Overlay {
             collisionMap = new WorldCollisionMap(is);
             log.info("Route Planner: collision map loaded ok={}", collisionMap.isLoaded());
             transports = TransportLoader.load();
+            planeTransitions = com.routeplanner.transport.TransportHintLoader.loadPlaneTransitions();
+            log.info("Route Planner: loaded {} plane-changing transitions", planeTransitions.size());
         } catch (IOException e) {
             log.error("Route Planner: failed to load collision map", e);
         }
