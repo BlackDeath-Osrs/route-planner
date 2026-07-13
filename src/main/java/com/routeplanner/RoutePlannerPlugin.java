@@ -200,6 +200,7 @@ public class RoutePlannerPlugin extends Plugin {
 
     public void setActiveRoute(Route route) {
         this.activeRoute = route;
+        autoAdvanceSections();
         saveActiveRoute();
         panel.refresh();
         skillingNpcHighlighter.rebuild();
@@ -396,19 +397,29 @@ public class RoutePlannerPlugin extends Plugin {
         panel.refresh();
     }
 
-    /** Collapse any fully-completed section and expand the one holding the active step. */
+    /** Collapse any fully-completed OR not-yet-started section, and expand the one holding the
+     *  active step. Runs after completing a step, and also once when a route is first activated --
+     *  the latter matters because a freshly-selected route (nothing completed anywhere yet) would
+     *  otherwise leave every section exactly as it was serialized/imported, which for a multi-
+     *  section route (e.g. a large imported guide) means everything shows expanded at once. */
     private void autoAdvanceSections() {
         if (activeRoute == null) return;
         RouteStep active = activeRoute.getActiveStep();
         String activeSectionId = active != null ? active.getSectionId() : null;
         for (com.routeplanner.model.RouteSection sec : activeRoute.getSections()) {
-            boolean allDone = sec.getSteps() != null && !sec.getSteps().isEmpty()
-                && sec.getSteps().stream().allMatch(RouteStep::isCompleted);
-            if (allDone) {
-                sec.setCollapsed(true);
-            } else if (sec.getId().equals(activeSectionId)) {
+            boolean isActive = sec.getId().equals(activeSectionId);
+            if (isActive) {
                 sec.setCollapsed(false);
+                continue;
             }
+            boolean hasSteps = sec.getSteps() != null && !sec.getSteps().isEmpty();
+            boolean allDone = hasSteps && sec.getSteps().stream().allMatch(RouteStep::isCompleted);
+            boolean noneDone = hasSteps && sec.getSteps().stream().noneMatch(RouteStep::isCompleted);
+            if (allDone || noneDone) {
+                sec.setCollapsed(true);
+            }
+            // A section that's partially in progress (some steps done, some not) but isn't the
+            // active section is left as-is -- the user may have manually expanded it on purpose.
         }
     }
 

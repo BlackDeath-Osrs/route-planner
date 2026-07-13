@@ -198,6 +198,14 @@ public class RoutePlannerPanel extends PluginPanel {
     private JPanel mainView;
     private com.routeplanner.hub.RouteHubPanel hubPanel;
 
+    /** Escapes HTML-significant characters before embedding user-authored text (a route name)
+     *  inside an HTML-interpreting JLabel. Route names already pass the link scanner on creation,
+     *  but that doesn't guard against markup characters affecting rendering. */
+    private static String escapeRouteName(String s) {
+        if (s == null) return "";
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+    }
+
     public void init(RoutePlannerPlugin plugin) {
         this.plugin = plugin;
         this.spriteManager = plugin.getSpriteManager();
@@ -341,11 +349,22 @@ public class RoutePlannerPanel extends PluginPanel {
         JPanel routeContainer = new JPanel(new BorderLayout());
         routeContainer.setBackground(ColorScheme.DARK_GRAY_COLOR);
         routeContainer.setBorder(BorderFactory.createLineBorder(ColorScheme.MEDIUM_GRAY_COLOR));
-        routeContainer.setMaximumSize(new Dimension(Integer.MAX_VALUE, 150));
+        // Was capped at a fixed 150px, which didn't scale as routes accumulated or as route names
+        // started wrapping to two lines -- more rows/taller rows just got squeezed into the same
+        // small budget, making the list feel compressed and its scrollbar work harder than it
+        // should. Raised to a roomier ceiling that comfortably fits several two-line-wrapped rows.
+        routeContainer.setMaximumSize(new Dimension(Integer.MAX_VALUE, 260));
+        // A max/preferred size alone is negotiable -- BoxLayout can still compress a component
+        // below both when the combined preferred heights of everything in centerPanel (route
+        // list + step list, which has no cap of its own and always wants more room as steps grow)
+        // exceed the panel's real available space. Without an explicit MINIMUM, the route list was
+        // the one that gave, shrinking as the step count grew. This makes 230px a hard floor.
+        routeContainer.setMinimumSize(new Dimension(0, 230));
         routeContainer.add(routeHeader, BorderLayout.NORTH);
 
         JScrollPane routeScroll = new JScrollPane(routeListPanel);
-        routeScroll.setPreferredSize(new Dimension(0, 120));
+        routeScroll.setPreferredSize(new Dimension(0, 230));
+        routeScroll.setMinimumSize(new Dimension(0, 230));
         routeScroll.setBorder(null);
         routeContainer.add(routeScroll, BorderLayout.CENTER);
         centerPanel.add(routeContainer);
@@ -469,9 +488,15 @@ public class RoutePlannerPanel extends PluginPanel {
                     ? ColorScheme.BRAND_ORANGE_TRANSPARENT
                     : ColorScheme.DARKER_GRAY_COLOR);
                 row.setBorder(new EmptyBorder(4, 6, 4, 6));
-                row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
+                // Was a fixed 32px (one line only); a plain JLabel doesn't wrap on its own, so a
+                // long route name either overflowed the row width (forcing a horizontal scroll on
+                // the whole list) or got silently clipped. Wrapping the label in HTML lets it break
+                // onto a second line, and the row's cap is raised to 48px so that second line has
+                // somewhere to actually render instead of being cut off.
+                row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 48));
 
-                JLabel name = new JLabel(route.getName());
+                JLabel name = new JLabel("<html><div style='width:150px;'>"
+                    + escapeRouteName(route.getName()) + "</div></html>");
                 name.setForeground(Color.WHITE);
                 row.add(name, BorderLayout.CENTER);
 
