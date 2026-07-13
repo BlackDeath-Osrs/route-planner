@@ -45,6 +45,18 @@ Draw the route to your next destination as a line, as highlighted tiles, or both
 - The path is clipped to the client's draw distance, or to a limit you set.
 - **Preview in game** draws a short demo path beside you so you can judge your settings without an active route.
 
+### Route Hub
+Browse and install community-made routes from inside the plugin (**Import ▾ → Browse Route Hub**).
+
+- The plugin fetches route data (read-only) from a GitHub-hosted repository. No player information,
+  account data, or anything else about you is ever sent -- only plain GET requests for the catalog,
+  route files, and icons.
+- Submissions go the other way: sharing a route means opening a pull request on GitHub yourself
+  (**Export ▾ → Share a route to the Hub**). The plugin never uploads anything on your behalf.
+- Every submission is reviewed before it's added to the catalog, and route text is scanned for
+  links on both creation and installation. Even so, routes are community content: never follow a
+  step that asks you to visit a website, share account details, or do anything outside the game.
+
 ### HUD customization
 - Preset themes (OSRS Brown, Quest Helper style) or a fully **Custom** theme.
 - Per-element colors for the body, outline, title, step text, and dividers, each with transparency control.

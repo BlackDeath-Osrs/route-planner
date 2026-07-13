@@ -36,6 +36,17 @@ public interface RoutePlannerConfig extends Config {
     default String routes() { return ""; }
 
     @ConfigItem(
+        keyName = "hubNetworkDisclosure",
+        name = "Route Hub network use",
+        description = "The Route Hub (Import -> Browse Route Hub) fetches route data from a "
+            + "GitHub-hosted repository over plain, read-only HTTP GET requests. No player "
+            + "information or account data is ever sent. Sharing a route the other way is a "
+            + "manual GitHub pull request you open yourself -- the plugin never uploads anything.",
+        position = 1
+    )
+    default boolean hubNetworkDisclosure() { return true; }
+
+    @ConfigItem(
         keyName = "mode",
         name = "Mode",
         description = "Developer mode lets you create and edit routes. Player mode only allows importing and playing a route.",
