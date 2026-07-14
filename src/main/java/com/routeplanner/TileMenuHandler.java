@@ -21,6 +21,8 @@ import javax.swing.*;
 public class TileMenuHandler {
 
     private static final String ADD_LOCATION_STEP = "Add Location Step";
+    private static final String SET_TRANSITION_POINT = "Set Transition Point";
+    private static final String SET_TRANSITION_OBJECT = "Set Transition Object";
     private static final String ADD_TO_ITEM_STEP = "Add to Item Step";
     private static final String CREATE_ITEM_STEP = "Create Item Step";
     private static final String CLEAR_SELECTION = "Clear Item Selection";
@@ -94,6 +96,27 @@ public class TileMenuHandler {
                 .setTarget("<col=00ff00>" + MENU_TARGET + "</col>")
                 .setType(MenuAction.RUNELITE)
                 .setDeprioritized(false);
+            if (plugin.getActiveRoute() != null && plugin.getActiveRoute().getActiveStep() != null) {
+                client.createMenuEntry(-1)
+                    .setOption(SET_TRANSITION_POINT)
+                    .setTarget("<col=00ff00>" + MENU_TARGET + "</col>")
+                    .setType(MenuAction.RUNELITE)
+                    .setDeprioritized(false);
+                // Also offer object ID grab if a game object is under the cursor
+                net.runelite.api.Tile tile = client.getTopLevelWorldView().getSelectedSceneTile();
+                if (tile != null) {
+                    for (net.runelite.api.GameObject obj : tile.getGameObjects()) {
+                        if (obj != null) {
+                            client.createMenuEntry(-1)
+                                .setOption(SET_TRANSITION_OBJECT + " (ID:" + obj.getId() + ")")
+                                .setTarget("<col=00ff00>" + MENU_TARGET + "</col>")
+                                .setType(MenuAction.RUNELITE)
+                                .setDeprioritized(false);
+                            break;
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -116,7 +139,35 @@ public class TileMenuHandler {
 
         if (!event.getMenuTarget().contains(MENU_TARGET)) return;
 
-        if (opt.equals(ADD_LOCATION_STEP)) {
+        if (opt.startsWith(SET_TRANSITION_OBJECT)) {
+            com.routeplanner.model.RouteStep activeStep = plugin.getActiveRoute() == null ? null
+                : plugin.getActiveRoute().getActiveStep();
+            if (activeStep == null) return;
+            net.runelite.api.Tile tile = client.getTopLevelWorldView().getSelectedSceneTile();
+            if (tile == null) return;
+            for (net.runelite.api.GameObject obj : tile.getGameObjects()) {
+                if (obj != null) {
+                    activeStep.setTransitionObjectId(obj.getId());
+                    plugin.saveRoutes();
+                    client.addChatMessage(net.runelite.api.ChatMessageType.GAMEMESSAGE, "",
+                        "<col=00ff00>Route Planner:</col> transition object ID set to " + obj.getId(), null);
+                    log.info("Transition object ID set to {}", obj.getId());
+                    break;
+                }
+            }
+        } else if (opt.equals(SET_TRANSITION_POINT)) {
+            net.runelite.api.Tile selectedTile = client.getTopLevelWorldView().getSelectedSceneTile();
+            if (selectedTile == null) return;
+            com.routeplanner.model.RouteStep activeStep = plugin.getActiveRoute() == null ? null
+                : plugin.getActiveRoute().getActiveStep();
+            if (activeStep == null) return;
+            net.runelite.api.coords.WorldPoint raw = selectedTile.getWorldLocation();
+            activeStep.setTransitionPoint(raw);
+            plugin.saveRoutes();
+            client.addChatMessage(net.runelite.api.ChatMessageType.GAMEMESSAGE, "",
+                "<col=00ff00>Route Planner:</col> transition point set to " + raw, null);
+            log.info("Transition point set to {}", raw);
+        } else if (opt.equals(ADD_LOCATION_STEP)) {
             net.runelite.api.Tile selectedTile = client.getTopLevelWorldView().getSelectedSceneTile();
             if (selectedTile == null) {
                 log.warn("Route Planner: no selected tile found");

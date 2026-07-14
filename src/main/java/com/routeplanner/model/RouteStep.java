@@ -51,6 +51,12 @@ public class RouteStep {
     private String herblorePotion; // potion for Herblore steps (drives the bank highlight)
     private String bankHighlightItems; // generic bank highlight for skilling steps (Cooking, etc.)
 
+    // Transition point: when set, this step has two phases.
+    // Phase 1: path to transitionPoint (the staircase/ladder tile).
+    // Phase 2: once player plane matches worldPoint plane, path to worldPoint.
+    private WorldPoint transitionPoint;
+    private int transitionObjectId = -1; // game object ID to highlight as the transition object (-1 = none)
+
     // Note step (informational, not tracked)
     private String noteText;
     private String npcHighlight; // NOTE step: optional NPC name to highlight

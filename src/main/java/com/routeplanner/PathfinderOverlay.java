@@ -27,16 +27,18 @@ public class PathfinderOverlay extends Overlay {
     private WorldCollisionMap collisionMap = null;
     private boolean loadAttempted = false;
     private java.util.Map<WorldPoint, java.util.List<WorldPoint>> transports = new java.util.HashMap<>();
-    private java.util.List<com.routeplanner.transport.Transport> planeTransitions = new java.util.ArrayList<>();
-    private static final int PLANE_TRANSITION_SEARCH_RADIUS = 30;
     /** The transition currently being routed to, if the active step is on a different plane than
      *  the player. Null whenever no plane redirect is in effect. Read by the overlay/highlight code
      *  to know what (if anything) to highlight as the "climb this" object. */
     private com.routeplanner.transport.Transport activeTransition;
+
+    /** Returns the transition the player should climb/use next, or null if none. */
+    public com.routeplanner.transport.Transport getActiveTransition() { return activeTransition; }
+
+    /** Returns the loaded collision map, or null if not yet loaded. */
+    public WorldCollisionMap getCollisionMap() { return collisionMap; }
     /** The transition currently committed to, persisted across ticks so the lookup can apply
-     *  hysteresis (see TransportHintLookup.SWITCH_MARGIN) instead of re-deciding from scratch
      *  every tick, which is what caused visible flip-flopping between near-equal candidates. */
-    private com.routeplanner.transport.Transport committedTransition;
     private static final int TRANSPORT_COST = 5;
 
     private WorldPoint lastPlayer = null;
@@ -54,8 +56,8 @@ public class PathfinderOverlay extends Overlay {
         if (tickCount % 2 != 0) return;
         if (plugin.getActiveRoute() == null) return;
         RouteStep step = plugin.getActiveRoute().getActiveStep();
-        if (step == null) { committedTransition = null; return; }
-        if (step.isLocationReached()) { committedTransition = null; cachedPath = new ArrayList<>(); return; }
+        if (step == null) { return; }
+        if (step.isLocationReached()) { cachedPath = new ArrayList<>(); return; }
 
         WorldPoint target = step.getWorldPoint();
         if (target == null) { cachedPath = new ArrayList<>(); return; }
@@ -63,29 +65,16 @@ public class PathfinderOverlay extends Overlay {
 
         WorldPoint player = client.getLocalPlayer().getWorldLocation();
 
-        // If the step's destination is on a different plane, redirect the path target to the
-        // nearest known transition (staircase/ladder/etc.) instead of giving up. Everything below
-        // this point -- trim/rebuild, distance checks, render() -- operates on whatever "target"
-        // is, so substituting the transition's origin tile here is enough to path to it using the
-        // exact same machinery as any other destination. The moment the player actually climbs it,
-        // player.getPlane() will equal step.getWorldPoint().getPlane() again on the very next tick,
-        // this branch stops firing, and normal pathing to the real destination resumes with no
-        // special "arrived, now continue" logic needed.
+        // Two-phase transition: if this step has a transitionPoint set and the player
+        // is not yet on the target's plane, path to the transitionPoint (staircase/ladder).
+        // Once the player climbs it and planes match, fall through to normal pathing.
         activeTransition = null;
-        if (player.getPlane() != target.getPlane()) {
-            activeTransition = com.routeplanner.transport.TransportHintLookup.findNearest(
-                planeTransitions, player, target, PLANE_TRANSITION_SEARCH_RADIUS, committedTransition);
-            if (activeTransition == null) {
-                committedTransition = null;
-                cachedPath = new ArrayList<>();
-                return; // Level 1 fallback: no known route up/down from here
-            }
-            committedTransition = activeTransition;
-            // Path to a verified-walkable tile adjacent to the transition, not the transition's own
-            // tile -- staircases/ladders can sit in collision-map spots that don't resolve reliably
-            // as a destination from a distance. The existing 3-tile "arrived" check below then
-            // triggers highlighting the transition object once the player is genuinely close.
-            target = com.routeplanner.transport.TransitionAnchor.pickAnchor(activeTransition.origin, player, collisionMap);
+        boolean exactTargetMatch = false;
+        if (step.getTransitionPoint() != null && player.getPlane() != target.getPlane()) {
+            target = step.getTransitionPoint();
+            exactTargetMatch = true; // path to exact tile, not "within 1" which can cut through walls
+            activeTransition = new com.routeplanner.transport.Transport(
+                step.getTransitionPoint(), step.getWorldPoint(), "Climb", 0);
         }
         if (player.distanceTo(target) <= 3) { cachedPath = new ArrayList<>(); return; }
 
@@ -114,17 +103,19 @@ public class PathfinderOverlay extends Overlay {
             // path, just trim the tiles we've walked past instead of recomputing. A full A*
             // rebuild every step causes the line to visibly reshuffle (equal-cost tie-breaks),
             // so we only rebuild when the target changes or we've stepped OFF the cached route.
+            //
+            // Special case for plane transitions: once we've built a path to the staircase/ladder,
+            // don't rebuild it just because the player stepped off the theoretical optimal line.
             int onIdx = !targetChanged ? indexOnPath(player) : -1;
-            if (onIdx > 0) {
-                trimCachedPathTo(onIdx);
-                lastFailedTarget = null;
-            } else if (onIdx == 0) {
-                // already at the head of the path; nothing to trim, keep it as-is
-                lastFailedTarget = null;
-            } else {
-                cachedPath = buildPath(player, target);
-                lastFailedTarget = cachedPath.isEmpty() ? target : null;
-            }
+                if (onIdx > 0) {
+                    trimCachedPathTo(onIdx);
+                    lastFailedTarget = null;
+                } else if (onIdx == 0) {
+                    lastFailedTarget = null;
+                } else {
+                    cachedPath = exactTargetMatch ? buildPathExact(player, target) : buildPath(player, target);
+                    lastFailedTarget = cachedPath.isEmpty() ? target : null;
+                }
         }
     }
 
@@ -148,8 +139,7 @@ public class PathfinderOverlay extends Overlay {
             collisionMap = new WorldCollisionMap(is);
             log.info("Route Planner: collision map loaded ok={}", collisionMap.isLoaded());
             transports = TransportLoader.load();
-            planeTransitions = com.routeplanner.transport.TransportHintLoader.loadPlaneTransitions();
-            log.info("Route Planner: loaded {} plane-changing transitions", planeTransitions.size());
+
         } catch (IOException e) {
             log.error("Route Planner: failed to load collision map", e);
         }
@@ -477,6 +467,59 @@ public class PathfinderOverlay extends Overlay {
     }
 
     private List<WorldPoint> buildPath(WorldPoint start, WorldPoint end) {
+        return buildPath(start, end, DEFAULT_MAX_NODES);
+    }
+
+    /** Like buildPath but requires stepping ON the exact end tile (no <= 1 early termination).
+     *  Used for transition targets so A* doesn't stop at a wall-adjacent tile. */
+    private List<WorldPoint> buildPathExact(WorldPoint start, WorldPoint end) {
+        if (collisionMap == null || !collisionMap.isLoaded()) return Collections.emptyList();
+        Map<WorldPoint, WorldPoint> cameFrom = new HashMap<>();
+        Map<WorldPoint, Integer> bestG = new HashMap<>();
+        PriorityQueue<Node> open = new PriorityQueue<>();
+        bestG.put(start, 0);
+        open.add(new Node(start, 0, heuristic(start, end)));
+        cameFrom.put(start, null);
+        int explored = 0;
+        while (!open.isEmpty() && explored < DEFAULT_MAX_NODES) {
+            Node current = open.poll();
+            WorldPoint cp = current.point;
+            explored++;
+            if (current.g > bestG.getOrDefault(cp, Integer.MAX_VALUE)) continue;
+            if (cp.equals(end)) return reconstructPath(cameFrom, cp, start);
+            int x = cp.getX(), y = cp.getY(), cplane = cp.getPlane();
+            int[][] moves = {{x, y+1}, {x, y-1}, {x+1, y}, {x-1, y}};
+            boolean[] allowed = {
+                collisionMap.canMoveNorth(x, y, cplane),
+                collisionMap.canMoveSouth(x, y, cplane),
+                collisionMap.canMoveEast(x, y, cplane),
+                collisionMap.canMoveWest(x, y, cplane)
+            };
+            for (int i = 0; i < 4; i++) {
+                if (!allowed[i]) continue;
+                WorldPoint np = new WorldPoint(moves[i][0], moves[i][1], cplane);
+                int ng = current.g + 1;
+                if (ng < bestG.getOrDefault(np, Integer.MAX_VALUE)) {
+                    bestG.put(np, ng);
+                    cameFrom.put(np, cp);
+                    open.add(new Node(np, ng, heuristic(np, end)));
+                }
+            }
+        }
+        return Collections.emptyList();
+    }
+
+    /**
+     * Same A* search as buildPath(start, end), but with a configurable node-exploration cap
+     * instead of the fixed default. Exists so cheaper, capped searches can be used to COMPARE
+     * candidates (e.g. is a real walkable route to this tile much longer than to that one) without
+     * paying the cost of a full 350,000-node search for a comparison that only needs to detect a
+     * large difference, not find the exact optimal route. The real, uncapped call sites are
+     * completely unaffected -- this is purely additive.
+     */
+    private static final int DEFAULT_MAX_NODES = 350000;
+
+    private List<WorldPoint> buildPath(WorldPoint start, WorldPoint end, int maxNodes) {
         if (collisionMap == null || !collisionMap.isLoaded()) {
             return Collections.emptyList();
         }
@@ -491,7 +534,6 @@ public class PathfinderOverlay extends Overlay {
         open.add(new Node(start, 0, heuristic(start, end)));
         cameFrom.put(start, null);
 
-        int maxNodes = 350000;
         int explored = 0;
 
         while (!open.isEmpty() && explored < maxNodes) {

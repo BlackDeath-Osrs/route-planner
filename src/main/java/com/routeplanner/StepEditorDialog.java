@@ -34,6 +34,8 @@ public class StepEditorDialog extends JFrame {
 
     private final JTextField nameField = new JTextField();
     private final JTextField tileField = new JTextField();
+    private final JTextField transitionField = new JTextField();
+    private JLabel transitionObjectLabel = new JLabel("No object set");
     private String teleMethod = "WALK"; // WALK | SPELL | ITEM
     private com.routeplanner.teleport.TeleportSpell chosenSpell;
     private com.routeplanner.teleport.TeleportItem chosenItem;
@@ -116,6 +118,56 @@ public class StepEditorDialog extends JFrame {
         useTile.setAlignmentX(Component.LEFT_ALIGNMENT);
         locBody.add(Box.createVerticalStrut(6));
         locBody.add(useTile);
+
+        // Multi-floor transition section
+        locBody.add(Box.createVerticalStrut(10));
+        JSeparator sep = new JSeparator();
+        sep.setForeground(ColorScheme.MEDIUM_GRAY_COLOR);
+        sep.setAlignmentX(Component.LEFT_ALIGNMENT);
+        sep.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
+        locBody.add(sep);
+        locBody.add(Box.createVerticalStrut(6));
+        JLabel transHdr = new JLabel("Multi-floor transition (optional)  ℹ");
+        transHdr.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+        transHdr.setFont(transHdr.getFont().deriveFont(java.awt.Font.BOLD));
+        transHdr.setAlignmentX(Component.LEFT_ALIGNMENT);
+        transHdr.setToolTipText("<html>Use when the step destination is on a different floor.<br>Set a transition tile (the staircase/ladder approach tile) and the plugin<br>will path there first, then continue to the destination once the player<br>changes planes. Optionally set a transition object ID to highlight the<br>staircase/ladder hull in-game. Use Shift+right-click in-game to set both.</html>");
+        locBody.add(transHdr);
+        locBody.add(Box.createVerticalStrut(6));
+        locBody.add(labeled("Transition tile (x, y, plane)", transitionField));
+        JPanel transBtns = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        transBtns.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+        transBtns.setAlignmentX(Component.LEFT_ALIGNMENT);
+        transBtns.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+        JButton useTransTile = new JButton("Use my current tile"); styleButton(useTransTile);
+        useTransTile.addActionListener(e -> {
+            WorldPoint wp = plugin.getLastPlayerLocation();
+            if (wp != null) transitionField.setText(formatTile(wp));
+        });
+        JButton clearTrans = new JButton("Clear"); styleButton(clearTrans);
+        clearTrans.addActionListener(e -> {
+            transitionField.setText("");
+            transitionObjectLabel.setText("No object set");
+        });
+        transBtns.add(useTransTile);
+        transBtns.add(clearTrans);
+        locBody.add(transBtns);
+        locBody.add(Box.createVerticalStrut(4));
+        JLabel transObjHdr = new JLabel("Transition object (for hull highlight):");
+        transObjHdr.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+        transObjHdr.setAlignmentX(Component.LEFT_ALIGNMENT);
+        locBody.add(transObjHdr);
+        locBody.add(Box.createVerticalStrut(2));
+        transitionObjectLabel.setForeground(Color.WHITE);
+        transitionObjectLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        locBody.add(transitionObjectLabel);
+        JLabel transObjHint = new JLabel("Shift+right-click in-game → Set Transition Object");
+        transObjHint.setForeground(ColorScheme.MEDIUM_GRAY_COLOR);
+        transObjHint.setFont(transObjHint.getFont().deriveFont(10f));
+        transObjHint.setAlignmentX(Component.LEFT_ALIGNMENT);
+        locBody.add(Box.createVerticalStrut(2));
+        locBody.add(transObjHint);
+        locBody.add(Box.createVerticalStrut(6));
 
         // Teleport method row (Walk / Spell / Item)
         locBody.add(Box.createVerticalStrut(8));
@@ -275,6 +327,11 @@ public class StepEditorDialog extends JFrame {
             if (editing.getName() != null) nameField.setText(editing.getName());
             WorldPoint wp = editing.getWorldPoint();
             if (wp != null) tileField.setText(formatTile(wp));
+            WorldPoint tp = editing.getTransitionPoint();
+            if (tp != null) transitionField.setText(formatTile(tp));
+            int toi = editing.getTransitionObjectId();
+            if (toi > 0) transitionObjectLabel.setText("Object ID: " + toi);
+            else transitionObjectLabel.setText("No object set");
             if (editing.getItemList() != null && !editing.getItemList().isEmpty()) {
                 itemsCheck.setSelected(true);
                 itemsField.setText(editing.getItemList());
@@ -346,6 +403,8 @@ public class StepEditorDialog extends JFrame {
             applySkillGoal(step);
             applyHighlight(step);
             applyNote(step);
+            WorldPoint tp = parseTile(transitionField.getText());
+            step.setTransitionPoint(tp);
             plugin.addStep(route, step);
             plugin.refreshHighlights();
         } else {
@@ -356,6 +415,8 @@ public class StepEditorDialog extends JFrame {
             applySkillGoal(editing);
             applyHighlight(editing);
             applyNote(editing);
+            WorldPoint tpe = parseTile(transitionField.getText());
+            editing.setTransitionPoint(tpe);
             plugin.saveRoutes();
             plugin.refreshHighlights();
         }
