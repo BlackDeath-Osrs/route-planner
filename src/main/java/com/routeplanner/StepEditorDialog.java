@@ -70,7 +70,16 @@ public class StepEditorDialog extends JFrame {
         setTitle(editing == null ? "Add step" : "Edit step");
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         setAlwaysOnTop(true);            // float beside the game, but never modal
-        setSize(320, 460);
+        // Remembers the user's own resize (screen/DPI/font sizes vary a lot), rather than forcing
+        // everyone back to one fixed size on every edit. Falls back to a roomier default the first
+        // time, or if nothing's been saved yet.
+        setSize(plugin.getStepEditorSize());
+        addComponentListener(new java.awt.event.ComponentAdapter() {
+            @Override
+            public void componentResized(java.awt.event.ComponentEvent e) {
+                plugin.setStepEditorSize(getWidth(), getHeight());
+            }
+        });
         setLocationRelativeTo(null);
 
         JPanel root = new JPanel();
@@ -145,7 +154,15 @@ public class StepEditorDialog extends JFrame {
         itemsBody.setBackground(ColorScheme.DARKER_GRAY_COLOR);
         itemsBody.setBorder(new EmptyBorder(6, 8, 8, 8));
         itemsField = new JTextField();
-        itemsBody.add(labeled("Items (comma sep, / for alternatives)", itemsField));
+        // The completion check (BankItemManager.hasAllItems) already supports a leading quantity
+        // per entry ("3 logs" requires 3, not just any amount) -- but nothing in the UI said so,
+        // so users assumed only presence-of-item was checked. Made visible two ways: the label
+        // itself, and a tooltip with a concrete worked example on hover.
+        itemsField.setToolTipText("<html>Add a number before an item to require that many, e.g. "
+            + "<b>3 logs</b>. Without a number, any amount counts.<br>"
+            + "Comma = ALL required, e.g. <b>3 logs, 2 coal</b> needs both.<br>"
+            + "Slash = ANY ONE counts, e.g. <b>3 logs / 3 oak logs</b> needs either.</html>");
+        itemsBody.add(labeled("Items (e.g. \"3 logs\" -- comma=all, /=any one)", itemsField));
         itemsBody.add(Box.createVerticalStrut(6));
         itemsMode = new JComboBox<>(new String[]{"Bank", "Shop (buy)", "Sell", "Pickup"});
         itemsMode.setMaximumSize(new Dimension(Integer.MAX_VALUE, 26));

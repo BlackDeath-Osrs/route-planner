@@ -190,6 +190,28 @@ public class RoutePlannerPlugin extends Plugin {
         configManager.setConfiguration("routeplanner", HUB_WARNING_COLLAPSED_KEY, collapsed);
     }
 
+    private static final String STEP_EDITOR_WIDTH_KEY = "stepEditorWidth";
+    private static final String STEP_EDITOR_HEIGHT_KEY = "stepEditorHeight";
+    private static final int STEP_EDITOR_DEFAULT_WIDTH = 480;
+    private static final int STEP_EDITOR_DEFAULT_HEIGHT = 560;
+
+    /** The step editor's last size, remembered per-user so someone who resizes it once (screen/DPI/
+     *  font sizes vary a lot) doesn't have to redo it on every single future step edit. Falls back
+     *  to a roomier default than the original 320x460, which was cramped even before considering
+     *  any per-user resize preference. */
+    public java.awt.Dimension getStepEditorSize() {
+        Integer w = configManager.getConfiguration("routeplanner", STEP_EDITOR_WIDTH_KEY, Integer.class);
+        Integer h = configManager.getConfiguration("routeplanner", STEP_EDITOR_HEIGHT_KEY, Integer.class);
+        int width = (w != null && w > 0) ? w : STEP_EDITOR_DEFAULT_WIDTH;
+        int height = (h != null && h > 0) ? h : STEP_EDITOR_DEFAULT_HEIGHT;
+        return new java.awt.Dimension(width, height);
+    }
+
+    public void setStepEditorSize(int width, int height) {
+        configManager.setConfiguration("routeplanner", STEP_EDITOR_WIDTH_KEY, width);
+        configManager.setConfiguration("routeplanner", STEP_EDITOR_HEIGHT_KEY, height);
+    }
+
     public void deleteRoute(Route route) {
         routeHistory.forget(route);
         if (activeRoute == route) activeRoute = null;
