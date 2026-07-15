@@ -87,15 +87,8 @@ public class RouteImportExport {
      * can't be set for any reason -- this is cosmetic, never worth failing an import/export over.
      */
     private JFileChooser newSystemFileChooser(String title) {
-        try {
-            String current = javax.swing.UIManager.getLookAndFeel().getClass().getName();
-            String system = javax.swing.UIManager.getSystemLookAndFeelClassName();
-            if (!current.equals(system)) {
-                javax.swing.UIManager.setLookAndFeel(system);
-            }
-        } catch (Exception ignored) {
-            // Best-effort only; the default cross-platform chooser still works fine.
-        }
+        // Use cross-platform look and feel for the file chooser so it works
+        // correctly on Linux regardless of whether running under Wine or native.
         JFileChooser chooser = new JFileChooser();
         chooser.setDialogTitle(title);
         return chooser;
