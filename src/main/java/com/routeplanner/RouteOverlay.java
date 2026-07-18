@@ -54,11 +54,19 @@ public class RouteOverlay extends Overlay {
         Transport transition = plugin.getPathfinderOverlay().getActiveTransition();
         RouteStep activeStep = plugin.getActiveRoute() == null ? null : plugin.getActiveRoute().getActiveStep();
 
-        if (transition != null && transition.origin != null && activeStep != null) {
+        // Show transition highlight whenever the active step has a transitionPoint set,
+        // regardless of whether the plane-transition logic is active.
+        net.runelite.api.coords.WorldPoint transOrigin = activeStep != null ? activeStep.getTransitionPoint() : null;
+        if (transOrigin == null && transition != null) transOrigin = transition.origin;
+
+        if (transOrigin != null && activeStep != null) {
             WorldPoint player = client.getLocalPlayer() == null ? null
                 : client.getLocalPlayer().getWorldLocation();
-            int distToTransition = player == null ? -999 : player.distanceTo(transition.origin);
-            if (player != null && distToTransition >= 0 && distToTransition <= 15) {
+            // Use raw Chebyshev distance ignoring plane so underground transitions still highlight.
+            int distToTransition = player == null ? 999 :
+                Math.max(Math.abs(player.getX() - transOrigin.getX()),
+                         Math.abs(player.getY() - transOrigin.getY()));
+            if (player != null && distToTransition <= 15) {
                 long ms = System.currentTimeMillis();
                 int alpha = 120 + (int)(80 * Math.sin(ms / 400.0));
                 Color base = config.npcHighlightColor();
@@ -71,11 +79,17 @@ public class RouteOverlay extends Overlay {
                     // and drawing filled polygons on matching tiles. Works with HD plugin unlike
                     // ModelOutlineRenderer which requires the standard renderer.
                     net.runelite.api.Tile[][][] tiles = client.getTopLevelWorldView().getScene().getTiles();
-                    int plane = transition.origin.getPlane();
+                    int plane = client.getTopLevelWorldView().getPlane();
                     for (net.runelite.api.Tile[] row : tiles[plane]) {
                         for (net.runelite.api.Tile t : row) {
                             if (t == null) continue;
-                            for (GameObject obj : t.getGameObjects()) {
+                            // Build a list of all renderable objects on this tile
+                            java.util.List<net.runelite.api.TileObject> candidates = new java.util.ArrayList<>();
+                            for (GameObject obj : t.getGameObjects()) { if (obj != null) candidates.add(obj); }
+                            if (t.getWallObject() != null) candidates.add(t.getWallObject());
+                            if (t.getDecorativeObject() != null) candidates.add(t.getDecorativeObject());
+                            if (t.getGroundObject() != null) candidates.add(t.getGroundObject());
+                            for (net.runelite.api.TileObject obj : candidates) {
                                 if (obj == null || obj.getId() != objId) continue;
                                 // Use the object's clickbox (convex hull of the 3D model)
                                 // which gives the actual shape rather than a tile square.
