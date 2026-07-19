@@ -51,6 +51,7 @@ public class RoutePlannerPlugin extends Plugin {
     @Inject private WorldMapPathOverlay worldMapPathOverlay;
     @Inject private RouteHudOverlay routeHudOverlay;
     @Inject @Getter private PathfinderOverlay pathfinderOverlay;
+    @Getter private int arrivalHoldTicksRemaining = 0;
     @Inject @Getter private com.routeplanner.hub.RouteHubCatalog routeHubCatalog;
     @Inject private com.routeplanner.bank.BankOverlay bankOverlay;
     @Inject private com.routeplanner.bank.BankItemManager bankItemManager;
@@ -623,7 +624,12 @@ public class RoutePlannerPlugin extends Plugin {
                 && client.getLocalPlayer() != null
                 && client.getLocalPlayer().getWorldLocation().distanceTo(step.getWorldPoint()) <= 3) {
             step.setLocationReached(true);
+            arrivalHoldTicksRemaining = config.arrivalHideDelay(); // 50 = never hide until step complete
         }
+
+        // Count down the arrival-hold timer each tick
+        // At max value (50) = never auto-hide; only clears when step completes.
+        if (arrivalHoldTicksRemaining > 0 && arrivalHoldTicksRemaining < 30) arrivalHoldTicksRemaining--;
 
         if (step.getWorldPoint() != null
                 && !step.hasSkillGoal() && !step.hasItems() && !step.hasNote()) {

@@ -63,6 +63,15 @@ public interface RoutePlannerConfig extends Config {
     )
     default HudTheme hudTheme() { return HudTheme.OSRS_BROWN; }
 
+    @ConfigItem(
+        keyName = "arrivalHideDelay",
+        name = "Arrival Hide Delay",
+        description = "Increase the tick value 0-30 for the delay. 0 = hide on arrival, 30 = Always On.",
+        position = 3
+    )
+    @net.runelite.client.config.Range(min = 0, max = 30)
+    default int arrivalHideDelay() { return 0; }
+
     @Alpha
     @ConfigItem(
         keyName = "tileHighlightColor",

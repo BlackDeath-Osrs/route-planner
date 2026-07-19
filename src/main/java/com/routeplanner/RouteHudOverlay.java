@@ -97,10 +97,20 @@ public class RouteHudOverlay extends Overlay {
         // Show route location step if there is one incomplete
         if (routeHasIncompleteStep) {
             RouteStep current = steps.get(routeCurrentIdx);
-            lines.add(new String[]{">> " + (routeCurrentIdx + 1) + ". " + current.getName(), "CURRENT"});
+            String curPrefix = ">> " + (routeCurrentIdx + 1) + ". ";
+            java.util.List<String> curWrapped = wrapText(curPrefix + current.getName(), 42);
+            for (int i = 0; i < curWrapped.size(); i++) {
+                String curLine = i == 0 ? curWrapped.get(i) : "     " + curWrapped.get(i);
+                lines.add(new String[]{curLine, "CURRENT"});
+            }
             if (routeCurrentIdx + 1 < steps.size()) {
                 RouteStep next = steps.get(routeCurrentIdx + 1);
-                lines.add(new String[]{"   " + (routeCurrentIdx + 2) + ". " + next.getName(), "NEXT"});
+                String nxtPrefix = "   " + (routeCurrentIdx + 2) + ". ";
+                java.util.List<String> nxtWrapped = wrapText(nxtPrefix + next.getName(), 42);
+                for (int i = 0; i < nxtWrapped.size(); i++) {
+                    String nxtLine = i == 0 ? nxtWrapped.get(i) : "     " + nxtWrapped.get(i);
+                    lines.add(new String[]{nxtLine, "NEXT"});
+                }
             }
         }
 

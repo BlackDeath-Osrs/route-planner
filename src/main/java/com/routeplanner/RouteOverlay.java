@@ -42,7 +42,8 @@ public class RouteOverlay extends Overlay {
         if (plugin.getActiveRoute() == null) return null;
 
         RouteStep step = plugin.getActiveRoute().getActiveStep();
-        if (step == null || step.getWorldPoint() == null || step.isLocationReached()) return null;
+        if (step == null || step.getWorldPoint() == null) return null;
+        if (step.isLocationReached() && plugin.getArrivalHoldTicksRemaining() <= 0) return null;
 
         // Highlight target tile
         if (step.getWorldPoint() != null) {

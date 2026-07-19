@@ -57,7 +57,14 @@ public class PathfinderOverlay extends Overlay {
         if (plugin.getActiveRoute() == null) return;
         RouteStep step = plugin.getActiveRoute().getActiveStep();
         if (step == null) { return; }
-        if (step.isLocationReached()) { cachedPath = new ArrayList<>(); return; }
+        // If locationReached but the arrival-hold timer is still counting down,
+        // keep the cached path alive so the line/tile linger for that many ticks.
+        if (step.isLocationReached()) {
+            if (plugin.getArrivalHoldTicksRemaining() <= 0) {
+                cachedPath = new ArrayList<>();
+            }
+            return;
+        }
 
         WorldPoint target = step.getWorldPoint();
         if (target == null) { cachedPath = new ArrayList<>(); return; }
@@ -162,7 +169,7 @@ public class PathfinderOverlay extends Overlay {
             if (plugin.getActiveRoute() == null) return null;
             RouteStep step = plugin.getActiveRoute().getActiveStep();
             if (step == null) return null;
-            if (step.isLocationReached()) return null;
+            if (step.isLocationReached() && plugin.getArrivalHoldTicksRemaining() <= 0) return null;
             if (cachedPath.isEmpty()) return null;
             path = cachedPath;
             WorldPoint target = path.get(path.size() - 1);
