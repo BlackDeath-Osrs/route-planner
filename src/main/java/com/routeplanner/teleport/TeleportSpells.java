@@ -8,6 +8,8 @@ import java.util.List;
 public class TeleportSpells {
 
     public static final List<TeleportSpell> ALL = Arrays.asList(
+        new TeleportSpell("Home Teleport",              new WorldPoint(3221, 3219, 0), "STANDARD", SpriteID.SPELL_LUMBRIDGE_HOME_TELEPORT, "home"),
+        new TeleportSpell("Teleport to House",          new WorldPoint(0, 0, 0),       "STANDARD", SpriteID.SPELL_TELEPORT_TO_HOUSE, "house"),
         new TeleportSpell("Varrock Teleport",              new WorldPoint(3213, 3429, 0), "STANDARD", SpriteID.SPELL_VARROCK_TELEPORT, "varrock"),
         new TeleportSpell("Lumbridge Teleport",            new WorldPoint(3221, 3219, 0), "STANDARD", SpriteID.SPELL_LUMBRIDGE_TELEPORT, "lumbridge"),
         new TeleportSpell("Falador Teleport",              new WorldPoint(2965, 3379, 0), "STANDARD", SpriteID.SPELL_FALADOR_TELEPORT, "falador"),

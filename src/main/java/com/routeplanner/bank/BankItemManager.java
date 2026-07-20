@@ -138,6 +138,55 @@ public class BankItemManager {
         return total;
     }
 
+    /** Snapshot current inventory counts for items referenced in itemListStr. */
+    public java.util.Map<String, Long> snapshotInventory(String itemListStr) {
+        java.util.Map<String, Long> snapshot = new java.util.HashMap<>();
+        net.runelite.api.ItemContainer inv = client.getItemContainer(net.runelite.api.InventoryID.INVENTORY);
+        if (inv == null || itemListStr == null) return snapshot;
+        for (java.util.List<String> group : parseItemList(itemListStr)) {
+            for (String alt : group) {
+                String name = parseItemName(alt).toLowerCase();
+                long count = 0;
+                for (net.runelite.api.Item item : inv.getItems()) {
+                    if (item.getId() <= 0) continue;
+                    String n = itemManager.getItemComposition(item.getId()).getName();
+                    if (n != null && n.toLowerCase().equals(name)) count += item.getQuantity();
+                }
+                snapshot.put(name, count);
+            }
+        }
+        return snapshot;
+    }
+
+    /** True when enough of each item group has been gained ABOVE the baseline snapshot. */
+    public boolean hasAllItemsAboveBaseline(String itemListStr, java.util.Map<String, Long> baseline) {
+        if (baseline == null) return hasAllItems(itemListStr);
+        net.runelite.api.ItemContainer inv = client.getItemContainer(net.runelite.api.InventoryID.INVENTORY);
+        if (inv == null) return false;
+        // Count current inventory
+        java.util.Map<String, Long> current = new java.util.HashMap<>();
+        for (net.runelite.api.Item item : inv.getItems()) {
+            if (item.getId() <= 0) continue;
+            String n = itemManager.getItemComposition(item.getId()).getName();
+            if (n == null) continue;
+            current.merge(n.toLowerCase(), (long) item.getQuantity(), Long::sum);
+        }
+        for (java.util.List<String> group : parseItemList(itemListStr)) {
+            long required = 0;
+            for (String alt : group) required = Math.max(required, parseQuantityValue(alt));
+            // Check if any alternative in the group satisfies the required amount above baseline
+            boolean groupSatisfied = false;
+            for (String alt : group) {
+                String name = parseItemName(alt).toLowerCase();
+                long base = baseline.getOrDefault(name, 0L);
+                long gained = Math.max(0, current.getOrDefault(name, 0L) - base);
+                if (gained >= required) { groupSatisfied = true; break; }
+            }
+            if (!groupSatisfied) return false;
+        }
+        return true;
+    }
+
     // SELL: returns true when none of the listed items remain in the inventory (all sold)
     public boolean hasSoldAll(String itemListStr) {
         List<List<String>> groups = parseItemList(itemListStr);
@@ -223,6 +272,39 @@ public class BankItemManager {
                 if (invQtys.getOrDefault(itemName, 0L) >= required) {
                     have = true;
                 }
+            }
+            result.add(new String[]{disp.toString(), have ? "HAVE" : "NEED"});
+        }
+        return result;
+    }
+
+    /** Same as getItemStatusList but subtracts baseline counts for PICKUP steps. */
+    public List<String[]> getItemStatusList(String itemListStr, java.util.Map<String, Long> baseline) {
+        if (baseline == null) return getItemStatusList(itemListStr);
+        List<List<String>> groups = parseItemList(itemListStr);
+        List<String[]> result = new ArrayList<>();
+        if (groups.isEmpty()) return result;
+        ItemContainer inventory = client.getItemContainer(InventoryID.INVENTORY);
+        Map<String, Long> invQtys = new HashMap<>();
+        if (inventory != null) {
+            for (Item item : inventory.getItems()) {
+                if (item.getId() <= 0) continue;
+                String name = itemManager.getItemComposition(item.getId()).getName();
+                if (name != null) invQtys.merge(name.toLowerCase(), (long) item.getQuantity(), Long::sum);
+            }
+        }
+        for (List<String> group : groups) {
+            boolean have = false;
+            StringBuilder disp = new StringBuilder();
+            for (int i = 0; i < group.size(); i++) {
+                String alt = group.get(i);
+                if (i > 0) disp.append("/");
+                disp.append(alt);
+                String itemName = parseItemName(alt).toLowerCase();
+                long required = parseQuantityValue(alt);
+                long base = baseline.getOrDefault(itemName, 0L);
+                long gained = Math.max(0, invQtys.getOrDefault(itemName, 0L) - base);
+                if (gained >= required) have = true;
             }
             result.add(new String[]{disp.toString(), have ? "HAVE" : "NEED"});
         }

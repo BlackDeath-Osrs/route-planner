@@ -51,6 +51,9 @@ public class StepEditorDialog extends JFrame {
     private JComboBox<String> recipeCombo;
     private JCheckBox highlightCheck;
     private JCheckBox noteCheck;
+    private JCheckBox questCheck;
+    private javax.swing.JComboBox<String> questPicker;
+    private JCheckBox questCompleteCheck;
     private JTextArea noteArea;
     private JTextField noteNpc;
     private JTextField noteKills;
@@ -303,6 +306,75 @@ public class StepEditorDialog extends JFrame {
         noteDialog = new JTextField();
         noteBody.add(labeled("Highlight dialogue options e.g. 3,1 (optional)", noteDialog));
         root.add(toggleableSection("Note", noteCheck, noteBody));
+        root.add(Box.createVerticalStrut(6));
+
+        // Quest section
+        questCheck = new JCheckBox("Quest");
+        questCheck.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+        questCheck.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+        questCheck.setFocusPainted(false);
+        JPanel questBody = new JPanel();
+        questBody.setLayout(new BoxLayout(questBody, BoxLayout.Y_AXIS));
+        questBody.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+        questBody.setBorder(new EmptyBorder(6, 8, 8, 8));
+        java.util.List<String> questNames = new java.util.ArrayList<>();
+        questNames.add("");
+        for (net.runelite.api.Quest q : net.runelite.api.Quest.values()) {
+            // Display with spaces instead of underscores for readability
+            questNames.add(q.name().replace("_", " "));
+        }
+        questPicker = new javax.swing.JComboBox<>(questNames.toArray(new String[0]));
+        questPicker.setEditable(true); // allow typing to search
+        questPicker.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+        questPicker.setForeground(Color.WHITE);
+        questPicker.setMaximumSize(new Dimension(Integer.MAX_VALUE, 28));
+        questPicker.setAlignmentX(Component.LEFT_ALIGNMENT);
+        // Filter dropdown as user types
+        javax.swing.JTextField questEditor = (javax.swing.JTextField) questPicker.getEditor().getEditorComponent();
+        questEditor.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+        questEditor.setForeground(Color.WHITE);
+        questEditor.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            private boolean filtering = false;
+            private void filter() {
+                if (filtering) return;
+                // Defer mutation to avoid "Attempt to mutate in notification" error
+                javax.swing.SwingUtilities.invokeLater(() -> {
+                    if (filtering) return;
+                    filtering = true;
+                    try {
+                        String text = questEditor.getText().toLowerCase();
+                        questPicker.removeAllItems();
+                        questPicker.addItem("");
+                        for (net.runelite.api.Quest q : net.runelite.api.Quest.values()) {
+                            String display = q.name().replace("_", " ");
+                            if (display.toLowerCase().contains(text)) questPicker.addItem(display);
+                        }
+                        questPicker.setPopupVisible(!text.isEmpty());
+                        questEditor.setText(text);
+                        questEditor.setCaretPosition(text.length());
+                    } finally {
+                        filtering = false;
+                    }
+                });
+            }
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { filter(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { filter(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) {}
+        });
+        JLabel questPickerLabel = new JLabel("Quest:");
+        questPickerLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+        questPickerLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        questBody.add(questPickerLabel);
+        questBody.add(Box.createVerticalStrut(4));
+        questBody.add(questPicker);
+        questBody.add(Box.createVerticalStrut(8));
+        questCompleteCheck = new JCheckBox("Full quest complete (auto-completes step when quest is finished)");
+        questCompleteCheck.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+        questCompleteCheck.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+        questCompleteCheck.setFocusPainted(false);
+        questCompleteCheck.setAlignmentX(Component.LEFT_ALIGNMENT);
+        questBody.add(questCompleteCheck);
+        root.add(toggleableSection("Quest", questCheck, questBody));
         root.add(Box.createVerticalStrut(12));
 
         // Save / Cancel
@@ -372,6 +444,13 @@ public class StepEditorDialog extends JFrame {
                 if (editing.getNpcKillCount() > 0) noteKills.setText(String.valueOf(editing.getNpcKillCount()));
                 if (editing.getDialogOptions() != null) noteDialog.setText(editing.getDialogOptions());
             }
+            if (editing.hasQuest()) {
+                questCheck.setSelected(true);
+                // Set directly on editor component to avoid triggering the filter listener
+                String qDisplay = editing.getQuestName() != null ? editing.getQuestName().replace("_", " ") : "";
+                ((javax.swing.JTextField) questPicker.getEditor().getEditorComponent()).setText(qDisplay);
+                questCompleteCheck.setSelected(editing.isQuestComplete());
+            }
         }
 
         add(new JScrollPane(root));
@@ -403,6 +482,7 @@ public class StepEditorDialog extends JFrame {
             applySkillGoal(step);
             applyHighlight(step);
             applyNote(step);
+            applyQuest(step);
             WorldPoint tp = parseTile(transitionField.getText());
             step.setTransitionPoint(tp);
             plugin.addStep(route, step);
@@ -415,6 +495,7 @@ public class StepEditorDialog extends JFrame {
             applySkillGoal(editing);
             applyHighlight(editing);
             applyNote(editing);
+            applyQuest(editing);
             WorldPoint tpe = parseTile(transitionField.getText());
             editing.setTransitionPoint(tpe);
             plugin.saveRoutes();
@@ -519,6 +600,29 @@ public class StepEditorDialog extends JFrame {
         for (com.routeplanner.skilling.FletchingData.Item i : com.routeplanner.skilling.FletchingData.AMMO) if (i.toString().equals(label)) return i.materials;
         for (com.routeplanner.skilling.FletchingData.Item i : com.routeplanner.skilling.FletchingData.BOWS) if (i.toString().equals(label)) return i.materials;
         return null;
+    }
+
+    private void applyQuest(RouteStep step) {
+        if (questCheck != null && questCheck.isSelected()) {
+            String qSelected = questPicker.getEditor().getItem().toString().trim();
+            // Convert display name (spaces) back to enum name (underscores)
+            String qEnum = qSelected.replace(" ", "_");
+            // Validate it matches a real quest
+            boolean valid = false;
+            for (net.runelite.api.Quest q : net.runelite.api.Quest.values()) {
+                if (q.name().equals(qEnum)) { valid = true; break; }
+            }
+            if (valid && !qEnum.isEmpty()) {
+                step.setQuestName(qEnum);
+                step.setQuestComplete(questCompleteCheck.isSelected());
+            } else {
+                step.setQuestName(null);
+                step.setQuestComplete(false);
+            }
+        } else {
+            step.setQuestName(null);
+            step.setQuestComplete(false);
+        }
     }
 
     private void applyNote(RouteStep step) {

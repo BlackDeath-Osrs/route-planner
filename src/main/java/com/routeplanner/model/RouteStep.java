@@ -19,7 +19,8 @@ public class RouteStep {
     private long agilityGoalValue;
 
     // Quest step fields
-    private String questName;
+    private String questName;          // matches net.runelite.api.Quest enum name
+    private boolean questComplete;     // true = auto-complete step when quest is FINISHED
 
     // Item/Bank step fields
     private String itemList;  // comma separated, / for alternatives e.g. "Spade,Rune pouch/Divine Rune pouch"
@@ -108,6 +109,10 @@ public class RouteStep {
         return (skillingTargetNpc != null && !skillingTargetNpc.trim().isEmpty())
             || (skillingTargetObject != null && !skillingTargetObject.trim().isEmpty())
             || (npcHighlight != null && !npcHighlight.trim().isEmpty());
+    }
+
+    public boolean hasQuest() {
+        return questName != null && !questName.trim().isEmpty();
     }
 
     public boolean hasNote() {

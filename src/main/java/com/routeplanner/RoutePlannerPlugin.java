@@ -259,9 +259,13 @@ public class RoutePlannerPlugin extends Plugin {
      */
     private void tryCompleteStep(RouteStep step) {
         if (step == null) return;
-        boolean itemsOk = !step.hasItems() || itemsSatisfied(step);
-        boolean skillOk = !step.hasSkillGoal() || skillGoalSatisfied(step);
-        if (itemsOk && skillOk) {
+        boolean itemsOk  = !step.hasItems()     || itemsSatisfied(step);
+        boolean skillOk  = !step.hasSkillGoal() || skillGoalSatisfied(step);
+        // Location: if worldPoint set, player must have reached it
+        boolean locOk    = step.getWorldPoint() == null || step.isLocationReached();
+        // Note: if note present, it must be manually marked complete (locationReached used as the ack flag)
+        boolean noteOk   = !step.hasNote() || step.isLocationReached();
+        if (itemsOk && skillOk && locOk && noteOk) {
             completeStep(step);
         }
     }
@@ -549,6 +553,12 @@ public class RoutePlannerPlugin extends Plugin {
             }
         }
 
+        // Snapshot inventory baseline when a PICKUP step first becomes active
+        // MUST happen before the completion check so carried-over items don't count.
+        if (step != null && "PICKUP".equals(step.getItemMode()) && step.getPickupBaseline() == null) {
+            step.setPickupBaseline(bankItemManager.snapshotInventory(step.getItemList()));
+        }
+
         // Check item step completion
         if (step != null && step.hasItems()) {
             boolean done;
@@ -559,9 +569,10 @@ public class RoutePlannerPlugin extends Plugin {
                 }
                 done = step.isSellArmed() && bankItemManager.hasSoldAll(step.getItemList());
             } else if ("PICKUP".equals(step.getItemMode())) {
-                // "Have N in inventory" -- same absolute check as BANK; where you got them
-                // only matters for highlighting, handled by GroundItemOverlay.
-                done = bankItemManager.hasAllItems(step.getItemList());
+                // Check items gained ABOVE the baseline snapshot taken when step started,
+                // so carried-over items from prior steps don't count.
+                done = bankItemManager.hasAllItemsAboveBaseline(
+                    step.getItemList(), step.getPickupBaseline());
             } else {
                 done = bankItemManager.hasAllItems(step.getItemList());
             }
@@ -702,7 +713,7 @@ public class RoutePlannerPlugin extends Plugin {
         RouteStep step = activeRoute.getActiveStep();
         if (step == null || !step.hasItems()) return;
         if (event.getTile().getWorldLocation().equals(step.getWorldPoint())) {
-            completeStep(step);
+            tryCompleteStep(step);
         }
     }
 

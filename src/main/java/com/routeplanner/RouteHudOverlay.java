@@ -130,7 +130,9 @@ public class RouteHudOverlay extends Overlay {
                 } else {
                     String header = "SHOP".equals(mode) ? "Buy:" : ("PICKUP".equals(mode) ? "Pick up:" : "Gather:");
                     lines.add(new String[]{header, "TITLE"});
-                    for (String[] st : bankItemManager.getItemStatusList(curStep.getItemList())) {
+                    java.util.Map<String, Long> baseline = "PICKUP".equals(curStep.getItemMode())
+                        ? curStep.getPickupBaseline() : null;
+                    for (String[] st : bankItemManager.getItemStatusList(curStep.getItemList(), baseline)) {
                         boolean have = st[1].equals("HAVE");
                         String mark = have ? "[x] " : "[  ] ";
                         lines.add(new String[]{"  " + mark + st[0], have ? "HAVE" : "CURRENT"});
