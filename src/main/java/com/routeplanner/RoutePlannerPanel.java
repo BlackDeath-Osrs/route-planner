@@ -530,7 +530,12 @@ public class RoutePlannerPanel extends PluginPanel {
                     @Override
                     public void mousePressed(MouseEvent e) {
                         if (SwingUtilities.isLeftMouseButton(e)) {
-                            plugin.setActiveRoute(route);
+                            // Click active route again to deselect (pause)
+                            if (plugin.getActiveRoute() == route) {
+                                plugin.setActiveRoute(null);
+                            } else {
+                                plugin.setActiveRoute(route);
+                            }
                         }
                         if (e.isPopupTrigger()) {
                             routeMenu.show(row, e.getX(), e.getY());
