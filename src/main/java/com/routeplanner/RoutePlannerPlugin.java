@@ -560,9 +560,21 @@ public class RoutePlannerPlugin extends Plugin {
         }
 
         // Check item step completion
-        if (step != null && step.hasItems()) {
+        if (step != null && (step.hasItems() || "DEPOSIT_ALL".equals(step.getItemMode()))) {
             boolean done;
-            if ("SELL".equals(step.getItemMode())) {
+            if ("DEPOSIT_ALL".equals(step.getItemMode())) {
+                // Arm once the bank interface is opened, complete when inventory is empty
+                net.runelite.api.widgets.Widget bankWidget = client.getWidget(net.runelite.api.widgets.ComponentID.BANK_ITEM_CONTAINER);
+                boolean bankOpen = bankWidget != null && !bankWidget.isHidden();
+                if (bankOpen) step.setSellArmed(true); // reuse sellArmed as "bank was opened" flag
+                if (step.isSellArmed()) {
+                    net.runelite.api.ItemContainer inv = client.getItemContainer(net.runelite.api.InventoryID.INVENTORY);
+                    done = inv != null && java.util.Arrays.stream(inv.getItems())
+                        .allMatch(i -> i.getId() <= 0);
+                } else {
+                    done = false;
+                }
+            } else if ("SELL".equals(step.getItemMode())) {
                 // Arm once the items are seen in inventory, complete only after they're gone
                 if (!bankItemManager.hasSoldAll(step.getItemList())) {
                     step.setSellArmed(true);
@@ -732,14 +744,24 @@ public class RoutePlannerPlugin extends Plugin {
         String name = ((net.runelite.api.NPC) event.getActor()).getName();
         if (name == null) return;
         String target = step.getNpcHighlight();
-        boolean match = name.equalsIgnoreCase(target)
-            || name.toLowerCase().startsWith(target.toLowerCase() + " ")
-            || name.toLowerCase().startsWith(target.toLowerCase() + "(");
+        boolean match = false;
+        outer:
+        for (String entry : target.split(",")) {
+            for (String alt : entry.split("/")) {
+                String t = alt.trim();
+                if (name.equalsIgnoreCase(t)
+                    || name.toLowerCase().startsWith(t.toLowerCase() + " ")
+                    || name.toLowerCase().startsWith(t.toLowerCase() + "(")) {
+                    match = true;
+                    break outer;
+                }
+            }
+        }
         if (!match) return;
         step.setNpcKillProgress(step.getNpcKillProgress() + 1);
         log.info("Note kill {}/{}: {}", step.getNpcKillProgress(), step.getNpcKillCount(), name);
         if (step.getNpcKillProgress() >= step.getNpcKillCount()) {
-            completeStep(step);
+            tryCompleteStep(step);
         }
     }
 

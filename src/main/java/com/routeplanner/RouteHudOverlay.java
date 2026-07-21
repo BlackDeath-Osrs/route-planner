@@ -158,7 +158,13 @@ public class RouteHudOverlay extends Overlay {
                     lines.add(new String[]{"Kills: " + curStep.getNpcKillProgress()
                         + " / " + curStep.getNpcKillCount(), "TITLE"});
                 } else {
-                    lines.add(new String[]{"(mark complete to continue)", "DIM"});
+                    // Only show "mark complete" if no component will auto-complete the step
+                    boolean hasAutoComplete = curStep.hasItems() || curStep.hasSkillGoal()
+                        || (curStep.hasQuest() && curStep.isQuestComplete())
+                        || curStep.getWorldPoint() != null;
+                    if (!hasAutoComplete) {
+                        lines.add(new String[]{"(mark complete to continue)", "DIM"});
+                    }
                 }
             }
         }

@@ -219,7 +219,8 @@ public class StepEditorDialog extends JFrame {
             + "Slash = ANY ONE counts, e.g. <b>3 logs / 3 oak logs</b> needs either.</html>");
         itemsBody.add(labeled("Items (e.g. \"3 logs\" -- comma=all, /=any one)", itemsField));
         itemsBody.add(Box.createVerticalStrut(6));
-        itemsMode = new JComboBox<>(new String[]{"Bank", "Shop (buy)", "Sell", "Pickup"});
+        itemsMode = new JComboBox<>(new String[]{"Bank", "Shop (buy)", "Sell", "Pickup", "Deposit All"});
+        itemsMode.setToolTipText("<html>Bank: withdraw listed items from bank<br>Shop (buy): buy listed items from a shop<br>Sell: sell listed items to a shop<br>Pickup: pick up listed items from the ground<br>Deposit All: auto-completes when inventory is empty after opening the bank — no item list needed</html>");
         itemsMode.setMaximumSize(new Dimension(Integer.MAX_VALUE, 26));
         itemsBody.add(labeled("Mode", itemsMode));
         JPanel itemsSection = toggleableSection("Items", itemsCheck, itemsBody);
@@ -408,7 +409,7 @@ public class StepEditorDialog extends JFrame {
                 itemsCheck.setSelected(true);
                 itemsField.setText(editing.getItemList());
                 String m = editing.getItemMode();
-                itemsMode.setSelectedIndex("SHOP".equals(m) ? 1 : "SELL".equals(m) ? 2 : "PICKUP".equals(m) ? 3 : 0);
+                itemsMode.setSelectedIndex("SHOP".equals(m) ? 1 : "SELL".equals(m) ? 2 : "PICKUP".equals(m) ? 3 : "DEPOSIT_ALL".equals(m) ? 4 : 0);
             }
             if (editing.getSkillingSkill() != null) {
                 skillCheck.setSelected(true);
@@ -696,14 +697,16 @@ public class StepEditorDialog extends JFrame {
     private void applyItems(RouteStep step) {
         if (itemsCheck != null && itemsCheck.isSelected()) {
             String items = itemsField.getText() != null ? itemsField.getText().trim() : "";
-            if (!items.isEmpty()) {
-                step.setItemList(items);
-                int mi = itemsMode.getSelectedIndex();
-                String mode = mi == 1 ? "SHOP" : mi == 2 ? "SELL" : mi == 3 ? "PICKUP" : "BANK";
+            int mi = itemsMode.getSelectedIndex();
+            String mode = mi == 1 ? "SHOP" : mi == 2 ? "SELL" : mi == 3 ? "PICKUP" : mi == 4 ? "DEPOSIT_ALL" : "BANK";
+            // DEPOSIT_ALL doesn't need an item list
+            if (!items.isEmpty() || "DEPOSIT_ALL".equals(mode)) {
+                step.setItemList(items.isEmpty() ? null : items);
                 step.setItemMode(mode);
             }
         } else {
             step.setItemList(null);
+            step.setItemMode("BANK");
         }
     }
 

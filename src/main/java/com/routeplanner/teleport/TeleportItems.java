@@ -46,7 +46,10 @@ public class TeleportItems {
         // --- Ring of wealth (icon 11980) ---
         new TeleportItem("Ring of wealth: Grand Exchange", "Ring of wealth", WEALTH, 11980, new WorldPoint(3163, 3478, 0)),
         new TeleportItem("Ring of wealth: Falador Park",   "Ring of wealth", WEALTH, 11980, new WorldPoint(2995, 3375, 0)),
-        new TeleportItem("Ring of wealth: Miscellania",    "Ring of wealth", WEALTH, 11980, new WorldPoint(2531, 3861, 0))
+        new TeleportItem("Ring of wealth: Miscellania",    "Ring of wealth", WEALTH, 11980, new WorldPoint(2531, 3861, 0)),
+
+        // --- Chronicle (icon 13660) ---
+        new TeleportItem("Chronicle: Champions Guild",     "Chronicle",      new int[]{13660}, 13660, new WorldPoint(3202, 3354, 0))
     );
 
     public static TeleportItem getByDisplayName(String name) {

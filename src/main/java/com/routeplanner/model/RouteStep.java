@@ -98,7 +98,8 @@ public class RouteStep {
     }
 
     public boolean hasItems() {
-        return itemList != null && !itemList.trim().isEmpty();
+        return (itemList != null && !itemList.trim().isEmpty())
+            || "DEPOSIT_ALL".equals(itemMode);
     }
 
     public boolean hasSkillGoal() {

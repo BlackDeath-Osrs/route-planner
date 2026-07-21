@@ -70,12 +70,23 @@ public class SkillingNpcHighlighter {
         }
         if (targetName == null || targetName.trim().isEmpty()) return null;
 
-        // Match NPC name - exact match first, then partial for generic names
+        // Support multiple NPCs: comma-separated, with / for alternatives
+        // e.g. "Rommik,Shop assistant/Shop keeper"
         String npcName = npc.getName();
         if (npcName == null) return null;
-        boolean nameMatch = npcName.equalsIgnoreCase(targetName)
-            || npcName.toLowerCase().startsWith(targetName.toLowerCase() + " ")
-            || npcName.toLowerCase().startsWith(targetName.toLowerCase() + "(");
+        boolean nameMatch = false;
+        outer:
+        for (String entry : targetName.split(",")) {
+            for (String alt : entry.split("/")) {
+                String t = alt.trim();
+                if (npcName.equalsIgnoreCase(t)
+                    || npcName.toLowerCase().startsWith(t.toLowerCase() + " ")
+                    || npcName.toLowerCase().startsWith(t.toLowerCase() + "(")) {
+                    nameMatch = true;
+                    break outer;
+                }
+            }
+        }
         if (!nameMatch) return null;
 
         // Only highlight NPCs within 30 tiles of the player
