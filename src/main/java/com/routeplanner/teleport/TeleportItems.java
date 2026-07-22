@@ -49,7 +49,28 @@ public class TeleportItems {
         new TeleportItem("Ring of wealth: Miscellania",    "Ring of wealth", WEALTH, 11980, new WorldPoint(2531, 3861, 0)),
 
         // --- Chronicle (icon 13660) ---
-        new TeleportItem("Chronicle: Champions Guild",     "Chronicle",      new int[]{13660}, 13660, new WorldPoint(3202, 3354, 0))
+        new TeleportItem("Chronicle: Champions Guild",     "Chronicle",      new int[]{13660}, 13660, new WorldPoint(3202, 3354, 0)),
+
+        // --- Ectophial (full 4251, empty 4252) ---
+        new TeleportItem("Ectophial: Ectofuntus",           "Ectophial",       new int[]{4251,4252},                                          4251,  new WorldPoint(3659, 3523, 0)),
+
+        // --- Skills necklace (charges 1-6: 11105,11107,11109,11111,11970,11968 + uncharged 11113) ---
+        new TeleportItem("Skills necklace: Fishing Guild",  "Skills necklace", new int[]{11105,11107,11109,11111,11113,11968,11970},           11105, new WorldPoint(2611, 3391, 0)),
+        new TeleportItem("Skills necklace: Mining Guild",   "Skills necklace", new int[]{11105,11107,11109,11111,11113,11968,11970},           11105, new WorldPoint(3013, 3341, 0)),
+        new TeleportItem("Skills necklace: Crafting Guild", "Skills necklace", new int[]{11105,11107,11109,11111,11113,11968,11970},           11105, new WorldPoint(2933, 3295, 0)),
+        new TeleportItem("Skills necklace: Cooks Guild",    "Skills necklace", new int[]{11105,11107,11109,11111,11113,11968,11970},           11105, new WorldPoint(3144, 3443, 0)),
+        new TeleportItem("Skills necklace: WC Guild",       "Skills necklace", new int[]{11105,11107,11109,11111,11113,11968,11970},           11105, new WorldPoint(1659, 3505, 0)),
+        new TeleportItem("Skills necklace: Farming Guild",  "Skills necklace", new int[]{11105,11107,11109,11111,11113,11968,11970},           11105, new WorldPoint(1248, 3718, 0)),
+
+        // --- Combat bracelet (charges 1-6: 11118,11120,11122,11124,11972,11974 + uncharged 11126) ---
+        new TeleportItem("Combat bracelet: Warriors Guild", "Combat bracelet", new int[]{11118,11120,11122,11124,11126,11972,11974},           11118, new WorldPoint(2882, 3546, 0)),
+        new TeleportItem("Combat bracelet: Champions Guild","Combat bracelet", new int[]{11118,11120,11122,11124,11126,11972,11974},           11118, new WorldPoint(3191, 3365, 0)),
+        new TeleportItem("Combat bracelet: Monastery",      "Combat bracelet", new int[]{11118,11120,11122,11124,11126,11972,11974},           11118, new WorldPoint(3052, 3485, 0)),
+        new TeleportItem("Combat bracelet: Ranging Guild",  "Combat bracelet", new int[]{11118,11120,11122,11124,11126,11972,11974},           11118, new WorldPoint(2655, 3441, 0)),
+
+        // --- Ardougne cloak 1-4 (1:13121, 2:13122, 3:13123, 4:13124) ---
+        new TeleportItem("Ardy cloak: Monastery",          "Ardougne cloak",  new int[]{13121,13122,13123,13124}, 13121, new WorldPoint(2606, 3211, 0)),
+        new TeleportItem("Ardy cloak 2+: Farm patch",      "Ardougne cloak",  new int[]{13122,13123,13124},       13122, new WorldPoint(2678, 3374, 0))
     );
 
     public static TeleportItem getByDisplayName(String name) {
