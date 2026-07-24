@@ -70,7 +70,29 @@ public class TeleportItems {
 
         // --- Ardougne cloak 1-4 (1:13121, 2:13122, 3:13123, 4:13124) ---
         new TeleportItem("Ardy cloak: Monastery",          "Ardougne cloak",  new int[]{13121,13122,13123,13124}, 13121, new WorldPoint(2606, 3211, 0)),
-        new TeleportItem("Ardy cloak 2+: Farm patch",      "Ardougne cloak",  new int[]{13122,13123,13124},       13122, new WorldPoint(2678, 3374, 0))
+        new TeleportItem("Ardy cloak 2+: Farm patch",      "Ardougne cloak",  new int[]{13122,13123,13124},       13122, new WorldPoint(2678, 3374, 0)),
+
+        // --- Slayer ring (charges 1-8: 11866-11873, eternal: 21268) ---
+        new TeleportItem("Slayer ring: Stronghold Slayer Cave", "Slayer ring", new int[]{11866,11867,11868,11869,11870,11871,11872,11873,21268}, 11866, new WorldPoint(2428, 3423, 0)),
+        new TeleportItem("Slayer ring: Slayer Tower",           "Slayer ring", new int[]{11866,11867,11868,11869,11870,11871,11872,11873,21268}, 11866, new WorldPoint(3428, 3535, 0)),
+        new TeleportItem("Slayer ring: Fremennik Slayer Dungeon","Slayer ring", new int[]{11866,11867,11868,11869,11870,11871,11872,11873,21268}, 11866, new WorldPoint(2799, 3615, 0)),
+        new TeleportItem("Slayer ring: Tarn's Lair",           "Slayer ring", new int[]{11866,11867,11868,11869,11870,11871,11872,11873,21268}, 11866, new WorldPoint(2660, 5168, 0)),
+        new TeleportItem("Slayer ring: Dark Beasts",            "Slayer ring", new int[]{11866,11867,11868,11869,11870,11871,11872,11873,21268}, 11866, new WorldPoint(2023, 4635, 0)),
+
+        // --- Digsite pendant (charges 1-5: 11190-11194) ---
+        new TeleportItem("Digsite pendant: Digsite",           "Digsite pendant", new int[]{11190,11191,11192,11193,11194}, 11194, new WorldPoint(3341, 3445, 0)),
+        new TeleportItem("Digsite pendant: Fossil Island",     "Digsite pendant", new int[]{11190,11191,11192,11193,11194}, 11194, new WorldPoint(3764, 3869, 0)),
+        new TeleportItem("Digsite pendant: Lithkren",          "Digsite pendant", new int[]{11190,11191,11192,11193,11194}, 11194, new WorldPoint(3550, 4000, 0)),
+
+        // --- Necklace of passage (charges 1-5: 21146,21149,21151,21153,21155) ---
+        new TeleportItem("Necklace of passage: Wizards Tower",  "Necklace of passage", new int[]{21146,21149,21151,21153,21155}, 21146, new WorldPoint(3113, 3179, 0)),
+        new TeleportItem("Necklace of passage: Outpost",        "Necklace of passage", new int[]{21146,21149,21151,21153,21155}, 21146, new WorldPoint(2430, 3347, 0)),
+        new TeleportItem("Necklace of passage: Eagles Eyrie",   "Necklace of passage", new int[]{21146,21149,21151,21153,21155}, 21146, new WorldPoint(2395, 3481, 0)),
+
+        // --- Burning amulet (charges 1-5: 21166,21169,21171,21173,21175) ---
+        new TeleportItem("Burning amulet: Lava Maze",          "Burning amulet", new int[]{21166,21169,21171,21173,21175}, 21166, new WorldPoint(3028, 3840, 0)),
+        new TeleportItem("Burning amulet: Chaos Temple",       "Burning amulet", new int[]{21166,21169,21171,21173,21175}, 21166, new WorldPoint(2859, 3679, 0)),
+        new TeleportItem("Burning amulet: Bandit Camp",        "Burning amulet", new int[]{21166,21169,21171,21173,21175}, 21166, new WorldPoint(3038, 3703, 0))
     );
 
     public static TeleportItem getByDisplayName(String name) {

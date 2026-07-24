@@ -523,7 +523,15 @@ public class RoutePlannerPanel extends PluginPanel {
                 });
                 JMenuItem resetRoute = new JMenuItem("Reset Progress");
                 resetRoute.addActionListener(e -> { plugin.resetRoute(route); });
+                JMenuItem toggleRepeat = new JMenuItem(
+                    route.isRepeatable() ? "Repeatable: ON" : "Repeatable: OFF");
+                toggleRepeat.addActionListener(e -> {
+                    route.setRepeatable(!route.isRepeatable());
+                    plugin.saveRoutesPublic();
+                    refresh();
+                });
                 routeMenu.add(renameRoute);
+                routeMenu.add(toggleRepeat);
                 routeMenu.add(resetRoute);
                 routeMenu.add(deleteRoute);
                 row.addMouseListener(new MouseAdapter() {

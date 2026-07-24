@@ -17,6 +17,7 @@ public class Route {
      *  is already installed (and can offer Remove instead of Install) without a second, separate
      *  persisted set that could drift out of sync with the real route list. */
     private String hubSourceId;
+    private boolean repeatable = false; // if true, resets and restarts when last step completes
 
     // Legacy flat-step format; migrated into a default section on load.
     @SerializedName("steps")
@@ -125,6 +126,12 @@ public class Route {
     }
 
     public void resetProgress() {
-        getAllSteps().forEach(s -> s.setCompleted(false));
+        getAllSteps().forEach(s -> {
+            s.setCompleted(false);
+            s.setLocationReached(false);
+            s.setSellArmed(false);
+            s.setPickupBaseline(null);
+            s.setNpcKillProgress(0);
+        });
     }
 }

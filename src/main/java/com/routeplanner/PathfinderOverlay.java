@@ -48,6 +48,13 @@ public class PathfinderOverlay extends Overlay {
     private int failRetryCounter = 0;
     @Getter private List<WorldPoint> cachedPath = new ArrayList<>();
 
+    /** Force an immediate path recalculation on the next tick. */
+    public void clearPath() {
+        cachedPath = new ArrayList<>();
+        lastPlayer = null;
+        lastTarget = null;
+    }
+
     private int tickCount = 0;
 
 

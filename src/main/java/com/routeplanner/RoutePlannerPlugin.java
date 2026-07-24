@@ -420,6 +420,12 @@ public class RoutePlannerPlugin extends Plugin {
     public void completeStep(RouteStep step) {
         step.setCompleted(true);
         autoAdvanceSections();
+        // If route is repeatable and all steps are now done, reset and restart
+        if (activeRoute != null && activeRoute.isRepeatable()
+                && activeRoute.getActiveStep() == null) {
+            resetRoute(activeRoute);
+            return;
+        }
         saveRoutes();
         panel.refresh();
     }
@@ -452,6 +458,7 @@ public class RoutePlannerPlugin extends Plugin {
 
     public void resetRoute(Route route) {
         route.resetProgress();
+        pathfinderOverlay.clearPath();
         saveRoutes();
         panel.refresh();
     }

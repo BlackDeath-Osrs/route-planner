@@ -414,12 +414,13 @@ public class RouteHubPanel extends JPanel {
         name.setFont(name.getFont().deriveFont(Font.BOLD, 13.5f));
         name.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        int descWidthPx = Math.max(90, net.runelite.client.ui.PluginPanel.PANEL_WIDTH - 18 - 10 - 48 - 17 - 4);
-        JLabel desc = new JLabel("<html><div style=\'width:" + descWidthPx + "px;\'>" + escape(entry.description) + "</div></html>");
+        JLabel desc = new JLabel(escape(entry.description));
         desc.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
         desc.setFont(desc.getFont().deriveFont(12f));
-        desc.setBorder(new EmptyBorder(3, 0, 3, 0));
+        desc.setBorder(new EmptyBorder(2, 0, 2, 0));
         desc.setAlignmentX(Component.LEFT_ALIGNMENT);
+        desc.setMaximumSize(new Dimension(Integer.MAX_VALUE, 16));
+        desc.setPreferredSize(new Dimension(0, 16));
 
         JLabel installBtn = buildInstallControl(entry);
         installBtn.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -442,6 +443,8 @@ public class RouteHubPanel extends JPanel {
         textCol.add(name);
         textCol.add(desc);
 
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 95));
+        row.setPreferredSize(new Dimension(0, 95));
         row.add(iconBox, BorderLayout.WEST);
         row.add(textCol, BorderLayout.CENTER);
         return row;
