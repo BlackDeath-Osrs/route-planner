@@ -17,3 +17,4 @@ build.gradle.ref
 # OS files
 .DS_Store
 Thumbs.db
+net/
