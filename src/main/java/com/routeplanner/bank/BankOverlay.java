@@ -4,6 +4,7 @@ import com.routeplanner.RoutePlannerPlugin;
 import com.routeplanner.model.RouteStep;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
+import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.ComponentID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.game.ItemManager;
@@ -46,10 +47,14 @@ public class BankOverlay extends Overlay {
             && !step.getBankHighlightItems().trim().isEmpty();
         if (!isItem && !isHerblore && !isBankSkill) return null;
 
-        // Check if bank is open
-        Widget bankContainer = client.getWidget(ComponentID.BANK_ITEM_CONTAINER);
-        if (bankContainer == null || bankContainer.isHidden()) return null;
-        Widget[] items = bankContainer.getDynamicChildren();
+        // Check if the bank is open -- or the Farming Guild seed vault, which lists its items
+        // the same way, so the same highlighting works there for tree/farm runs. The seed vault
+        // uses the generated gameval id: ComponentID.SEED_VAULT_ITEM_CONTAINER points at an
+        // empty sibling (631:17) since the interface was reworked; the items are in 631:18.
+        Widget container = visibleWidget(ComponentID.BANK_ITEM_CONTAINER);
+        if (container == null) container = visibleWidget(InterfaceID.SeedVault.OBJ_LIST);
+        if (container == null) return null;
+        Widget[] items = container.getDynamicChildren();
         if (items == null) return null;
 
         String itemListStr;
@@ -73,6 +78,9 @@ public class BankOverlay extends Overlay {
         List<List<String>> groups = bankItemManager.parseItemList(itemListStr);
         if (groups.isEmpty()) return null;
 
+        // Items scrolled out of view still have canvas positions; keep highlights inside the list.
+        Shape savedClip = graphics.getClip();
+        graphics.clip(visibleBounds(container));
         for (Widget item : items) {
             if (item == null || item.isHidden() || item.getItemId() <= 0) continue;
             String itemName = itemManager.getItemComposition(item.getItemId()).getName();
@@ -84,7 +92,7 @@ public class BankOverlay extends Overlay {
             for (List<String> group : groups) {
                 for (String alt : group) {
                     String altName = bankItemManager.parseItemName(alt);
-                    if (itemName.equalsIgnoreCase(altName)) {
+                    if (BankItemManager.nameMatches(altName, itemName)) {
                         isRequired = true;
                         // Check if INVENTORY has enough, not bank
                         long required = bankItemManager.parseQuantityValue(alt);
@@ -95,7 +103,7 @@ public class BankOverlay extends Overlay {
                             for (net.runelite.api.Item invItem : inv.getItems()) {
                                 if (invItem.getId() <= 0) continue;
                                 String invName = itemManager.getItemComposition(invItem.getId()).getName();
-                                if (invName != null && invName.equalsIgnoreCase(altName)) {
+                                if (BankItemManager.nameMatches(altName, invName)) {
                                     inInventory += invItem.getQuantity();
                                 }
                             }
@@ -129,8 +137,26 @@ public class BankOverlay extends Overlay {
                 graphics.drawRect(bounds.x, bounds.y, bounds.width, bounds.height);
             }
         }
+        graphics.setClip(savedClip);
 
         return null;
+    }
+
+    /**
+     * The on-screen part of a widget. A scrolled list (like the seed vault's) can be far taller
+     * than its window and start above the screen, so intersect with every ancestor's bounds.
+     */
+    private static Rectangle visibleBounds(Widget w) {
+        Rectangle r = w.getBounds();
+        for (Widget p = w.getParent(); p != null; p = p.getParent()) {
+            r = r.intersection(p.getBounds());
+        }
+        return r;
+    }
+
+    private Widget visibleWidget(int componentId) {
+        Widget w = client.getWidget(componentId);
+        return w == null || w.isHidden() ? null : w;
     }
 
     private boolean bankHasItem(Widget[] items, String name) {

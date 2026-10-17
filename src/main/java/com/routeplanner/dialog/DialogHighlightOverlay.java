@@ -16,7 +16,6 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -25,9 +24,6 @@ import java.util.List;
  */
 @Singleton
 public class DialogHighlightOverlay extends Overlay {
-
-    private static final int DIALOG_OPTION_GROUP = 219;
-    private static final int DIALOG_OPTION_CHILD = 1;
 
     private final Client client;
     private final RoutePlannerPlugin plugin;
@@ -59,23 +55,7 @@ public class DialogHighlightOverlay extends Overlay {
             return null;
         }
 
-        Widget container = client.getWidget(DIALOG_OPTION_GROUP, DIALOG_OPTION_CHILD);
-        if (container == null || container.isHidden()) return null;
-
-        List<Widget> options = new ArrayList<>();
-        Widget[] kids = container.getDynamicChildren();
-        if (kids == null || kids.length == 0) kids = container.getChildren();
-        if (kids != null) {
-            for (Widget w : kids) {
-                if (w == null) continue;
-                String t = w.getText();
-                if (t == null) continue;
-                t = t.trim();
-                if (t.isEmpty()) continue;
-                if (t.equalsIgnoreCase("Select an Option")) continue;
-                options.add(w);
-            }
-        }
+        List<Widget> options = DialogOptions.options(client);
         if (targetOption < 1 || targetOption > options.size()) return null;
 
         Rectangle b = options.get(targetOption - 1).getBounds();

@@ -25,6 +25,12 @@ public class TeleportItems {
     private static final int[] DUELING = {2561, 2560, 2559, 2558, 2557, 2556, 2555, 2552};
     private static final int[] WEALTH  = {11988, 11986, 11984, 11982, 11980};
 
+    /**
+     * Marker destination for teleports into the player-owned house. The house is an instance,
+     * so it has no real tile; matches "Teleport to House" in TeleportSpells.
+     */
+    public static final WorldPoint HOUSE = new WorldPoint(0, 0, 0);
+
     public static final List<TeleportItem> ALL = Arrays.asList(
         // --- Amulet of glory (icon 11978) ---
         new TeleportItem("Glory: Edgeville",        "Amulet of glory", GLORY, 11978, new WorldPoint(3087, 3496, 0)),
@@ -92,8 +98,17 @@ public class TeleportItems {
         // --- Burning amulet (charges 1-5: 21166,21169,21171,21173,21175) ---
         new TeleportItem("Burning amulet: Lava Maze",          "Burning amulet", new int[]{21166,21169,21171,21173,21175}, 21166, new WorldPoint(3028, 3840, 0)),
         new TeleportItem("Burning amulet: Chaos Temple",       "Burning amulet", new int[]{21166,21169,21171,21173,21175}, 21166, new WorldPoint(2859, 3679, 0)),
-        new TeleportItem("Burning amulet: Bandit Camp",        "Burning amulet", new int[]{21166,21169,21171,21173,21175}, 21166, new WorldPoint(3038, 3703, 0))
+        new TeleportItem("Burning amulet: Bandit Camp",        "Burning amulet", new int[]{21166,21169,21171,21173,21175}, 21166, new WorldPoint(3038, 3703, 0)),
+
+        // --- Player-owned house (destination HOUSE: an instance, so no fixed tile) ---
+        new TeleportItem("Construction cape: House", "Construction cape", new int[]{9789, 9790}, 9790, HOUSE),
+        new TeleportItem("House tab: House",         "Teleport to house", new int[]{8013}, 8013, HOUSE)
     );
+
+    /** Whether a teleport destination is the player's house, which has no fixed world tile. */
+    public static boolean isHouse(WorldPoint dest) {
+        return dest != null && dest.getX() == 0 && dest.getY() == 0;
+    }
 
     public static TeleportItem getByDisplayName(String name) {
         return ALL.stream().filter(t -> t.getDisplayName().equals(name)).findFirst().orElse(null);

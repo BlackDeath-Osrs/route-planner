@@ -27,6 +27,17 @@ public class TransportLoader {
         "minecarts.tsv"
     };
 
+    /** Every loaded edge with its menu text and object id, for highlighting the stairs to use. */
+    private static final Map<WorldPoint, List<com.routeplanner.transport.Transport>> DETAILS = new HashMap<>();
+
+    /** The transport going from {@code origin} to {@code destination}, or null if none is known. */
+    public static com.routeplanner.transport.Transport find(WorldPoint origin, WorldPoint destination) {
+        List<com.routeplanner.transport.Transport> list = DETAILS.get(origin);
+        if (list == null) return null;
+        for (com.routeplanner.transport.Transport t : list) if (t.destination.equals(destination)) return t;
+        return null;
+    }
+
     public static Map<WorldPoint, List<WorldPoint>> load() {
         Map<WorldPoint, List<WorldPoint>> edges = new HashMap<>();
         int total = 0;
@@ -45,6 +56,7 @@ public class TransportLoader {
                     WorldPoint dest = parsePoint(cols[1]);
                     if (origin == null || dest == null) continue;
                     edges.computeIfAbsent(origin, k -> new ArrayList<>()).add(dest);
+                    DETAILS.computeIfAbsent(origin, k -> new ArrayList<>()).add(detail(origin, dest, cols.length > 2 ? cols[2] : ""));
                     count++;
                 }
             } catch (Exception e) {
@@ -55,6 +67,20 @@ public class TransportLoader {
         }
         log.info("TransportLoader: {} total edges across {} origins", total, edges.size());
         return edges;
+    }
+
+    /** "Climb-up Staircase 16671" -> action "Climb-up Staircase", object 16671. */
+    private static com.routeplanner.transport.Transport detail(WorldPoint origin, WorldPoint dest, String col) {
+        String text = col.trim();
+        int id = -1;
+        int sp = text.lastIndexOf(' ');
+        if (sp > 0) {
+            try {
+                id = Integer.parseInt(text.substring(sp + 1));
+                text = text.substring(0, sp);
+            } catch (NumberFormatException ignored) {}
+        }
+        return new com.routeplanner.transport.Transport(origin, dest, text.isEmpty() ? null : text, id);
     }
 
     private static WorldPoint parsePoint(String s) {

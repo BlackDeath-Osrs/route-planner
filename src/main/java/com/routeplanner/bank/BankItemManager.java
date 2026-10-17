@@ -31,6 +31,34 @@ public class BankItemManager {
         }
     }
 
+    /** Item-list names ending in "(*)" mean any charge: "Amulet of glory(*)" matches glory(1)-(6). */
+    public static final String ANY_CHARGE = "(*)";
+
+    /** True when an item-list name (without quantity) refers to the actual item name. */
+    public static boolean nameMatches(String listName, String actual) {
+        if (listName == null || actual == null) return false;
+        String want = listName.trim().toLowerCase();
+        String have = actual.trim().toLowerCase();
+        if (!want.endsWith(ANY_CHARGE)) return want.equals(have);
+        String base = want.substring(0, want.length() - ANY_CHARGE.length()).trim();
+        return have.startsWith(base) && have.substring(base.length()).trim().matches("\\(\\d+\\)");
+    }
+
+    /** How many of an item-list name are in a name -> quantity map, summing every charge for "(*)". */
+    public static long countOf(Map<String, Long> qtys, String listName) {
+        if (!listName.trim().endsWith(ANY_CHARGE)) return qtys.getOrDefault(listName.trim().toLowerCase(), 0L);
+        long total = 0;
+        for (Map.Entry<String, Long> e : qtys.entrySet()) {
+            if (nameMatches(listName, e.getKey())) total += e.getValue();
+        }
+        return total;
+    }
+
+    private static boolean anyMatches(Set<String> names, String listName) {
+        for (String n : names) if (nameMatches(listName, n)) return true;
+        return false;
+    }
+
     public String parseItemName(String input) {
         input = input.trim();
         java.util.regex.Matcher m = java.util.regex.Pattern
@@ -97,7 +125,7 @@ public class BankItemManager {
             for (String alt : group) {
                 String itemName = parseItemName(alt).toLowerCase();
                 long required = parseQuantityValue(alt);
-                long have = inventoryQtys.getOrDefault(itemName, 0L);
+                long have = countOf(inventoryQtys, itemName);
                 if (have >= required) {
                     groupSatisfied = true;
                     break;
@@ -150,7 +178,7 @@ public class BankItemManager {
                 for (net.runelite.api.Item item : inv.getItems()) {
                     if (item.getId() <= 0) continue;
                     String n = itemManager.getItemComposition(item.getId()).getName();
-                    if (n != null && n.toLowerCase().equals(name)) count += item.getQuantity();
+                    if (nameMatches(name, n)) count += item.getQuantity();
                 }
                 snapshot.put(name, count);
             }
@@ -179,7 +207,7 @@ public class BankItemManager {
             for (String alt : group) {
                 String name = parseItemName(alt).toLowerCase();
                 long base = baseline.getOrDefault(name, 0L);
-                long gained = Math.max(0, current.getOrDefault(name, 0L) - base);
+                long gained = Math.max(0, countOf(current, name) - base);
                 if (gained >= required) { groupSatisfied = true; break; }
             }
             if (!groupSatisfied) return false;
@@ -205,7 +233,7 @@ public class BankItemManager {
         for (List<String> group : groups) {
             for (String alt : group) {
                 String itemName = parseItemName(alt).toLowerCase();
-                if (invNames.contains(itemName)) return false; // still holding one
+                if (anyMatches(invNames, itemName)) return false; // still holding one
             }
         }
         return true;
@@ -234,7 +262,7 @@ public class BankItemManager {
                 String alt = group.get(i);
                 if (i > 0) disp.append("/");
                 disp.append(alt);
-                if (invNames.contains(parseItemName(alt).toLowerCase())) holding = true;
+                if (anyMatches(invNames, parseItemName(alt))) holding = true;
             }
             result.add(new String[]{disp.toString(), holding ? "HOLDING" : "SOLD"});
         }
@@ -269,7 +297,7 @@ public class BankItemManager {
                 disp.append(alt);
                 String itemName = parseItemName(alt).toLowerCase();
                 long required = parseQuantityValue(alt);
-                if (invQtys.getOrDefault(itemName, 0L) >= required) {
+                if (countOf(invQtys, itemName) >= required) {
                     have = true;
                 }
             }
@@ -303,12 +331,89 @@ public class BankItemManager {
                 String itemName = parseItemName(alt).toLowerCase();
                 long required = parseQuantityValue(alt);
                 long base = baseline.getOrDefault(itemName, 0L);
-                long gained = Math.max(0, invQtys.getOrDefault(itemName, 0L) - base);
+                long gained = Math.max(0, countOf(invQtys, itemName) - base);
                 if (gained >= required) have = true;
             }
             result.add(new String[]{disp.toString(), have ? "HAVE" : "NEED"});
         }
         return result;
+    }
+
+    /** One line of an item list with live counts, for the side panel's step card. */
+    public static final class ItemProgress {
+        public final String name;
+        public final long have;
+        public final long need;
+        public final int itemId; // -1 when the item couldn't be identified
+
+        ItemProgress(String name, long have, long need, int itemId) {
+            this.name = name;
+            this.have = have;
+            this.need = need;
+            this.itemId = itemId;
+        }
+    }
+
+    /**
+     * Have/need counts per item-list entry, counting only items gained since {@code baseline}
+     * when one is given. For alternatives ("Coins/Platinum token") the closest one is shown.
+     * Call on the client thread.
+     */
+    public List<ItemProgress> getItemProgress(String itemListStr, Map<String, Long> baseline) {
+        List<ItemProgress> out = new ArrayList<>();
+        List<List<String>> groups = parseItemList(itemListStr);
+        if (groups.isEmpty()) return out;
+        ItemContainer inventory = client.getItemContainer(InventoryID.INVENTORY);
+        Map<String, Long> invQtys = new HashMap<>();
+        Map<String, Integer> invIds = new HashMap<>();
+        if (inventory != null) {
+            for (Item item : inventory.getItems()) {
+                if (item.getId() <= 0) continue;
+                String name = itemManager.getItemComposition(item.getId()).getName();
+                if (name == null) continue;
+                invQtys.merge(name.toLowerCase(), (long) item.getQuantity(), Long::sum);
+                invIds.putIfAbsent(name.toLowerCase(), item.getId());
+            }
+        }
+        for (List<String> group : groups) {
+            ItemProgress best = null;
+            for (String alt : group) {
+                String name = parseItemName(alt);
+                long need = parseQuantityValue(alt);
+                long count = countOf(invQtys, name);
+                if (baseline != null) count = Math.max(0, count - baseline.getOrDefault(name.toLowerCase(), 0L));
+                long have = Math.min(count, need);
+                if (best == null || (double) have / need > (double) best.have / best.need) {
+                    best = new ItemProgress(name, have, need, idFor(name, invIds));
+                }
+            }
+            if (best != null) out.add(best);
+        }
+        return out;
+    }
+
+    /** A Sell-step line: 1/1 once the item has left the inventory. */
+    public ItemProgress soldLine(String name, boolean sold) {
+        return new ItemProgress(name, sold ? 1 : 0, 1, idFor(parseItemName(name.split("/")[0]), new HashMap<>()));
+    }
+
+    private final Map<String, Integer> idCache = new HashMap<>();
+
+    /** An item id for a list name, for its icon: from the inventory, else the item search. */
+    private int idFor(String listName, Map<String, Integer> invIds) {
+        for (Map.Entry<String, Integer> e : invIds.entrySet()) {
+            if (nameMatches(listName, e.getKey())) return e.getValue();
+        }
+        String key = listName.trim().toLowerCase();
+        Integer cached = idCache.get(key);
+        if (cached != null) return cached;
+        int id = -1;
+        String search = key.endsWith(ANY_CHARGE) ? key.substring(0, key.length() - ANY_CHARGE.length()).trim() : key;
+        for (net.runelite.http.api.item.ItemPrice p : itemManager.search(search)) {
+            if (nameMatches(listName, p.getName()) || p.getName().equalsIgnoreCase(search)) { id = p.getId(); break; }
+        }
+        idCache.put(key, id);
+        return id;
     }
 
     // Get list of missing items with quantities
@@ -334,7 +439,7 @@ public class BankItemManager {
             for (String alt : group) {
                 String itemName = parseItemName(alt).toLowerCase();
                 long required = parseQuantityValue(alt);
-                long have = inventoryQtys.getOrDefault(itemName, 0L);
+                long have = countOf(inventoryQtys, itemName);
                 if (have >= required) {
                     found = true;
                     break;

@@ -59,6 +59,9 @@ public class TileMenuHandler {
         com.routeplanner.model.RouteStep step = plugin.getActiveRoute().getActiveStep();
         if (step == null) return;
         if (step.getSkillingTargetNpc() == null) return;
+        // Only pickpocketing wants its option on left click; Talk-to and kill steps
+        // highlight an NPC too but keep the game's own menu order.
+        if (!"THIEVING".equalsIgnoreCase(step.getSkillingSkill())) return;
 
         net.runelite.api.MenuEntry entry = event.getMenuEntry();
         if (!(entry.getActor() instanceof NPC)) return;
@@ -208,7 +211,7 @@ public class TileMenuHandler {
                 JOptionPane.showMessageDialog(null, "Select or create a route first.");
                 return;
             }
-            new StepEditorDialog(plugin, plugin.getActiveRoute(), null, tile).setVisible(true);
+            new QuickStepDialog(plugin, plugin.getActiveRoute(), null, tile).setVisible(true);
             log.info("Opened step editor seeded at {}", tile);
         });
     }

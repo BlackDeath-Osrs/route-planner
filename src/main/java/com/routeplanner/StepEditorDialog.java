@@ -25,6 +25,10 @@ public class StepEditorDialog extends JFrame {
     private final RoutePlannerPlugin plugin;
     private final Route route;
     private final RouteStep editing; // null = create mode
+    private Runnable onSaved;         // optional: told after a successful save (e.g. record review)
+
+    /** Run after the user saves; used by callers that edit steps outside the route. */
+    public void setOnSaved(Runnable onSaved) { this.onSaved = onSaved; }
     private JCheckBox locationCheck;
     private static final String[] SKILLS = {
         "Agility", "Construction", "Herblore", "Thieving", "Crafting",
@@ -36,11 +40,11 @@ public class StepEditorDialog extends JFrame {
     private final JTextField tileField = new JTextField();
     private final JTextField transitionField = new JTextField();
     private JLabel transitionObjectLabel = new JLabel("No object set");
-    private String teleMethod = "WALK"; // WALK | SPELL | ITEM
+    private String teleMethod = "WALK"; // WALK | SPELL | ITEM | NEXUS
     private com.routeplanner.teleport.TeleportSpell chosenSpell;
     private com.routeplanner.teleport.TeleportItem chosenItem;
+    private String chosenNexus;         // Portal Nexus destination, as shown in its menu
     private final JLabel teleLabel = new JLabel("Walk only");
-    private final java.util.Map<Integer, java.awt.image.BufferedImage> spriteCache = new java.util.HashMap<>();
     private JCheckBox itemsCheck;
     private JTextField itemsField;
     private JComboBox<String> itemsMode;
@@ -50,6 +54,8 @@ public class StepEditorDialog extends JFrame {
     private JTextField skillValue;
     private JComboBox<String> recipeCombo;
     private JCheckBox highlightCheck;
+    private JTextField hlNpc;
+    private JTextField hlObject;
     private JCheckBox noteCheck;
     private JCheckBox questCheck;
     private javax.swing.JComboBox<String> questPicker;
@@ -58,6 +64,7 @@ public class StepEditorDialog extends JFrame {
     private JTextField noteNpc;
     private JTextField noteKills;
     private JTextField noteDialog;
+    private JCheckBox noteAutoCheck;
 
     public StepEditorDialog(RoutePlannerPlugin plugin, Route route, RouteStep editing) {
         this(plugin, route, editing, null);
@@ -187,9 +194,12 @@ public class StepEditorDialog extends JFrame {
         JButton itemBtn = new JButton("Item"); styleButton(itemBtn);
         spellBtn.addActionListener(e -> pickSpell());
         itemBtn.addActionListener(e -> pickItem());
+        JButton nexusBtn = new JButton("Nexus"); styleButton(nexusBtn);
+        nexusBtn.setToolTipText("Teleport with your house's Portal Nexus");
+        nexusBtn.addActionListener(e -> pickNexus());
         JButton clearBtn = new JButton("Clear"); styleButton(clearBtn);
-        clearBtn.addActionListener(e -> { teleMethod = "WALK"; chosenSpell = null; chosenItem = null; updateTeleLabel(); });
-        teleBtns.add(spellBtn); teleBtns.add(itemBtn); teleBtns.add(clearBtn);
+        clearBtn.addActionListener(e -> { teleMethod = "WALK"; chosenSpell = null; chosenItem = null; chosenNexus = null; updateTeleLabel(); });
+        teleBtns.add(spellBtn); teleBtns.add(itemBtn); teleBtns.add(nexusBtn); teleBtns.add(clearBtn);
         locBody.add(teleBtns);
         teleLabel.setForeground(Color.WHITE);
         teleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -275,6 +285,14 @@ public class StepEditorDialog extends JFrame {
         hlHint.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
         hlHint.setAlignmentX(Component.LEFT_ALIGNMENT);
         hlBody.add(hlHint);
+        hlBody.add(Box.createVerticalStrut(6));
+        hlNpc = new JTextField();
+        hlNpc.setToolTipText("Exact NPC name; / for alternatives, e.g. Fishing spot or Man/Woman");
+        hlBody.add(labeled("NPC (optional; a recipe can also set this)", hlNpc));
+        hlBody.add(Box.createVerticalStrut(6));
+        hlObject = new JTextField();
+        hlObject.setToolTipText("Object name, e.g. Yew tree, Iron rocks, Baker's stall");
+        hlBody.add(labeled("Object (optional; a recipe can also set this)", hlObject));
         root.add(toggleableSection("Highlight", highlightCheck, hlBody));
         root.add(Box.createVerticalStrut(6));
         // Note component (toggleable): text always displays; NPC highlight is gated by Highlight toggle
@@ -306,6 +324,13 @@ public class StepEditorDialog extends JFrame {
         noteBody.add(Box.createVerticalStrut(6));
         noteDialog = new JTextField();
         noteBody.add(labeled("Highlight dialogue options e.g. 3,1 (optional)", noteDialog));
+        noteBody.add(Box.createVerticalStrut(6));
+        noteAutoCheck = new JCheckBox("Complete on arrival (off: tick it off yourself)", true);
+        noteAutoCheck.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+        noteAutoCheck.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+        noteAutoCheck.setFocusPainted(false);
+        noteAutoCheck.setAlignmentX(Component.LEFT_ALIGNMENT);
+        noteBody.add(noteAutoCheck);
         root.add(toggleableSection("Note", noteCheck, noteBody));
         root.add(Box.createVerticalStrut(6));
 
@@ -430,11 +455,15 @@ public class StepEditorDialog extends JFrame {
             } else if (editing.getTeleportItem() != null && !editing.getTeleportItem().isEmpty()) {
                 com.routeplanner.teleport.TeleportItem it = com.routeplanner.teleport.TeleportItems.getByDisplayName(editing.getTeleportItem());
                 if (it != null) { teleMethod = "ITEM"; chosenItem = it; updateTeleLabel(); }
+            } else if ("NEXUS".equals(editing.getTeleportMethod()) && editing.getTeleportNexus() != null) {
+                teleMethod = "NEXUS"; chosenNexus = editing.getTeleportNexus(); updateTeleLabel();
             }
             // location checkbox reflects whether the step actually has a location/teleport
             boolean hasLoc = editing.getWorldPoint() != null || editing.getTeleportMethod() != null;
             if (locationCheck != null) locationCheck.setSelected(hasLoc);
             if (editing.isHighlightEnabled()) highlightCheck.setSelected(true);
+            if (editing.getSkillingTargetNpc() != null) hlNpc.setText(editing.getSkillingTargetNpc());
+            if (editing.getSkillingTargetObject() != null) hlObject.setText(editing.getSkillingTargetObject());
             boolean hasNote = (editing.getNoteText() != null && !editing.getNoteText().isEmpty())
                 || (editing.getNpcHighlight() != null && !editing.getNpcHighlight().isEmpty())
                 || (editing.getDialogOptions() != null && !editing.getDialogOptions().isEmpty());
@@ -444,6 +473,7 @@ public class StepEditorDialog extends JFrame {
                 if (editing.getNpcHighlight() != null) noteNpc.setText(editing.getNpcHighlight());
                 if (editing.getNpcKillCount() > 0) noteKills.setText(String.valueOf(editing.getNpcKillCount()));
                 if (editing.getDialogOptions() != null) noteDialog.setText(editing.getDialogOptions());
+                noteAutoCheck.setSelected(editing.isNoteAutoComplete());
             }
             if (editing.hasQuest()) {
                 questCheck.setSelected(true);
@@ -464,6 +494,8 @@ public class StepEditorDialog extends JFrame {
         String linkErr = RouteTextValidator.checkField("Step name", name);
         if (linkErr == null && noteArea != null) linkErr = RouteTextValidator.checkField("Note", noteArea.getText());
         if (linkErr == null && noteNpc != null) linkErr = RouteTextValidator.checkField("Highlight NPC", noteNpc.getText());
+        if (linkErr == null && hlNpc != null) linkErr = RouteTextValidator.checkField("Highlight NPC", hlNpc.getText());
+        if (linkErr == null && hlObject != null) linkErr = RouteTextValidator.checkField("Highlight object", hlObject.getText());
         if (linkErr == null && noteDialog != null) linkErr = RouteTextValidator.checkField("Dialogue options", noteDialog.getText());
         if (linkErr == null && itemsField != null) linkErr = RouteTextValidator.checkField("Items", itemsField.getText());
         if (linkErr != null) {
@@ -477,6 +509,8 @@ public class StepEditorDialog extends JFrame {
             WorldPoint dest = wp;
             if ("SPELL".equals(teleMethod) && chosenSpell != null) dest = chosenSpell.getDestination();
             if ("ITEM".equals(teleMethod) && chosenItem != null) dest = chosenItem.getDestination();
+            // The house is an instance with no tile to walk to; the teleport alone gets you there.
+            if (com.routeplanner.teleport.TeleportItems.isHouse(dest)) dest = null;
             RouteStep step = new RouteStep(name, StepType.LOCATION, dest, -1);
             applyTeleport(step);
             applyItems(step);
@@ -502,10 +536,12 @@ public class StepEditorDialog extends JFrame {
             plugin.saveRoutes();
             plugin.refreshHighlights();
         }
+        if (onSaved != null) onSaved.run();
         dispose();
     }
 
-    private String[] recipeLabelsFor(String skill) {
+    /** The recipe/method choices for a skill ("(none)" first). Shared with the quick editor. */
+    static String[] recipeLabelsFor(String skill) {
         java.util.List<String> out = new java.util.ArrayList<>();
         out.add("(none)");
         if (skill == null) return out.toArray(new String[0]);
@@ -539,21 +575,24 @@ public class StepEditorDialog extends JFrame {
         return out.toArray(new String[0]);
     }
 
-    private void clearSkillingTargets(RouteStep step) {
+    private void applyRecipe(RouteStep step, String skill) {
+        if (recipeCombo == null) return;
+        Object sel = recipeCombo.getSelectedItem();
+        applyRecipeLabel(step, skill, sel == null ? null : sel.toString());
+    }
+
+    /**
+     * Put a recipe/method's targets on the step (objects, NPCs, bank items, course start).
+     * Clears the old targets first so switching skills doesn't leave stale ones.
+     */
+    static void applyRecipeLabel(RouteStep step, String skill, String label) {
         step.setSkillingTargetNpc(null);
         step.setSkillingTargetObject(null);
         step.setBankHighlightItems(null);
         step.setHerblorePotion(null);
-    }
-
-    private void applyRecipe(RouteStep step, String skill) {
-        if (recipeCombo == null) return;
-        clearSkillingTargets(step); // switching skills must not leave stale targets
-        Object sel = recipeCombo.getSelectedItem();
-        boolean none = (sel == null || "(none)".equals(sel));
-        step.setRecipeLabel(none ? null : sel.toString());
+        boolean none = (label == null || "(none)".equals(label));
+        step.setRecipeLabel(none ? null : label);
         if (none) return;
-        String label = sel.toString();
         if (skill == null) return;
         switch (skill) {
             case "Cooking": { com.routeplanner.skilling.CookingFoods.Food f = com.routeplanner.skilling.CookingFoods.getByLabel(label); if (f != null) step.setBankHighlightItems(f.rawItem); break; }
@@ -585,19 +624,19 @@ public class StepEditorDialog extends JFrame {
         }
     }
 
-    private String labelName(String label) {
+    private static String labelName(String label) {
         int i = label.indexOf(" (Lv");
         return i > 0 ? label.substring(0, i) : label;
     }
 
-    private String craftingMaterials(String label) {
+    private static String craftingMaterials(String label) {
         for (com.routeplanner.skilling.CraftingData.Item i : com.routeplanner.skilling.CraftingData.JEWELRY) if (i.toString().equals(label)) return i.materials;
         for (com.routeplanner.skilling.CraftingData.Item i : com.routeplanner.skilling.CraftingData.GLASS) if (i.toString().equals(label)) return i.materials;
         for (com.routeplanner.skilling.CraftingData.Item i : com.routeplanner.skilling.CraftingData.LEATHER) if (i.toString().equals(label)) return i.materials;
         return null;
     }
 
-    private String fletchingMaterials(String label) {
+    private static String fletchingMaterials(String label) {
         for (com.routeplanner.skilling.FletchingData.Item i : com.routeplanner.skilling.FletchingData.AMMO) if (i.toString().equals(label)) return i.materials;
         for (com.routeplanner.skilling.FletchingData.Item i : com.routeplanner.skilling.FletchingData.BOWS) if (i.toString().equals(label)) return i.materials;
         return null;
@@ -638,8 +677,10 @@ public class StepEditorDialog extends JFrame {
             } else { step.setNpcKillCount(0); }
             String dlg = noteDialog.getText() != null ? noteDialog.getText().trim() : "";
             step.setDialogOptions(dlg.isEmpty() ? null : dlg);
+            step.setNoteAutoComplete(noteAutoCheck.isSelected());
         } else {
             step.setNoteText(null);
+            step.setNoteAutoComplete(false);
             step.setNpcHighlight(null);
             step.setNpcKillCount(0);
             step.setDialogOptions(null);
@@ -648,6 +689,15 @@ public class StepEditorDialog extends JFrame {
 
     private void applyHighlight(RouteStep step) {
         step.setHighlightEnabled(highlightCheck != null && highlightCheck.isSelected());
+        // Typed targets win; left blank, a chosen recipe's target (set just before) is kept.
+        boolean recipe = skillCheck != null && skillCheck.isSelected() && recipeCombo != null
+            && recipeCombo.getSelectedItem() != null && !"(none)".equals(recipeCombo.getSelectedItem());
+        String npc = hlNpc != null ? hlNpc.getText().trim() : "";
+        String obj = hlObject != null ? hlObject.getText().trim() : "";
+        if (!npc.isEmpty()) step.setSkillingTargetNpc(npc);
+        else if (!recipe) step.setSkillingTargetNpc(null);
+        if (!obj.isEmpty()) step.setSkillingTargetObject(obj);
+        else if (!recipe) step.setSkillingTargetObject(null);
     }
 
     private void applySkillGoal(RouteStep step) {
@@ -724,6 +774,14 @@ public class StepEditorDialog extends JFrame {
             step.setTeleportSpell(null);
             step.setTeleportItem(null);
         }
+        if ("NEXUS".equals(teleMethod) && chosenNexus != null) {
+            step.setTeleportMethod("NEXUS");
+            step.setTeleportNexus(chosenNexus);
+            // Recorded nexus steps carry the real landing tile; hand-made ones use the Location tile.
+            if (step.getTeleportDestination() == null) step.setTeleportDestination(step.getWorldPoint());
+        } else {
+            step.setTeleportNexus(null);
+        }
     }
 
     private void updateTeleLabel() {
@@ -731,76 +789,29 @@ public class StepEditorDialog extends JFrame {
             teleLabel.setText("Teleport (spell): " + chosenSpell.getName());
         } else if ("ITEM".equals(teleMethod) && chosenItem != null) {
             teleLabel.setText("Teleport (item): " + chosenItem.getDisplayName());
+        } else if ("NEXUS".equals(teleMethod) && chosenNexus != null) {
+            teleLabel.setText("Teleport (Portal Nexus): " + chosenNexus);
         } else {
             teleLabel.setText("Walk only");
         }
     }
 
     private void pickSpell() {
-        java.util.List<com.routeplanner.teleport.TeleportSpell> all = com.routeplanner.teleport.TeleportSpells.ALL;
-        DefaultListModel<com.routeplanner.teleport.TeleportSpell> model = new DefaultListModel<>();
-        for (com.routeplanner.teleport.TeleportSpell s : all) model.addElement(s);
-        JList<com.routeplanner.teleport.TeleportSpell> list = new JList<>(model);
-        list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        list.setVisibleRowCount(15);
-        final JList<com.routeplanner.teleport.TeleportSpell> spellListRef = list;
-        list.setCellRenderer(new DefaultListCellRenderer() {
-            @Override public Component getListCellRendererComponent(JList<?> l, Object v, int i, boolean sel, boolean foc) {
-                super.getListCellRendererComponent(l, v, i, sel, foc);
-                com.routeplanner.teleport.TeleportSpell sp = (com.routeplanner.teleport.TeleportSpell) v;
-                setText(sp.getName());
-                Integer key = sp.getSpriteId();
-                java.awt.image.BufferedImage cached = spriteCache.get(key);
-                if (cached != null) {
-                    setIcon(new ImageIcon(cached.getScaledInstance(20, 20, java.awt.Image.SCALE_SMOOTH)));
-                } else {
-                    setIcon(null);
-                    plugin.getSpriteManager().getSpriteAsync(sp.getSpriteId(), 0, img -> {
-                        if (img != null) {
-                            spriteCache.put(key, img);
-                            SwingUtilities.invokeLater(spellListRef::repaint);
-                        }
-                    });
-                }
-                return this;
-            }
-        });
-        JScrollPane sc = new JScrollPane(list);
-        sc.setPreferredSize(new Dimension(240, 400));
-        int r = JOptionPane.showConfirmDialog(this, sc, "Select teleport spell", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
-        if (r != JOptionPane.OK_OPTION) return;
-        com.routeplanner.teleport.TeleportSpell s = list.getSelectedValue();
+        com.routeplanner.teleport.TeleportSpell s = com.routeplanner.teleport.TeleportPickers.pickSpell(this, plugin);
         if (s == null) return;
-        teleMethod = "SPELL"; chosenSpell = s; chosenItem = null; updateTeleLabel();
+        teleMethod = "SPELL"; chosenSpell = s; chosenItem = null; chosenNexus = null; updateTeleLabel();
+    }
+
+    private void pickNexus() {
+        String dest = com.routeplanner.teleport.TeleportPickers.pickNexus(this, chosenNexus);
+        if (dest == null) return;
+        teleMethod = "NEXUS"; chosenNexus = dest; chosenSpell = null; chosenItem = null; updateTeleLabel();
     }
 
     private void pickItem() {
-        java.util.List<com.routeplanner.teleport.TeleportItem> all = com.routeplanner.teleport.TeleportItems.ALL;
-        DefaultListModel<com.routeplanner.teleport.TeleportItem> model = new DefaultListModel<>();
-        for (com.routeplanner.teleport.TeleportItem it : all) model.addElement(it);
-        JList<com.routeplanner.teleport.TeleportItem> list = new JList<>(model);
-        list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        list.setVisibleRowCount(15);
-        list.setCellRenderer(new DefaultListCellRenderer() {
-            @Override public Component getListCellRendererComponent(JList<?> l, Object v, int i, boolean sel, boolean foc) {
-                super.getListCellRendererComponent(l, v, i, sel, foc);
-                com.routeplanner.teleport.TeleportItem it = (com.routeplanner.teleport.TeleportItem) v;
-                setText(it.getDisplayName());
-                try {
-                    java.awt.image.BufferedImage img = plugin.getItemManager().getImage(it.getIconId());
-                    if (img != null) setIcon(new ImageIcon(img.getScaledInstance(20, 20, java.awt.Image.SCALE_SMOOTH)));
-                    else setIcon(null);
-                } catch (Exception ex) { setIcon(null); }
-                return this;
-            }
-        });
-        JScrollPane sc = new JScrollPane(list);
-        sc.setPreferredSize(new Dimension(240, 400));
-        int r = JOptionPane.showConfirmDialog(this, sc, "Select item teleport", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
-        if (r != JOptionPane.OK_OPTION) return;
-        com.routeplanner.teleport.TeleportItem it = list.getSelectedValue();
+        com.routeplanner.teleport.TeleportItem it = com.routeplanner.teleport.TeleportPickers.pickItem(this, plugin);
         if (it == null) return;
-        teleMethod = "ITEM"; chosenItem = it; chosenSpell = null; updateTeleLabel();
+        teleMethod = "ITEM"; chosenItem = it; chosenSpell = null; chosenNexus = null; updateTeleLabel();
     }
 
     /** Formats a tile for the text field. Plane is included unless it's 0, so ground-floor tiles keep

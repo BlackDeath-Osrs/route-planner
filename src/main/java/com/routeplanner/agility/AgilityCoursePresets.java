@@ -15,7 +15,9 @@ public class AgilityCoursePresets {
         falador(),
         seers(),
         rellekka(),
-        ardougne()
+        ardougne(),
+        pollnivneach(),
+        prifddinas()
     );
 
     // Region IDs for auto-detection
@@ -38,7 +40,7 @@ public class AgilityCoursePresets {
     public static WorldPoint startLocation(String courseName) {
         if (courseName == null) return null;
         switch (courseName) {
-            case "Draynor Village": return new WorldPoint(3098, 3274, 0);
+            case "Draynor Village": return new WorldPoint(3103, 3279, 0);
             case "Al Kharid":       return new WorldPoint(3273, 3196, 0);
             case "Varrock":         return new WorldPoint(3221, 3414, 0);
             case "Canifis":         return new WorldPoint(3505, 3488, 0);
@@ -126,7 +128,7 @@ public class AgilityCoursePresets {
             new AgilityObstacle("Gap 3",        null, 14919),
             new AgilityObstacle("Ledge",        null, 14920),
             new AgilityObstacle("Ledge 2",      null, 14921),
-            new AgilityObstacle("Ledge 3",      null, 14922),
+            new AgilityObstacle("Ledge 3",      null, 14922, 14923),
             new AgilityObstacle("Ledge 4",      null, 14924),
             new AgilityObstacle("Edge",         null, 14925)
         ));
@@ -155,6 +157,41 @@ public class AgilityCoursePresets {
         ));
     }
 
+    // Ids from the game's object list (gameval ObjectID). No start tile: a recorded lap starts
+    // where its first obstacle was clicked.
+    public static AgilityCourse pollnivneach() {
+        return new AgilityCourse("Pollnivneach", 70, 890, Arrays.asList(
+            new AgilityObstacle("Basket",       null, 14935),
+            new AgilityObstacle("Market Stall", null, 14936),
+            new AgilityObstacle("Banner",       null, 14937),
+            new AgilityObstacle("Gap",          null, 14938),
+            new AgilityObstacle("Tree",         null, 14939),
+            new AgilityObstacle("Rough Wall",   null, 14940),
+            new AgilityObstacle("Monkeybars",   null, 14941),
+            new AgilityObstacle("Tree 2",       null, 14944),
+            new AgilityObstacle("Drying Line",  null, 14945)
+        ));
+    }
+
+    public static AgilityCourse prifddinas() {
+        return new AgilityCourse("Prifddinas", 75, 1337, Arrays.asList(
+            new AgilityObstacle("Ladder",        null, 36221),
+            new AgilityObstacle("Tightrope 1",   null, 36225),
+            new AgilityObstacle("Chimney",       null, 36227),
+            new AgilityObstacle("Roof Edge",     null, 36228),
+            new AgilityObstacle("Dark Hole",     null, 36229),
+            new AgilityObstacle("Ladder 2",      null, 36231, 36232),
+            new AgilityObstacle("Rope Bridge 1", null, 36233),
+            new AgilityObstacle("Tightrope 2",   null, 36234),
+            new AgilityObstacle("Rope Bridge 2", null, 36235),
+            new AgilityObstacle("Tightrope 3",   null, 36236),
+            new AgilityObstacle("Tightrope 4",   null, 36237),
+            new AgilityObstacle("Dark Hole 2",   null, 36238),
+            // Shortcut portals appear at random and skip part of the lap.
+            new AgilityObstacle("Portal",        null, 36240, 36241, 36242, 36243, 36244, 36245, 36246)
+        ));
+    }
+
     public static AgilityCourse ardougne() {
         return new AgilityCourse("Ardougne", 90, 793, Arrays.asList(
             new AgilityObstacle("Wooden Beams", null, 15608),
@@ -163,7 +200,7 @@ public class AgilityCoursePresets {
             new AgilityObstacle("Gap 2",        null, 15610),
             new AgilityObstacle("Jump",         null, 15611),
             new AgilityObstacle("Steep Roof",   null, 28912),
-            new AgilityObstacle("Gap 3",        null, 15612)
+            new AgilityObstacle("Gap 3",        null, 15612, 28913)
         ));
     }
 }

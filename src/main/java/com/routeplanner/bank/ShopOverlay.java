@@ -73,14 +73,18 @@ public class ShopOverlay extends Overlay {
             for (List<String> group : groups) {
                 for (String alt : group) {
                     String altName = bankItemManager.parseItemName(alt);
-                    if (itemName.equalsIgnoreCase(altName)) {
+                    if (BankItemManager.nameMatches(altName, itemName)) {
                         isRequired = true;
                         if (isSell) {
                             // Item present in inventory = still needs selling -> orange
                             isMissing = true;
                         } else {
                             long required = bankItemManager.parseQuantityValue(alt);
+                            // Count only what was bought since the step started.
                             long inInventory = countInInventory(altName);
+                            if (step.getPickupBaseline() != null) {
+                                inInventory -= step.getPickupBaseline().getOrDefault(altName.toLowerCase(), 0L);
+                            }
                             isMissing = inInventory < required;
                         }
                         break;
@@ -121,7 +125,7 @@ public class ShopOverlay extends Overlay {
         for (Item invItem : inv.getItems()) {
             if (invItem.getId() <= 0) continue;
             String name = itemManager.getItemComposition(invItem.getId()).getName();
-            if (name != null && name.equalsIgnoreCase(itemName)) {
+            if (BankItemManager.nameMatches(itemName, name)) {
                 total += invItem.getQuantity();
             }
         }

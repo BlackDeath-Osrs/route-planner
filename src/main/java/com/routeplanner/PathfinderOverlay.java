@@ -23,6 +23,7 @@ public class PathfinderOverlay extends Overlay {
     private final Client client;
     private final RoutePlannerPlugin plugin;
     private final RoutePlannerConfig config;
+    private final ShortestPathBridge shortestPath;
 
     private WorldCollisionMap collisionMap = null;
     private boolean loadAttempted = false;
@@ -53,14 +54,48 @@ public class PathfinderOverlay extends Overlay {
         cachedPath = new ArrayList<>();
         lastPlayer = null;
         lastTarget = null;
+        shortestPath.reset();
     }
 
     private int tickCount = 0;
 
 
     public void onGameTick() {
+        updatePath();
+        // Stairs set on the step (and still needed) were picked by updatePath. Otherwise use the
+        // first floor change on the current route, worked out fresh each tick so it never lingers
+        // after the climb or the step.
+        RouteStep step = plugin.getActiveRoute() == null ? null : plugin.getActiveRoute().getActiveStep();
+        boolean stepStairs = step != null && step.getTransitionPoint() != null && step.getWorldPoint() != null
+            && client.getLocalPlayer() != null
+            && client.getLocalPlayer().getWorldLocation().getPlane() != step.getWorldPoint().getPlane();
+        if (!stepStairs) activeTransition = step == null || step.isLocationReached() ? null : firstFloorChange();
+    }
+
+    /**
+     * Where the route leaves the player's floor (stairs, ladder...), or null when the path stays
+     * on this floor. Lets steps on another floor guide to and highlight the right stairs even
+     * when nobody set them on the step (e.g. a recording that started upstairs).
+     */
+    private com.routeplanner.transport.Transport firstFloorChange() {
+        if (client.getLocalPlayer() == null || cachedPath.size() < 2) return null;
+        int plane = client.getLocalPlayer().getWorldLocation().getPlane();
+        for (int i = 0; i + 1 < cachedPath.size(); i++) {
+            WorldPoint a = cachedPath.get(i), b = cachedPath.get(i + 1);
+            if (a.getPlane() != plane) return null;
+            if (b.getPlane() != a.getPlane()) {
+                com.routeplanner.transport.Transport known = TransportLoader.find(a, b);
+                return known != null ? known : new com.routeplanner.transport.Transport(a, b, null, -1);
+            }
+        }
+        return null;
+    }
+
+    private void updatePath() {
         tickCount++;
         if (tickCount % 2 != 0) return;
+        // Shortest Path stopped answering: force a rebuild so the built-in pathfinder takes over.
+        if (shortestPath.tick()) lastPlayer = null;
         if (plugin.getActiveRoute() == null) return;
         RouteStep step = plugin.getActiveRoute().getActiveStep();
         if (step == null) { return; }
@@ -91,6 +126,7 @@ public class PathfinderOverlay extends Overlay {
                 step.getTransitionPoint(), step.getWorldPoint(), "Climb", 0);
         }
         if (player.distanceTo(target) <= 3) { cachedPath = new ArrayList<>(); return; }
+        applyShortestPathResult(player, target, exactTargetMatch);
 
         // Only rebuild if player moved to a new tile or target changed
         boolean targetChanged = !target.equals(lastTarget);
@@ -126,6 +162,10 @@ public class PathfinderOverlay extends Overlay {
                     lastFailedTarget = null;
                 } else if (onIdx == 0) {
                     lastFailedTarget = null;
+                } else if (shortestPath.isActive()) {
+                    // Asynchronous: the answer is picked up by applyShortestPathResult on a later update.
+                    if (targetChanged) cachedPath = new ArrayList<>();
+                    shortestPath.request(player, target);
                 } else {
                     cachedPath = exactTargetMatch ? buildPathExact(player, target) : buildPath(player, target);
                     lastFailedTarget = cachedPath.isEmpty() ? target : null;
@@ -133,11 +173,36 @@ public class PathfinderOverlay extends Overlay {
         }
     }
 
+    /**
+     * Installs a Shortest Path answer for this target once it has arrived. Falls back to the
+     * built-in search when Shortest Path couldn't get there (e.g. its own settings exclude a
+     * transport the route needs), so switching pathfinders never loses a path we could draw.
+     */
+    private void applyShortestPathResult(WorldPoint player, WorldPoint target, boolean exact) {
+        ShortestPathBridge.Result result = shortestPath.takeResult(target);
+        if (result == null) return;
+        if (result.cancelled) { lastPlayer = null; return; }   // re-ask on the next update
+
+        List<WorldPoint> path = result.path;
+        // Like buildPath, a path ending next to the target is good enough unless the step needs
+        // the exact tile -- the target is often an NPC or object tile that can't be stood on.
+        boolean usable = result.reached || (!exact && !path.isEmpty()
+            && path.get(path.size() - 1).distanceTo(target) <= 1);
+        if (!usable) {
+            path = exact ? buildPathExact(player, target) : buildPath(player, target);
+        }
+        cachedPath = new ArrayList<>(path);
+        trimCachedPathTo(indexOnPath(player));
+        lastFailedTarget = cachedPath.isEmpty() ? target : null;
+    }
+
     @Inject
-    public PathfinderOverlay(Client client, RoutePlannerPlugin plugin, RoutePlannerConfig config) {
+    public PathfinderOverlay(Client client, RoutePlannerPlugin plugin, RoutePlannerConfig config,
+                             ShortestPathBridge shortestPath) {
         this.client = client;
         this.plugin = plugin;
         this.config = config;
+        this.shortestPath = shortestPath;
         setPosition(OverlayPosition.DYNAMIC);
         setLayer(OverlayLayer.ABOVE_SCENE);
     }
@@ -178,9 +243,12 @@ public class PathfinderOverlay extends Overlay {
             if (step == null) return null;
             if (step.isLocationReached() && plugin.getArrivalHoldTicksRemaining() <= 0) return null;
             if (cachedPath.isEmpty()) return null;
-            path = cachedPath;
-            WorldPoint target = path.get(path.size() - 1);
-            if (player.getPlane() != target.getPlane()) return null;
+            // Only the part of the route on this floor; it ends at the stairs to the next one.
+            path = new ArrayList<>();
+            for (WorldPoint wp : cachedPath) {
+                if (wp.getPlane() != player.getPlane()) break;
+                path.add(wp);
+            }
         }
         if (path.size() < 2) return null;
 
@@ -240,30 +308,6 @@ public class PathfinderOverlay extends Overlay {
             graphics.setColor(useDashColor ? config.lineDashColor() : lineC);
             graphics.setStroke(lineStroke(thick));
             graphics.drawLine(pa.getX(), pa.getY(), pb.getX(), pb.getY());
-
-            // Arrows
-            com.routeplanner.ArrowMode am = config.arrowMode();
-            if (am == com.routeplanner.ArrowMode.ALONG && i % 20 == 10) {
-                double angle = Math.atan2(pb.getY() - pa.getY(), pb.getX() - pa.getX());
-                drawDirectionArrow(graphics, (pa.getX() + pb.getX()) / 2,
-                    (pa.getY() + pb.getY()) / 2, angle, lineC);
-            }
-        }
-
-        // End-only arrow at the destination
-        if (drawLine && config.arrowMode() == com.routeplanner.ArrowMode.END && path.size() >= 2) {
-            WorldPoint wa = path.get(path.size() - 2);
-            WorldPoint wb = path.get(path.size() - 1);
-            LocalPoint la = LocalPoint.fromWorld(client, wa);
-            LocalPoint lb = LocalPoint.fromWorld(client, wb);
-            if (la != null && lb != null) {
-                net.runelite.api.Point pa = Perspective.localToCanvas(client, la, plane);
-                net.runelite.api.Point pb = Perspective.localToCanvas(client, lb, plane);
-                if (pa != null && pb != null) {
-                    double angle = Math.atan2(pb.getY() - pa.getY(), pb.getX() - pa.getX());
-                    drawDirectionArrow(graphics, pb.getX(), pb.getY(), angle, config.lineColor());
-                }
-            }
         }
 
         return null;
@@ -427,25 +471,6 @@ public class PathfinderOverlay extends Overlay {
         int cap = (config.lineStyle() == com.routeplanner.LineStyle.DOTTED)
             ? BasicStroke.CAP_ROUND : BasicStroke.CAP_BUTT;
         return new BasicStroke(t, cap, BasicStroke.JOIN_ROUND, 10f, dash, offset);
-    }
-
-    private void drawDirectionArrow(Graphics2D graphics, int x, int y, double angle, Color color) {
-        int size = 10;
-        java.awt.geom.AffineTransform saved = graphics.getTransform();
-        graphics.translate(x, y);
-        graphics.rotate(angle);
-
-        int[] xsOut = {size + 2, -size - 1, -size - 1};
-        int[] ysOut = {0, -(size / 2) - 2, (size / 2) + 2};
-        graphics.setColor(Color.BLACK);
-        graphics.fillPolygon(xsOut, ysOut, 3);
-
-        int[] xs = {size, -size, -size};
-        int[] ys = {0, -size / 2, size / 2};
-        graphics.setColor(color);
-        graphics.fillPolygon(xs, ys, 3);
-
-        graphics.setTransform(saved);
     }
 
     private boolean isOnPath(WorldPoint player) {

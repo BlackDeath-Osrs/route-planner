@@ -73,7 +73,9 @@ public class RouteOverlay extends Overlay {
                 Color base = config.npcHighlightColor();
                 Color pulse = new Color(base.getRed(), base.getGreen(), base.getBlue(),
                     Math.max(0, Math.min(255, alpha)));
-                int objId = activeStep.getTransitionObjectId();
+                // Stairs set on the step win; otherwise the ones the route itself climbs.
+                int objId = activeStep.getTransitionPoint() != null ? activeStep.getTransitionObjectId()
+                    : transition != null ? transition.objectId : -1;
                 boolean drewHull = false;
                 if (objId > 0) {
                     // Highlight all tiles occupied by the transition object by scanning the scene
@@ -120,7 +122,7 @@ public class RouteOverlay extends Overlay {
                     }
                 }
                 if (!drewHull) {
-                    highlightTile(graphics, transition.origin, pulse);
+                    highlightTile(graphics, transOrigin, pulse);
                 }
             }
         }

@@ -3,6 +3,10 @@ package com.routeplanner.teleport;
 import com.routeplanner.RoutePlannerPlugin;
 import com.routeplanner.model.RouteStep;
 import net.runelite.api.Client;
+import net.runelite.api.Item;
+import net.runelite.api.ItemContainer;
+import net.runelite.api.gameval.InterfaceID;
+import net.runelite.api.gameval.InventoryID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
@@ -17,14 +21,31 @@ import java.awt.Graphics2D;
 import java.awt.Rectangle;
 
 /**
- * Highlights a teleport item in the inventory for the active step, when that step is an
- * item-teleport. Matches ANY charge state the player is holding (e.g. glory(3) or glory(6)).
+ * Highlights a teleport item in the inventory, or in the equipment tab when it's worn (e.g. a
+ * construction cape), for the active step, when that step is an item-teleport. Matches ANY
+ * charge state the player is holding (e.g. glory(3) or glory(6)).
  * Highlight only: the plugin never clicks or operates the item.
  */
 @Singleton
 public class TeleportItemOverlay extends Overlay {
     // Inventory widget group; children carry per-slot item ids and bounds.
     private static final int INVENTORY_GROUP = 149;
+
+    /** Equipment tab slot widgets, indexed by EquipmentInventorySlot index (gaps are unused). */
+    private static final int[] WORN_SLOT_WIDGETS = new int[14];
+    static {
+        WORN_SLOT_WIDGETS[0] = InterfaceID.Wornitems.SLOT0;    // head
+        WORN_SLOT_WIDGETS[1] = InterfaceID.Wornitems.SLOT1;    // cape
+        WORN_SLOT_WIDGETS[2] = InterfaceID.Wornitems.SLOT2;    // amulet
+        WORN_SLOT_WIDGETS[3] = InterfaceID.Wornitems.SLOT3;    // weapon
+        WORN_SLOT_WIDGETS[4] = InterfaceID.Wornitems.SLOT4;    // body
+        WORN_SLOT_WIDGETS[5] = InterfaceID.Wornitems.SLOT5;    // shield
+        WORN_SLOT_WIDGETS[7] = InterfaceID.Wornitems.SLOT7;    // legs
+        WORN_SLOT_WIDGETS[9] = InterfaceID.Wornitems.SLOT9;    // gloves
+        WORN_SLOT_WIDGETS[10] = InterfaceID.Wornitems.SLOT10;  // boots
+        WORN_SLOT_WIDGETS[12] = InterfaceID.Wornitems.SLOT12;  // ring
+        WORN_SLOT_WIDGETS[13] = InterfaceID.Wornitems.SLOT13;  // ammo
+    }
 
     private final Client client;
     private final RoutePlannerPlugin plugin;
@@ -50,23 +71,35 @@ public class TeleportItemOverlay extends Overlay {
         if (tele == null) return null;
 
         Widget inv = client.getWidget(INVENTORY_GROUP, 0);
-        if (inv == null || inv.isHidden()) return null;
+        if (inv != null && !inv.isHidden()) {
+            for (Widget item : inventoryItemWidgets(inv)) {
+                if (item == null || item.isHidden()) continue;
+                if (tele.matchesItemId(item.getItemId())) highlight(graphics, item.getBounds());
+            }
+        }
 
-        boolean drewAny = false;
-        for (Widget item : inventoryItemWidgets(inv)) {
-            if (item == null || item.isHidden()) continue;
-            if (tele.matchesItemId(item.getItemId())) {
-                Rectangle b = item.getBounds();
-                if (b == null) continue;
-                graphics.setColor(new Color(0, 255, 255, 220));
-                graphics.setStroke(new BasicStroke(2));
-                graphics.drawRect(b.x, b.y, b.width, b.height);
-                graphics.setColor(new Color(0, 255, 255, 45));
-                graphics.fillRect(b.x, b.y, b.width, b.height);
-                drewAny = true;
+        // Worn items: the equipment tab's slot widgets don't carry item ids, so match the
+        // worn-items container and highlight that slot's widget (only drawn while the tab is open).
+        ItemContainer worn = client.getItemContainer(InventoryID.WORN);
+        if (worn != null) {
+            Item[] items = worn.getItems();
+            for (int slot = 0; slot < items.length && slot < WORN_SLOT_WIDGETS.length; slot++) {
+                if (WORN_SLOT_WIDGETS[slot] == 0 || !tele.matchesItemId(items[slot].getId())) continue;
+                Widget w = client.getWidget(WORN_SLOT_WIDGETS[slot]);
+                if (w != null && !w.isHidden()) highlight(graphics, w.getBounds());
             }
         }
         return null;
+    }
+
+    private void highlight(Graphics2D graphics, Rectangle b) {
+        if (b == null) return;
+        Color outline = plugin.getConfig().npcHighlightColor();
+        graphics.setColor(outline);
+        graphics.setStroke(new BasicStroke(2));
+        graphics.drawRect(b.x, b.y, b.width, b.height);
+        graphics.setColor(com.routeplanner.util.HighlightColors.fill(outline));
+        graphics.fillRect(b.x, b.y, b.width, b.height);
     }
 
     /** Inventory item slots live as dynamic children of the inventory widget. */

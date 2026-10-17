@@ -26,7 +26,12 @@ public class RouteStep {
     private String itemList;  // comma separated, / for alternatives e.g. "Spade,Rune pouch/Divine Rune pouch"
     private String itemMode = "BANK";  // "BANK" (fetch from bank), "SHOP" (buy), or "SELL" (sell to shop)
     private transient boolean sellArmed = false;  // SELL: true once items seen in inventory
-    private transient java.util.Map<String, Long> pickupBaseline;  // PICKUP: inventory counts when step became active
+    private transient java.util.Map<String, Long> pickupBaseline;  // PICKUP/SHOP: inventory counts when step became active
+
+    /** PICKUP and SHOP count items gained since the step started, not items already carried. */
+    public boolean countsGainedItems() {
+        return "PICKUP".equals(itemMode) || "SHOP".equals(itemMode);
+    }
 
     // Guided quest (Quest Helper) step fields
     private int questStopIndex = -1;   // flat step index to stop at, -1 = whole quest
@@ -37,8 +42,9 @@ public class RouteStep {
     private net.runelite.api.coords.WorldPoint teleportDestination; // destination WorldPoint
     private int teleportSpellId;      // widget child ID for highlighting  // matches net.runelite.api.Quest enum name
 
-    private String teleportMethod;    // Phase 2: "SPELL" or "ITEM" (null = walk only)
+    private String teleportMethod;    // Phase 2: "SPELL", "ITEM" or "NEXUS" (null = walk only)
     private String teleportItem;      // Phase 2: item name for ITEM teleports (e.g. "Amulet of glory")
+    private String teleportNexus;     // NEXUS teleports: Portal Nexus destination as shown in its menu
 
     // Skilling step fields
     private String skillingSkill;      // e.g. "THIEVING"
@@ -60,6 +66,7 @@ public class RouteStep {
 
     // Note step (informational, not tracked)
     private String noteText;
+    private boolean noteAutoComplete; // NOTE step: done on arrival, no manual tick (off = wait for the tick)
     private String npcHighlight; // NOTE step: optional NPC name to highlight
     private boolean highlightEnabled; // master toggle: light up this step's in-game targets (default off)
     private String recipeLabel; // editor: the exact recipe/method dropdown label chosen (for reverse-prefill)

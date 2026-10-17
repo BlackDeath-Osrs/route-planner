@@ -21,11 +21,19 @@ public interface RoutePlannerConfig extends Config {
 
     @ConfigSection(
         name = "Waypoint Path",
-        description = "How the pathfinder route is drawn: line or tile style, colors, arrows, and animation",
+        description = "How the pathfinder route is drawn: line or tile style, colors, and animation",
         position = 80,
         closedByDefault = true
     )
     String waypointSection = "waypointSection";
+
+    @ConfigSection(
+        name = "Record mode",
+        description = "How recording turns what you do in game into draft steps",
+        position = 95,
+        closedByDefault = true
+    )
+    String recordSection = "recordSection";
 
     @ConfigItem(
         keyName = "routes",
@@ -223,6 +231,17 @@ public interface RoutePlannerConfig extends Config {
 
     // ---- Waypoint Path section ----
     @ConfigItem(
+        keyName = "pathfinder",
+        name = "Pathfinder",
+        description = "Which pathfinder builds the waypoint path. Shortest Path uses the Shortest Path"
+            + " plugin's routing (including any teleports its own settings allow) and falls back to"
+            + " the built-in pathfinder when that plugin isn't installed or enabled.",
+        position = 199,
+        section = waypointSection
+    )
+    default PathfinderMode pathfinder() { return PathfinderMode.BUILT_IN; }
+
+    @ConfigItem(
         keyName = "pathDisplayMode",
         name = "Display mode",
         description = "Draw the route as a line, highlighted tiles, or both.",
@@ -238,7 +257,7 @@ public interface RoutePlannerConfig extends Config {
         position = 201,
         section = waypointSection
     )
-    default LineStyle lineStyle() { return LineStyle.SOLID; }
+    default LineStyle lineStyle() { return LineStyle.DASHED; }
 
     @Alpha
     @ConfigItem(
@@ -289,32 +308,13 @@ public interface RoutePlannerConfig extends Config {
     default boolean lineGlow() { return true; }
 
     @ConfigItem(
-        keyName = "arrowMode",
-        name = "Arrows",
-        description = "Direction arrows: none, along the line, or at the end only.",
-        position = 207,
-        section = waypointSection
-    )
-    default ArrowMode arrowMode() { return ArrowMode.ALONG; }
-
-    @Range(min = 5, max = 20)
-    @ConfigItem(
-        keyName = "arrowSize",
-        name = "Arrow size",
-        description = "Size of the direction arrows in pixels.",
-        position = 208,
-        section = waypointSection
-    )
-    default int arrowSize() { return 10; }
-
-    @ConfigItem(
         keyName = "lineAnimate",
         name = "Animate flow",
-        description = "Move the dashes/arrows along the line toward the destination.",
+        description = "Move the dashes or dots along the line toward the destination (not the solid style).",
         position = 209,
         section = waypointSection
     )
-    default boolean lineAnimate() { return false; }
+    default boolean lineAnimate() { return true; }
 
     @Alpha
     @ConfigItem(
@@ -391,6 +391,39 @@ public interface RoutePlannerConfig extends Config {
         section = waypointSection
     )
     default boolean tileFade() { return true; }
+
+    // ---- Record mode section ----
+    @Range(min = 2, max = 30)
+    @ConfigItem(
+        keyName = "recordIdleTicks",
+        name = "Stop length for a step",
+        description = "While recording, standing still this many game ticks (0.6s each) somewhere new"
+            + " records a location step there.",
+        position = 300,
+        section = recordSection
+    )
+    default int recordIdleTicks() { return 5; }
+
+    @ConfigItem(
+        keyName = "recordAlwaysHighlight",
+        name = "Highlight recorded targets",
+        description = "Turn on Highlight for recorded steps that have an NPC or object to highlight"
+            + " (trees, rocks, fishing spots, NPCs you killed or pickpocketed...). Off: you can"
+            + " still turn it on per step in the review.",
+        position = 301,
+        section = recordSection
+    )
+    default boolean recordAlwaysHighlight() { return true; }
+
+    @ConfigItem(
+        keyName = "recordTrace",
+        name = "Diagnostic trace",
+        description = "While recording, write every event the recorder sees and what it decided"
+            + " to the RuneLite log (lines start with [RP-TRACE]). For tracking down recording bugs.",
+        position = 302,
+        section = recordSection
+    )
+    default boolean recordTrace() { return false; }
 
     @ConfigItem(
         keyName = "waypointPreview",

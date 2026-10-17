@@ -79,7 +79,7 @@ public class GroundItemOverlay extends Overlay {
                 for (TileItem gi : groundItems) {
                     if (gi == null) continue;
                     String name = itemManager.getItemComposition(gi.getId()).getName();
-                    if (name != null && targets.contains(name.toLowerCase())) {
+                    if (name != null && targets.stream().anyMatch(t -> BankItemManager.nameMatches(t, name))) {
                         matchName = name;
                         break;
                     }

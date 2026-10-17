@@ -60,10 +60,11 @@ public class SpellbookOverlay extends Overlay {
         Rectangle b = match.getBounds();
         if (b == null) return null;
 
-        graphics.setColor(new Color(0, 255, 255, 200));
+        Color outline = plugin.getConfig().npcHighlightColor();
+        graphics.setColor(outline);
         graphics.setStroke(new BasicStroke(2));
         graphics.drawRect(b.x - 1, b.y - 1, b.width + 2, b.height + 2);
-        graphics.setColor(new Color(0, 255, 255, 40));
+        graphics.setColor(com.routeplanner.util.HighlightColors.fill(outline));
         graphics.fillRect(b.x - 1, b.y - 1, b.width + 2, b.height + 2);
         return null;
     }

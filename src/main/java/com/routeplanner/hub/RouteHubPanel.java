@@ -26,6 +26,12 @@ public class RouteHubPanel extends JPanel {
     private final JLabel statusLabel;
     private boolean loadedOnce = false;
     private JLabel footerLabel;
+    private JButton back;
+
+    /** Hidden when the Hub lives in its own tab, where there's nothing to go back to. */
+    public void setBackVisible(boolean visible) {
+        back.setVisible(visible);
+    }
 
     public RouteHubPanel(com.routeplanner.RoutePlannerPlugin plugin, RouteHubCatalog catalog, Runnable onBack) {
         this.plugin = plugin;
@@ -36,7 +42,7 @@ public class RouteHubPanel extends JPanel {
         setBorder(new EmptyBorder(8, 8, 8, 8));
         setBackground(ColorScheme.DARK_GRAY_COLOR);
 
-        JButton back = new JButton("\u2039 Back");
+        back = new JButton("\u2039 Back");
         back.setForeground(new Color(255, 152, 31));
         back.setBorderPainted(false);
         back.setContentAreaFilled(false);

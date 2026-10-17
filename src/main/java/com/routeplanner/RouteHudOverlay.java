@@ -31,7 +31,9 @@ public class RouteHudOverlay extends Overlay {
         this.config = config;
         this.bankItemManager = bankItemManager;
         setPosition(OverlayPosition.TOP_LEFT);
-        setLayer(OverlayLayer.ABOVE_WIDGETS);
+        // Under the game's interfaces: an open bank, shop or chat box covers the HUD instead of
+        // the HUD covering them.
+        setLayer(OverlayLayer.UNDER_WIDGETS);
         setPriority(OverlayPriority.MED);
         setMovable(true);
         setResizable(false);
@@ -54,9 +56,33 @@ public class RouteHudOverlay extends Overlay {
         return out;
     }
 
+    /** Bank-like windows the HUD steps aside for (it can't be drawn beneath them in every renderer). */
+    private static final int[] COVERING_WINDOWS = {
+        net.runelite.api.gameval.InterfaceID.Bankmain.UNIVERSE,
+        net.runelite.api.gameval.InterfaceID.BankDepositbox.UNIVERSE,
+        net.runelite.api.gameval.InterfaceID.Shopmain.UNIVERSE,
+        net.runelite.api.gameval.InterfaceID.GeOffers.UNIVERSE,
+        net.runelite.api.gameval.InterfaceID.SeedVault.UNIVERSE,
+    };
+    private int lastWidth, lastHeight; // size when last drawn; hidden frames report none
+
+    /** True when an open bank, shop, GE or similar window overlaps where the HUD sits. */
+    private boolean coveredByWindow() {
+        Rectangle at = getBounds();
+        if (at == null) return false;
+        Rectangle hud = new Rectangle(at.x, at.y, Math.max(at.width, lastWidth), Math.max(at.height, lastHeight));
+        if (hud.width == 0 || hud.height == 0) return false;
+        for (int id : COVERING_WINDOWS) {
+            net.runelite.api.widgets.Widget w = client.getWidget(id);
+            if (w != null && !w.isHidden() && w.getBounds() != null && w.getBounds().intersects(hud)) return true;
+        }
+        return false;
+    }
+
     @Override
     public Dimension render(Graphics2D graphics) {
         Route activeRoute = plugin.getActiveRoute();
+        if (coveredByWindow()) return null;
 
         if (activeRoute == null) return null;
 
@@ -128,9 +154,11 @@ public class RouteHudOverlay extends Overlay {
                         lines.add(new String[]{"  " + mark + st[0], sold ? "HAVE" : "CURRENT"});
                     }
                 } else {
-                    String header = "SHOP".equals(mode) ? "Buy:" : ("PICKUP".equals(mode) ? "Pick up:" : "Gather:");
+                    boolean gathering = curStep.getSkillingTargetNpc() != null || curStep.getSkillingTargetObject() != null;
+                    String header = "SHOP".equals(mode) ? "Buy:"
+                        : ("PICKUP".equals(mode) && !gathering ? "Pick up:" : "Gather:");
                     lines.add(new String[]{header, "TITLE"});
-                    java.util.Map<String, Long> baseline = "PICKUP".equals(curStep.getItemMode())
+                    java.util.Map<String, Long> baseline = curStep.countsGainedItems()
                         ? curStep.getPickupBaseline() : null;
                     for (String[] st : bankItemManager.getItemStatusList(curStep.getItemList(), baseline)) {
                         boolean have = st[1].equals("HAVE");
@@ -169,9 +197,9 @@ public class RouteHudOverlay extends Overlay {
             }
         }
 
-        // Add XP tracker section if there is an active skilling step
-        if (plugin.getActiveRoute() != null) {
-            for (com.routeplanner.model.RouteStep s : plugin.getActiveRoute().getSteps()) {
+        // XP tracker for the current step only; a later step's goal shouldn't show early
+        if (routeHasIncompleteStep) {
+            for (com.routeplanner.model.RouteStep s : java.util.Collections.singletonList(steps.get(routeCurrentIdx))) {
                 if (!s.isCompleted() && s.hasSkillGoal()
                         && s.getSkillingGoalType() != null) {
                     String sk = s.getSkillingSkill() != null
@@ -280,6 +308,8 @@ public class RouteHudOverlay extends Overlay {
             y += lineHeight;
         }
 
+        lastWidth = width;
+        lastHeight = totalHeight;
         return new Dimension(width, totalHeight);
     }
 }
