@@ -1,74 +1,88 @@
 # Route Planner
 
-Build your own step-by-step routes for Old School RuneScape and follow them in-game with on-screen guidance, pathfinding, and highlighting — like a quest helper, but for any goal you define yourself: skilling grinds, item runs, diary tasks, or full account progression plans.
+Build your own step-by-step routes for Old School RuneScape and follow them in-game with on-screen guidance, pathfinding, and highlighting, like a quest helper, but for any goal you define yourself: skilling grinds, item runs, diary tasks, or full account progression plans.
 
-Routes are organised into **sections** and **steps**, tracked with live progress, and can be shared with other players via import/export.
+Make a route by adding steps one at a time, or just press **Record** and play: what you do turns into steps on its own. Then follow it, or share it with other players through the Route Hub.
+
+## Getting started
+1. Open the **Route Planner** side panel from the RuneLite toolbar.
+2. On the welcome screen, pick one:
+   - **Build one step by step**: name your route and start adding steps.
+   - **Record a route**: play normally and let the plugin write the steps.
+   - **Import a file**: load a route someone sent you.
+   - **Browse the Route Hub**: install a community route.
+3. Click the pencil to leave edit mode, then follow the line. Steps tick off as you do them.
+
+New to the plugin? The **Quick guide** on the welcome screen (also in the route menu) walks through it in five short pages.
 
 ## Features
 
-### Routes and steps
-- Create named routes split into sections, each containing an ordered list of steps.
-- Live progress tracking with completion marks; steps advance as you go.
-- Drag steps to reorder them, or to move them between sections — a drop-line shows where they'll land. Drop onto a section header to send a step to the end of it.
-- Undo and redo structural edits from the panel header. Each route keeps its own history.
-- Deleting a route or a section asks for confirmation first.
-- Import and export routes as text so you can share them or back them up.
+### The panel
+- **Route** tab: the active route, with a card for the current step showing what to do, plus **Back**, **Skip**, and **Done** buttons. Switch routes from the dropdown at the top.
+- **My routes** tab: all your routes. Use the **...** menu on a route to rename, reset progress, export, share, or delete it, or to make it **repeatable** so it starts over by itself when you finish.
+- **Hub** tab: browse and install community routes (see [Route Hub](#route-hub)).
+- **Pause this route** hides its path and HUD until you pick it again.
 
-### Edit mode
-- Toggle **Edit mode** at the top of the panel to add, edit, reorder, and delete steps.
-- With it off, the panel is a clean follow-along view: left-click a step to mark it complete, and the editing controls get out of your way.
-- Following someone else's route? Flip Edit mode on to add your own notes or reorder a step you skipped, then turn it back off.
+### Building routes
+- Click the pencil to enter edit mode, then use **+ Step** and **+ Section**. Sections group steps into chapters.
+- **+ Step** opens a quick editor: choose what the player does (**Walk, Items, Talk, Kill, Skill, Quest,** or **Note**) and fill in only what you need. **Full editor** has every setting at once, including teleports.
+- Hold **Shift** and right-click any tile in game, then pick **Add Location Step** to make a step with that tile already filled in.
+- Drag steps to reorder them or move them between sections. Double-click to edit; right-click for more.
+- Undo and redo structural edits. Each route keeps its own history.
+- Import and export routes as files to share or back them up.
 
-### Component-based steps
-Each step is built from optional **components** in a single editor, and any combination can be attached to one step:
+### Record mode
+Press **Record** and play normally. Walking, teleports, stairs and ladders, talking to NPCs, banking, buying, selling, picking things up, skilling, agility courses, kills, and quests all turn into draft steps as you go.
 
-- **Location** — pathfinds to a destination tile and draws the route on the world map, a minimap arrow, and the game scene. Uses RuneScape's collision data and known transports (fairy rings, spirit trees, gnome gliders, charter ships, teleports, and more) to find an efficient path. A location can optionally use a **teleport method** — a spellbook teleport or a teleport item — with the spell or item highlighted in your spellbook or inventory.
-- **Items** — the items a step needs, handled as a bank fetch, a shop buy, a sell, or a ground pickup. Missing items are shown in orange, items you already have in green.
-- **Skill goal** — pick a skill and a target (level, XP total, or XP gained). An optional per-skill recipe/method picker records what to train (foods, bars, logs, potions, rocks, trees, pickpocket targets, agility courses, and more). Choosing an agility course also sets the walk-to start tile automatically.
-- **Highlight** — an opt-in toggle that lights up the step's in-game targets (skilling NPCs, objects, and bank items) while the step is active.
-- **Note** — free-form text shown on the step, with an optional NPC to highlight, an auto-complete-after-N-kills counter, and in-dialogue option highlighting.
+- Press **Note** while recording to add a tip to the current step.
+- Press **Stop** to review what was recorded (keep it, fix it, or discard it) before it joins your route.
+- Recording goes into a new section of the route, so you can record a route in parts.
+- Settings under **Record mode** control how long you stand still before a new step starts, and whether recorded NPCs and objects are highlighted.
 
-Steps complete automatically when every tracked component on them is satisfied — for example, a step that both fetches items and sets a skill goal completes only once you have the items **and** reach the goal.
+### Step types
+- **Walk**: pathfinds to a tile and draws the way on the world map, the minimap, and the game scene. Stairs and ladders on the way are found for you, along with fairy rings, spirit trees, gnome gliders, charter ships, and more. A step can also say how to get there: a spellbook teleport, a teleport item, or the Portal Nexus, with the spell or item highlighted.
+- **Items**: the items to bring from the bank, buy at a shop, sell, or pick up. Missing items show in orange and items you have in green. A step can also be "deposit everything".
+- **Talk**: an NPC to talk to, with the chat options to pick highlighted in order.
+- **Kill**: an NPC to kill, completing after a set number of kills.
+- **Skill**: a skill and a target (level, XP total, or XP gained), with an optional method such as foods, bars, logs, potions, rocks, trees, pickpocket targets, or agility courses.
+- **Quest**: completes when the quest is finished.
+- **Note**: free-form text shown on the step.
+
+A step completes on its own once everything it tracks is done. For example, a step that fetches items and has a skill goal completes only when you have the items **and** reach the goal.
 
 ### Highlighting
-- Bank overlay shows exactly which items a step needs.
-- Scene-object and NPC highlighting points you at the right tree, rock, stall, or target.
-- Dialogue option highlighting nudges you through conversations.
-- All in-game highlighting is opt-in per step via the Highlight component.
+- A **Route Planner bank tab** filters your bank down to just what the current step needs.
+- Shop, ground item, NPC, and object highlights point you at the right target.
+- Dialogue options are highlighted as you talk.
+- In-game highlighting is opt-in per step.
 
 ### Waypoint path
-Draw the route to your next destination as a line, as highlighted tiles, or both.
+Draw the way to your next destination as a line, as highlighted tiles, or both.
 
-- **Line** — solid, dashed, dotted, or dash-dot, with adjustable colour, transparency, thickness, and an optional glow. Dashes can take their own colour over a faint base line, and can flow toward your destination.
-- **Tiles** — adjustable fill and border colour, border thickness, optional rounded corners and a gentle pulse, and fading for tiles further along the path.
-- **Arrows** — none, spaced along the line, or one at the destination.
+- **Line**: solid, dashed, dotted, or dash-dot (animated dashes by default), with adjustable colour, transparency, thickness, an optional glow, and an optional separate dash colour.
+- **Tiles**: adjustable fill and border colour, border thickness, rounded corners, a gentle pulse, and fading for tiles further along the path.
 - The path is clipped to the client's draw distance, or to a limit you set.
-- **Preview in game** draws a short demo path beside you so you can judge your settings without an active route.
+- **Preview in game** draws a short demo path beside you so you can try your settings without an active route.
+- **Pathfinder**: use the built-in pathfinder, or the [Shortest Path](https://runelite.net/plugin-hub/show/shortest-path) plugin if you have it installed. If Shortest Path is off or doesn't answer, the built-in one is used.
 
 ### Route Hub
-Browse and install community-made routes from inside the plugin (**Import ▾ → Browse Route Hub**).
+Browse and install community-made routes from the **Hub** tab.
 
 - The plugin fetches route data (read-only) from a GitHub-hosted repository. No player information,
-  account data, or anything else about you is ever sent -- only plain GET requests for the catalog,
+  account data, or anything else about you is ever sent: only plain GET requests for the catalog,
   route files, and icons.
 - Submissions go the other way: sharing a route means opening a pull request on GitHub yourself
-  (**Export ▾ → Share a route to the Hub**). The plugin never uploads anything on your behalf.
+  (**My routes → ... → Share to the Route Hub**). The plugin never uploads anything on your behalf.
 - Every submission is reviewed before it's added to the catalog, and route text is scanned for
   links on both creation and installation. Even so, routes are community content: never follow a
   step that asks you to visit a website, share account details, or do anything outside the game.
 
-### HUD customization
+### HUD
+- Shows the current step, its goal, and what you still need. It hides itself while the bank is open.
 - Preset themes (OSRS Brown, Quest Helper style) or a fully **Custom** theme.
-- Per-element colors for the body, outline, title, step text, and dividers, each with transparency control.
-- Adjustable outline on/off and thickness, font family (RuneScape fonts or system fonts), and font size.
-- **Match HUD to interface** — auto-generate a matching HUD palette from your active resource pack's overlay color.
-
-## Getting started
-1. Open the **Route Planner** side panel from the RuneLite toolbar.
-2. Create a route, add a section, then start adding steps.
-3. Turn on **Edit mode** to build the route, then turn it off to follow it.
-4. Right-click a spot on the world map to set a waypoint destination for pathfinding.
-5. Shift + right-click a tile in the game world and choose **Add Location Step** to open the step editor with that tile already filled in.
+- Per-element colours for the body, outline, title, step text, and dividers, each with transparency control.
+- Outline on/off and thickness, font family (RuneScape fonts or system fonts), and font size.
+- **Match HUD to interface**: build a matching HUD palette from your resource pack's overlay colour.
 
 ## Credits
 Pathfinding relies on collision-map and transport data from the excellent [Shortest Path](https://github.com/Skretzo/shortest-path) plugin by Runemoro and Skretzo. See [`NOTICE`](NOTICE) for third-party attribution.
