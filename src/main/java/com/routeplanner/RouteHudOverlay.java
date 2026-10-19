@@ -140,6 +140,27 @@ public class RouteHudOverlay extends Overlay {
             }
         }
 
+        // Getting on or off a boat (Sailing): say so, since the line stops at the dock
+        if (routeHasIncompleteStep) {
+            com.routeplanner.transport.Transport t = plugin.getPathfinderOverlay().getActiveTransition();
+            if (t != null && t.actionText != null
+                    && (t.actionText.startsWith(com.routeplanner.sailing.SailingDocks.BOARD)
+                        || t.actionText.startsWith(com.routeplanner.sailing.SailingDocks.DISEMBARK))) {
+                lines.add(new String[]{"---", "DIM"});
+                for (String wrapped : wrapText(t.actionText, 42)) lines.add(new String[]{wrapped, "TITLE"});
+            }
+        }
+
+        // Sailing countdowns and the voyage time
+        if (routeHasIncompleteStep) {
+            java.util.List<String> sailing = plugin.getSailingTimers().hudLines(
+                plugin.getPathfinderOverlay().getCachedPath(), plugin.getSailingDocks());
+            if (!sailing.isEmpty()) {
+                lines.add(new String[]{"---", "DIM"});
+                for (String line : sailing) lines.add(new String[]{line, "CURRENT"});
+            }
+        }
+
         // Item checklist section for ITEM steps
         if (routeHasIncompleteStep) {
             RouteStep curStep = steps.get(routeCurrentIdx);
@@ -166,6 +187,18 @@ public class RouteHudOverlay extends Overlay {
                         lines.add(new String[]{"  " + mark + st[0], have ? "HAVE" : "CURRENT"});
                     }
                 }
+            }
+        }
+
+        // Catch goal (Sailing trawling)
+        if (routeHasIncompleteStep) {
+            RouteStep curStep = steps.get(routeCurrentIdx);
+            if (curStep.hasCatchGoal()) {
+                lines.add(new String[]{"---", "DIM"});
+                lines.add(new String[]{"Catch:", "TITLE"});
+                boolean done = curStep.getCatchProgress() >= curStep.getCatchGoal();
+                lines.add(new String[]{"  " + Math.min(curStep.getCatchProgress(), curStep.getCatchGoal()) + " / "
+                    + curStep.getCatchGoal() + " " + curStep.getCatchFish(), done ? "HAVE" : "CURRENT"});
             }
         }
 

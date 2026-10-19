@@ -36,10 +36,13 @@ public class MinimapArrowOverlay extends Overlay {
     public Dimension render(Graphics2D graphics) {
         if (plugin.getActiveRoute() == null) return null;
         RouteStep step = plugin.getActiveRoute().getActiveStep();
-        if (step == null || step.getWorldPoint() == null) return null;
+        if (step == null) return null;
+        // Until the player boards (Sailing), the dock is where they're headed.
+        WorldPoint target = plugin.getPathfinderOverlay().isBoardingPending(step) ? step.getBoardPoint() : step.getWorldPoint();
+        if (target == null) return null;
 
-        WorldPoint player = client.getLocalPlayer().getWorldLocation();
-        WorldPoint target = step.getWorldPoint();
+        WorldPoint player = com.routeplanner.sailing.Sailing.position(client);
+        if (player == null) return null;
 
         if (player.equals(target)) return null;
 

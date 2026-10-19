@@ -175,6 +175,7 @@ public class RecordReviewDialog extends JDialog {
             if (s.getTeleportMethod() != null) tags.append(" [Teleport]");
             else if (s.getWorldPoint() != null) tags.append(" [Location]");
             if (s.getTransitionPoint() != null) tags.append(" [Stairs]");
+            if (s.hasBoarding()) tags.append(" [Boat]");
             if (s.hasItems()) tags.append(" [Items]");
             if (s.hasSkillGoal()) tags.append(" [Skill]");
             if (s.hasHighlight()) tags.append(" [Highlight]");

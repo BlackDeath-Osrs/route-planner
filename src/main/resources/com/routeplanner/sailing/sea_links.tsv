@@ -1,0 +1,5 @@
+# Places a boat sails between two bodies of water the collision map doesn't connect, both ways.
+# From	To	Name
+# Wyrmscraig Cavern (raft or skiff only): where the boat was outside the cave mouth on the tick it
+# went through, and where it came out inside, seen in game on 2026-10-18.
+2557 2202 0	2572 8606 0	Wyrmscraig Cavern

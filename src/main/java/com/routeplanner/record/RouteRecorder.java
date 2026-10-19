@@ -87,6 +87,18 @@ public class RouteRecorder {
     /** A stair/ladder climb waiting to be attached to the next location step on the new floor. */
     private WorldPoint pendingTransitionTile;
     private int pendingTransitionObjectId = -1;
+    /** Whether the player was on a boat last tick, to notice them getting on one (Sailing). */
+    private boolean wasAboard;
+    /** The last "Board" click on an object (the gangplank); a boat-picking menu usually follows it. */
+    private Click lastBoardClick;
+    /** How recent the gangplank click must be for boarding to be credited to it. */
+    private static final int BOARD_CLICK_TICKS = 20;
+    /** How close to a dock the player must step off a boat for it to count as docking there. */
+    private static final int DOCK_RADIUS = 15;
+    /** The dock the player last boarded at; stopping near it is getting ready, not a destination. */
+    private WorldPoint boardedAt;
+    /** How far out from that dock the boat must stop for the stop to become a step. */
+    private static final int BOARD_IDLE_RADIUS = 12;
 
     private static final class Click {
         final int tick;
@@ -140,11 +152,15 @@ public class RouteRecorder {
         }
     }
 
+    private final com.routeplanner.sailing.SailingDocks sailingDocks;
+
     @Inject
-    public RouteRecorder(Client client, EventBus eventBus, RoutePlannerConfig config, ItemManager itemManager) {
+    public RouteRecorder(Client client, EventBus eventBus, RoutePlannerConfig config, ItemManager itemManager,
+                         com.routeplanner.sailing.SailingDocks sailingDocks) {
         this.client = client;
         this.eventBus = eventBus;
         this.config = config;
+        this.sailingDocks = sailingDocks;
         this.items = new ItemRecorder(client, itemManager, this);
         this.activity = new ActivityRecorder(client, this);
         this.dialog = new DialogRecorder(client, this);
@@ -163,6 +179,9 @@ public class RouteRecorder {
         lastNexusDest = null;
         pendingTransitionTile = null;
         pendingTransitionObjectId = -1;
+        wasAboard = com.routeplanner.sailing.Sailing.isSailing(client);
+        lastBoardClick = null;
+        boardedAt = null;
         items.start();
         activity.start();
         dialog.start();
@@ -216,7 +235,7 @@ public class RouteRecorder {
             + " skill=" + s.getSkillingSkill() + "/" + s.getSkillingGoalValue() + " recipe=" + s.getRecipeLabel()
             + " npc=" + s.getSkillingTargetNpc() + " obj=" + s.getSkillingTargetObject()
             + " kill=" + s.getNpcHighlight() + "x" + s.getNpcKillCount() + " tele=" + s.getTeleportMethod()
-            + " trans=" + s.getTransitionPoint();
+            + " trans=" + s.getTransitionPoint() + " board=" + s.getBoardPoint();
     }
 
     /** The latest recorded step's name, for the panel's recording banner (null before the first). */
@@ -237,6 +256,8 @@ public class RouteRecorder {
     public void onMenuOptionClicked(MenuOptionClicked e) {
         Click click = new Click(client.getTickCount(), e);
         lastClick = click;
+        // "Board", "Board-previous"... on the gangplank
+        if (click.isObject() && click.option.toLowerCase().startsWith("board")) lastBoardClick = click;
         trace("CLICK action=" + click.action + " option='" + click.option + "' target='" + click.target
             + "' id=" + click.id + " item=" + click.itemId + " p0=" + e.getParam0() + " p1=" + e.getParam1());
         if (click.action.name().startsWith("GROUND_ITEM_") && "Take".equalsIgnoreCase(click.option)) {
@@ -245,6 +266,21 @@ public class RouteRecorder {
         if (matchSpell(click) != null || isTeleportItem(click.itemId)) {
             lastTeleportClick = click;
             activity.onTeleportClick(click.tick);
+        }
+        if ("Lower net".equalsIgnoreCase(click.option)) activity.onLowerNet(click.tick);
+        // Crewmates on the boat (commanding them, chatting): not part of the route
+        NPC clickedNpc = click.isNpc() ? e.getMenuEntry().getNpc() : null;
+        if (clickedNpc != null && com.routeplanner.sailing.Sailing.isSailing(client)
+                && clickedNpc.getWorldView() == client.getLocalPlayer().getWorldView()) {
+            trace("CREW click on " + click.target + ", not recorded");
+            dialog.onCrewClick(click.tick);
+            return;
+        }
+        // A facility on the deck (the trawling net's "Collect-from" asks where the fish go): its menu
+        // isn't a route step, though using it still counts for activities below
+        if (click.isObject() && com.routeplanner.sailing.Sailing.isSailing(client)
+                && e.getMenuEntry().getWorldViewId() == client.getLocalPlayer().getWorldView().getId()) {
+            dialog.onCrewClick(click.tick);
         }
         if ((click.isNpc() || click.isObject()) && !"Examine".equalsIgnoreCase(click.option)
             && !"Walk here".equalsIgnoreCase(click.option)) {
@@ -294,12 +330,24 @@ public class RouteRecorder {
 
     @Subscribe
     public void onItemContainerChanged(ItemContainerChanged e) {
+        traceSailingContainer(e);
         if (e.getContainerId() != InventoryID.INVENTORY.getId()) return;
         items.onInventoryChanged(stepTile(), client.getTickCount());
     }
 
     @Subscribe
     public void onChatMessage(ChatMessage e) {
+        // Trawling catches (Sailing), "You catch three giant krill." (often a spam-filtered message)
+        if (e.getType() == ChatMessageType.GAMEMESSAGE || e.getType() == ChatMessageType.SPAM) {
+            com.routeplanner.sailing.CatchMessages.Catch c = com.routeplanner.sailing.CatchMessages.parse(e.getMessage());
+            if (e.getMessage().toLowerCase().contains("catch")) trace("CHAT '" + e.getMessage() + "' -> " + (c == null ? "not a catch" : c.count + " " + c.fish));
+            // Only a trawling net's catch: on the boat with a net down (fishing elsewhere says "You catch" too)
+            boolean netDown = client.getVarbitValue(net.runelite.api.gameval.VarbitID.SAILING_SIDEPANEL_BOAT_TRAWLING_NET_0_DEPTH) > 0
+                || client.getVarbitValue(net.runelite.api.gameval.VarbitID.SAILING_SIDEPANEL_BOAT_TRAWLING_NET_1_DEPTH) > 0;
+            if (c != null && netDown && com.routeplanner.sailing.Sailing.isSailing(client)) {
+                activity.onCatch(c.fish, c.count, stepTile(), client.getTickCount());
+            }
+        }
         if (e.getType() != ChatMessageType.GAMEMESSAGE) return;
         if (dialog.onGameMessage(e.getMessage(), stepTile())) activity.onQuestComplete(client.getTickCount());
     }
@@ -324,9 +372,25 @@ public class RouteRecorder {
         dialog.onTick(stepTile(), client.getTickCount());
         if (lastPos == null) { lastPos = pos; anchor = pos; return; }
 
+        // Getting on or off a boat moves the player between the dock and the deck: the trip, not a jump.
+        boolean aboard = com.routeplanner.sailing.Sailing.isSailing(client);
+        boolean boatChanged = aboard != wasAboard;
+        if (boatChanged) {
+            if (aboard) onBoard(lastPos);
+            else onDisembark(pos);
+        }
+        wasAboard = aboard;
+
         boolean planeChanged = pos.getPlane() != lastPos.getPlane();
         boolean jumped = planeChanged || pos.distanceTo(lastPos) > JUMP_TILES;
-        if (jumped) {
+        if (boatChanged) {
+            idleTicks = 0;
+        } else if (jumped && aboard) {
+            // Still on the boat after a jump: sailing through a cave mouth (Wyrmscraig Cavern). That's
+            // part of the trip; where it ends gets its step on getting off or stopping.
+            trace("JUMP from=" + lastPos + " to=" + pos + " = sailing through a cave mouth, part of the trip");
+            idleTicks = 0;
+        } else if (jumped) {
             trace("JUMP from=" + lastPos + " to=" + pos + " planeChanged=" + planeChanged
                 + " lastClick=" + (lastClick == null ? "none" : lastClick.describe() + "#" + lastClick.id + "@" + lastClick.tick));
             onJump(lastPos, pos, planeChanged);
@@ -334,10 +398,14 @@ public class RouteRecorder {
         } else if (pos.equals(lastPos)) {
             // Instances (the house, many quest and boss areas) report made-up coordinates
             // that can't be walked to later, so stopping inside one never makes a step.
-            if (++idleTicks == config.recordIdleTicks() && !inInstance() && isNewPlace(pos)
+            // On a boat, waiting at the mooring to take the helm isn't a destination; stopping out at
+            // sea is. Where the trip ends at a dock gets its step on getting off (see onDisembark).
+            boolean readyingBoat = aboard && boardedAt != null && pos.distanceTo2D(boardedAt) <= BOARD_IDLE_RADIUS;
+            if (++idleTicks == config.recordIdleTicks() && !inInstance() && !readyingBoat && isNewPlace(pos)
                 && !activity.isBusy(pos, client.getTickCount())) {
-                trace("IDLE -> location step");
-                addLocationStep(pos);
+                trace("IDLE -> location step" + (aboard ? " (stopped at sea)" : ""));
+                if (aboard) addDraft(newLocationStep(pos, sailName(pos)), pos);
+                else addLocationStep(pos);
             }
         } else {
             idleTicks = 0;
@@ -373,7 +441,7 @@ public class RouteRecorder {
             if (activity.onAgilityCourse(from, lastClick.id, now)) { trace("JUMP = agility obstacle, ignored"); return; }
             if (landedInInstance) {
                 if (isHousePortalOption(lastClick.option)) {
-                    RouteStep step = newLocationStep(from, "Enter house at " + LocationNames.describe(from));
+                    RouteStep step = newLocationStep(from, "Enter house" + LocationNames.at(from));
                     step.setSkillingTargetObject("Portal");
                     addDraft(step, from);
                 }
@@ -407,10 +475,46 @@ public class RouteRecorder {
         trace("JUMP = unexplained travel");
         // Boats, NPC travel, fairy rings, anything else: keep it as a location step with a
         // note of what caused it, so nothing is silently dropped.
-        RouteStep step = newLocationStep(to, "Travel to " + LocationNames.describe(to));
+        RouteStep step = newLocationStep(to, LocationNames.nameOf(to) != null ? "Travel to " + LocationNames.nameOf(to) : "Travel here");
         String cause = lastClick != null ? lastClick.describe() : "unknown";
         step.setNoteText("Recorded travel (last action: " + cause + "). Edit to describe how to get here.");
         addDraft(step, to);
+    }
+
+    /**
+     * The player got on a boat, standing at {@code dock} the tick before: a step that has you walk
+     * to the gangplank and board, like stairs on a climb. Standing at the dock first already made a
+     * plain step there; that one becomes the boarding step.
+     */
+    private void onBoard(WorldPoint dock) {
+        boardedAt = dock;
+        String hint = sailingDocks.boardingHint(dock);
+        RouteStep step = stepAt(dock, hint);
+        step.setWorldPoint(null);   // being on the boat is the goal, not a tile
+        step.setTransitionPoint(null);
+        step.setBoardPoint(dock);
+        Click c = lastBoardClick;
+        boolean clickedGangplank = c != null && client.getTickCount() - c.tick <= BOARD_CLICK_TICKS;
+        step.setBoardObjectId(clickedGangplank ? c.id : -1);
+        trace("BOARD at " + dock + " via " + (clickedGangplank ? c.describe() + "#" + c.id : "no recent Board click"));
+    }
+
+    /**
+     * The player got off a boat at {@code landed}: the end of the trip, so it gets its step right
+     * away ("Sail to Lunar Isle") rather than waiting to stand still. Leaving a boat away from any
+     * dock (a teleport, say) is left to the jump handling.
+     */
+    private void onDisembark(WorldPoint landed) {
+        com.routeplanner.sailing.SailingDocks.Dock dock = sailingDocks.nearest(landed, DOCK_RADIUS);
+        trace("DISEMBARK at " + landed + " dock=" + (dock == null ? "none" : dock.name));
+        if (dock == null) return;
+        addDraft(newLocationStep(landed, "Sail to " + dock.name), landed);
+    }
+
+    /** "Sail to Lunar Isle", or for a spot out at sea the map has no name for, "Sail out to sea". */
+    private static String sailName(WorldPoint pos) {
+        String name = LocationNames.nameOf(pos);
+        return name != null ? "Sail to " + name : "Sail out to sea";
     }
 
     private static boolean isHousePortalOption(String option) {
@@ -499,7 +603,7 @@ public class RouteRecorder {
     }
 
     private void addLocationStep(WorldPoint pos) {
-        addDraft(newLocationStep(pos, "Go to " + LocationNames.describe(pos)), pos);
+        addDraft(newLocationStep(pos, LocationNames.nameOf(pos) != null ? "Go to " + LocationNames.nameOf(pos) : "Go to this spot"), pos);
     }
 
     /** A location step shaped exactly like one made in the step editor. */
@@ -562,11 +666,35 @@ public class RouteRecorder {
         if (!recording || text == null || text.trim().isEmpty()) return;
         WorldPoint pos = stepTile();
         RouteStep last = lastDraft();
-        RouteStep step = last != null && isNear(last, pos) ? last : stepAt(pos, "Note at " + (pos == null ? "here" : LocationNames.describe(pos)));
+        RouteStep step = last != null && isNear(last, pos) ? last : stepAt(pos, "Note" + (pos == null ? "" : LocationNames.at(pos)));
         String old = step.getNoteText();
         step.setNoteText(old == null || old.trim().isEmpty() ? text.trim() : old.trim() + "\n" + text.trim());
         step.setNoteAutoComplete(true);
         trace("NOTE added to " + describeStep(step));
+    }
+
+    /**
+     * Trace what's in the trawling net and the cargo holds when they change, to learn when the game
+     * sends them (some containers only update while their window is open) before trawling is built.
+     */
+    private void traceSailingContainer(ItemContainerChanged e) {
+        int id = e.getContainerId();
+        String which = id == net.runelite.api.gameval.InventoryID.SAILING_TRAWLING_NET ? "TRAWL NET"
+            : id >= net.runelite.api.gameval.InventoryID.SAILING_BOAT_1_CARGOHOLD
+                && id <= net.runelite.api.gameval.InventoryID.SAILING_BOAT_5_CARGOHOLD
+                ? "CARGO HOLD " + (id - net.runelite.api.gameval.InventoryID.SAILING_BOAT_1_CARGOHOLD + 1) : null;
+        if (which == null || !config.recordTrace()) return;
+        java.util.Map<String, Integer> counts = new java.util.LinkedHashMap<>();
+        for (net.runelite.api.Item item : e.getItemContainer().getItems()) {
+            if (item.getId() <= 0) continue;
+            counts.merge(client.getItemDefinition(item.getId()).getName(), item.getQuantity(), Integer::sum);
+        }
+        trace(which + " " + counts);
+    }
+
+    /** Whether {@code step} is still one of the drafts (not removed in the meantime). */
+    boolean hasDraft(RouteStep step) {
+        return drafts.contains(step);
     }
 
     RouteStep lastDraft() {
@@ -617,6 +745,6 @@ public class RouteRecorder {
     }
 
     private WorldPoint playerPos() {
-        return client.getLocalPlayer() == null ? null : client.getLocalPlayer().getWorldLocation();
+        return com.routeplanner.sailing.Sailing.position(client);
     }
 }

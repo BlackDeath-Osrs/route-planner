@@ -26,7 +26,11 @@ public class RouteStep {
     private String itemList;  // comma separated, / for alternatives e.g. "Spade,Rune pouch/Divine Rune pouch"
     private String itemMode = "BANK";  // "BANK" (fetch from bank), "SHOP" (buy), or "SELL" (sell to shop)
     private transient boolean sellArmed = false;  // SELL: true once items seen in inventory
-    private transient java.util.Map<String, Long> pickupBaseline;  // PICKUP/SHOP: inventory counts when step became active
+    private java.util.Map<String, Long> pickupBaseline;  // PICKUP/SHOP: inventory counts when step became active
+    // The account the step's baselines (pickupBaseline, skillingStartXp) were taken on when it became
+    // active; 0 = not taken yet. Saved, so reloading keeps the progress; an imported route or another
+    // account doesn't match, so those take their own.
+    private long baselineAccount;
 
     /** PICKUP and SHOP count items gained since the step started, not items already carried. */
     public boolean countsGainedItems() {
@@ -63,6 +67,27 @@ public class RouteStep {
     // Phase 2: once player plane matches worldPoint plane, path to worldPoint.
     private WorldPoint transitionPoint;
     private int transitionObjectId = -1; // game object ID to highlight as the transition object (-1 = none)
+
+    // Boarding point (Sailing): when set, the step starts by getting on a boat.
+    // Phase 1: path to boardPoint (the dock by the gangplank) and highlight the gangplank.
+    // Phase 2: once on the boat, path over the sea to worldPoint. With no worldPoint, boarding is the step.
+    private WorldPoint boardPoint;
+    private int boardObjectId = -1;      // the gangplank's object ID, if known (-1 = find it by name)
+    private transient boolean boarded;   // true once the player got on a boat during this step
+
+    // Catch goal (Sailing trawling): fish caught into the net, counted from the catch messages
+    // since they never reach the inventory. Progress is saved so a reload carries on.
+    private String catchFish;       // e.g. "Giant krill"
+    private int catchGoal;          // how many to catch (0 = none)
+    private int catchProgress;      // caught so far while this step is active
+
+    public boolean hasCatchGoal() {
+        return catchGoal > 0 && catchFish != null;
+    }
+
+    public boolean hasBoarding() {
+        return boardPoint != null;
+    }
 
     // Note step (informational, not tracked)
     private String noteText;

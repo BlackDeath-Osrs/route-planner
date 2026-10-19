@@ -110,6 +110,15 @@ public final class LocationNames {
     }
 
     /** A place name if known, otherwise "x, y". */
+    /**
+     * " at Lunar Isle" for a step name, or nothing where the map has no name for the spot (most of
+     * the open sea), since raw coordinates make a messy name.
+     */
+    public static String at(WorldPoint p) {
+        String name = p == null ? null : nameOf(p);
+        return name != null ? " at " + name : "";
+    }
+
     public static String describe(WorldPoint p) {
         String name = nameOf(p);
         return name != null ? name : p.getX() + ", " + p.getY();

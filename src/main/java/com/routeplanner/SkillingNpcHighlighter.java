@@ -89,11 +89,15 @@ public class SkillingNpcHighlighter {
         }
         if (!nameMatch) return null;
 
-        // Only highlight NPCs within 30 tiles of the player
-        if (client.getLocalPlayer() == null) return null;
-        int dist = npc.getWorldLocation().distanceTo(
-            client.getLocalPlayer().getWorldLocation());
-        if (dist > 30) return null;
+        // Only highlight NPCs within 30 tiles of the player; at sea, measured from the boat and out
+        // as far as the client draws (sea creatures are further apart)
+        net.runelite.api.coords.WorldPoint at = com.routeplanner.sailing.Sailing.position(client);
+        if (at == null) return null;
+        int range = 30;
+        if (com.routeplanner.sailing.Sailing.isSailing(client) && client.getTopLevelWorldView() != null) {
+            range = Math.max(range, client.getTopLevelWorldView().getScene().getDrawDistance());
+        }
+        if (npc.getWorldLocation().distanceTo(at) > range) return null;
 
         return HighlightedNpc.builder()
             .npc(npc)

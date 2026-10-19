@@ -129,8 +129,11 @@ public class Route {
         getAllSteps().forEach(s -> {
             s.setCompleted(false);
             s.setLocationReached(false);
+            s.setBoarded(false);
             s.setSellArmed(false);
             s.setPickupBaseline(null);
+            s.setBaselineAccount(0);
+            s.setCatchProgress(0);
             s.setNpcKillProgress(0);
         });
     }

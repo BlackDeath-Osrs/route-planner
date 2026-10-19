@@ -27,6 +27,9 @@ import java.awt.Shape;
 @Singleton
 public class StallHighlightOverlay extends Overlay {
 
+    /** How far from the player targets are highlighted on land, in tiles. */
+    private static final int HIGHLIGHT_RANGE = 20;
+
     private final Client client;
     private final RoutePlannerPlugin plugin;
 
@@ -48,22 +51,48 @@ public class StallHighlightOverlay extends Overlay {
         if (targetName == null || targetName.trim().isEmpty()) return null;
         String target = targetName.trim().toLowerCase();
 
-        net.runelite.api.coords.WorldPoint playerLoc =
-            client.getLocalPlayer() != null ? client.getLocalPlayer().getWorldLocation() : null;
+        // The boat's tile while sailing (a shipwreck being salvaged), otherwise the player's
+        net.runelite.api.coords.WorldPoint playerLoc = com.routeplanner.sailing.Sailing.position(client);
         if (playerLoc == null) return null;
 
-        Scene scene = client.getScene();
-        if (scene == null) return null;
-        Tile[][][] tiles = scene.getTiles();
-        int z = client.getPlane();
-        if (z < 0 || z >= tiles.length) return null;
+        net.runelite.api.WorldView top = client.getTopLevelWorldView();
+        if (top == null || top.getScene() == null) return null;
+        // Out at sea everything is further apart: show targets as far as the client draws the scene
+        int range = HIGHLIGHT_RANGE;
+        boolean sailing = com.routeplanner.sailing.Sailing.isSailing(client);
+        if (sailing) range = Math.max(range, top.getScene().getDrawDistance());
+        highlightIn(graphics, top, playerLoc, range, target);
+        // The boat is a little world of its own: its facilities (a salvaging station) are in its
+        // scene, measured from where the player stands on deck.
+        if (sailing) {
+            net.runelite.api.WorldView deck = client.getLocalPlayer().getWorldView();
+            if (deck != null && deck.getScene() != null) {
+                highlightIn(graphics, deck, client.getLocalPlayer().getWorldLocation(),
+                    HIGHLIGHT_RANGE, target);
+            }
+        }
+        return null;
+    }
 
-        for (Tile[] row : tiles[z]) {
+    /** Highlights the step's target objects in {@code scene} within {@code range} tiles of {@code origin}. */
+    private void highlightIn(Graphics2D graphics, net.runelite.api.WorldView wv, net.runelite.api.coords.WorldPoint origin,
+                             int range, String target) {
+        Scene scene = wv.getScene();
+        Tile[][][] tiles = scene == null ? null : scene.getTiles();
+        int z = wv.getPlane();
+        if (tiles == null || z < 0 || z >= tiles.length || tiles[z] == null) return;
+
+        // Only the tiles within range of the origin, not the whole scene every frame
+        Tile[][] plane = tiles[z];
+        int ox = origin.getX() - wv.getBaseX(), oy = origin.getY() - wv.getBaseY();
+        for (int sx = Math.max(0, ox - range); sx <= Math.min(plane.length - 1, ox + range); sx++) {
+            Tile[] row = plane[sx];
             if (row == null) continue;
-            for (Tile tile : row) {
+            for (int sy = Math.max(0, oy - range); sy <= Math.min(row.length - 1, oy + range); sy++) {
+                Tile tile = row[sy];
                 if (tile == null) continue;
                 if (tile.getWorldLocation() == null
-                    || playerLoc.distanceTo(tile.getWorldLocation()) > 20) continue;
+                    || origin.distanceTo(tile.getWorldLocation()) > range) continue;
                 GameObject[] objects = tile.getGameObjects();
                 if (objects == null) continue;
                 for (GameObject obj : objects) {
@@ -71,9 +100,13 @@ public class StallHighlightOverlay extends Overlay {
                     // GameObjects span multiple tiles; only draw from the anchor tile
                     if (!obj.getSceneMinLocation().equals(tile.getSceneLocation())) continue;
                     ObjectComposition comp = client.getObjectDefinition(obj.getId());
+                    if (comp != null && comp.getImpostorIds() != null) comp = comp.getImpostor();
                     if (comp == null) continue;
                     String name = comp.getName();
-                    if (name == null || !name.toLowerCase().startsWith(target)) continue;
+                    // "Baker's stall" by its start; a kind by its end ("shipwreck" lights any of the eight)
+                    String lower = name == null ? null : name.toLowerCase();
+                    if (lower == null || !(lower.startsWith(target) || lower.endsWith(" " + target))) continue;
+                    if (isSunkenShipwreck(lower, comp)) continue;
 
                     Shape hull = obj.getConvexHull();
                     if (hull == null) continue;
@@ -88,6 +121,16 @@ public class StallHighlightOverlay extends Overlay {
                 }
             }
         }
-        return null;
+    }
+
+    /**
+     * A shipwreck that can't be salvaged right now. Like a tree turning into a stump, but a sunken
+     * wreck keeps its name ("Large shipwreck"); it just loses its only option, Inspect.
+     */
+    private static boolean isSunkenShipwreck(String lowerName, ObjectComposition comp) {
+        if (!lowerName.endsWith("shipwreck")) return false;
+        String[] actions = comp.getActions();
+        if (actions != null) for (String a : actions) if (a != null && !a.isEmpty()) return false;
+        return true;
     }
 }

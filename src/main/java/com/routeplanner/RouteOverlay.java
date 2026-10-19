@@ -42,7 +42,9 @@ public class RouteOverlay extends Overlay {
         if (plugin.getActiveRoute() == null) return null;
 
         RouteStep step = plugin.getActiveRoute().getActiveStep();
-        if (step == null || step.getWorldPoint() == null) return null;
+        if (step == null) return null;
+        // A step that only has you board a boat has no tile of its own, just the gangplank.
+        if (step.getWorldPoint() == null && !plugin.getPathfinderOverlay().isBoardingPending(step)) return null;
         if (step.isLocationReached() && plugin.getArrivalHoldTicksRemaining() <= 0) return null;
 
         // Highlight target tile
@@ -62,7 +64,7 @@ public class RouteOverlay extends Overlay {
 
         if (transOrigin != null && activeStep != null) {
             WorldPoint player = client.getLocalPlayer() == null ? null
-                : client.getLocalPlayer().getWorldLocation();
+                : com.routeplanner.sailing.Sailing.position(client);
             // Use raw Chebyshev distance ignoring plane so underground transitions still highlight.
             int distToTransition = player == null ? 999 :
                 Math.max(Math.abs(player.getX() - transOrigin.getX()),
@@ -77,6 +79,12 @@ public class RouteOverlay extends Overlay {
                 int objId = activeStep.getTransitionPoint() != null ? activeStep.getTransitionObjectId()
                     : transition != null ? transition.objectId : -1;
                 boolean drewHull = false;
+                // Gangplanks: when the object isn't known (a dock the route picked, or a step made in
+                // the editor), light up whatever gangplank is beside the dock.
+                if (objId <= 0 && transition != null && transition.actionText != null
+                        && transition.actionText.startsWith(com.routeplanner.sailing.SailingDocks.BOARD)) {
+                    drewHull = highlightNamedNear(graphics, transOrigin, "Gangplank", 6, pulse);
+                }
                 if (objId > 0) {
                     // Highlight all tiles occupied by the transition object by scanning the scene
                     // and drawing filled polygons on matching tiles. Works with HD plugin unlike
@@ -130,6 +138,40 @@ public class RouteOverlay extends Overlay {
 
 
         return null;
+    }
+
+    /** Highlights every object called {@code name} within {@code radius} tiles of {@code center}. */
+    private boolean highlightNamedNear(Graphics2D graphics, WorldPoint center, String name, int radius, Color pulse) {
+        net.runelite.api.WorldView wv = client.getTopLevelWorldView();
+        LocalPoint c = LocalPoint.fromWorld(wv, center);
+        if (c == null) return false;
+        int cx = c.getSceneX(), cy = c.getSceneY();
+        net.runelite.api.Tile[][] tiles = wv.getScene().getTiles()[wv.getPlane()];
+        boolean drew = false;
+        for (int x = Math.max(0, cx - radius); x <= Math.min(tiles.length - 1, cx + radius); x++) {
+            for (int y = Math.max(0, cy - radius); y <= Math.min(tiles[x].length - 1, cy + radius); y++) {
+                net.runelite.api.Tile t = tiles[x][y];
+                if (t == null) continue;
+                java.util.List<net.runelite.api.TileObject> objs = new java.util.ArrayList<>();
+                for (GameObject obj : t.getGameObjects()) { if (obj != null) objs.add(obj); }
+                if (t.getGroundObject() != null) objs.add(t.getGroundObject());
+                if (t.getDecorativeObject() != null) objs.add(t.getDecorativeObject());
+                for (net.runelite.api.TileObject obj : objs) {
+                    net.runelite.api.ObjectComposition def = client.getObjectDefinition(obj.getId());
+                    if (def != null && def.getImpostorIds() != null) def = def.getImpostor();
+                    if (def == null || !name.equalsIgnoreCase(def.getName())) continue;
+                    java.awt.Shape clickbox = obj.getClickbox();
+                    if (clickbox == null) continue;
+                    graphics.setColor(new Color(pulse.getRed(), pulse.getGreen(), pulse.getBlue(), pulse.getAlpha() / 3));
+                    graphics.fill(clickbox);
+                    graphics.setColor(pulse);
+                    graphics.setStroke(new java.awt.BasicStroke(2));
+                    graphics.draw(clickbox);
+                    drew = true;
+                }
+            }
+        }
+        return drew;
     }
 
     private void highlightTile(Graphics2D graphics, WorldPoint worldPoint, Color color) {

@@ -1,0 +1,62 @@
+# Sailing mooring points from the OSRS wiki (Mooring point page): name, Sailing level, map pin x, y,
+# and the game's dock id (the sailing_dock table's dock_id, the value of a boat's SAILING_BOAT_n_PORT varbit).
+Port Sarim	1	3051	3193	0
+The Pandemonium	1	3070	2987	1
+Land's End	5	1507	3403	2
+Hosidius	5	1726	3452	4
+Musa Point	10	2961	3146	3
+Port Piscarilius	15	1845	3687	7
+Rimmington	18	2906	3225	5
+Catherby	20	2796	3412	6
+Brimhaven	25	2758	3230	8
+Ardougne	28	2671	3265	9
+Port Khazard	30	2686	3162	10
+Witchaven	34	2747	3305	11
+Entrana	36	2879	3336	12
+Civitas illa Fortis	38	1775	3142	13
+Corsair Cove	40	2580	2844	14
+Dognose Island	40	3061	2631	35
+Cairn Isle	42	2750	2952	15
+Chinchompa Island	42	1893	3429	52
+Sunset Coast	44	1512	2974	16
+Remote Island	45	2972	2602	36
+The Summer Shore	45	3174	2367	17
+The Little Pearl	45	3354	2216	37
+Aldarin	46	1452	2970	18
+Vatrachos Island	46	1872	2984	41
+The Onyx Crest	47	2997	2288	38
+Ruins of Unkah	48	3144	2825	19
+Shimmering Atoll	49	1557	2770	50
+Void Knights' Outpost	50	2651	2678	20
+Port Roberts	50	1861	3307	21
+Anglers' Retreat	51	2466	2720	42
+Red Rock	52	2809	2509	22
+Minotaurs' Rest	54	1958	3116	43
+Isle of Souls	55	2283	2822	32
+Isle of Bones	56	2533	2530	44
+Laguna Aurorae	58	1202	2732	51
+Charred Island	60	2660	2394	40
+Tear of the Soul	61	2318	2773	45
+Rellekka	62	2630	3705	23
+Wyrmscraig	62	2568	2296	59
+Wyrmscraig Cavern	62	2582	8606	60
+Wintumber Island	63	2057	2605	46
+The Crown Jewel	64	1765	2658	47
+Etceteria	65	2613	3840	24
+Port Tyras	66	2144	3120	25
+Lledrith Island	66	2097	3187	53
+Deepfin Point	67	1923	2758	26
+Jatizso	68	2412	3780	27
+Neitiznot	68	2309	3782	28
+Rainbow's End	69	2345	2269	48
+Prifddinas	70	2158	3324	29
+Sunbleak Island	72	2189	2326	49
+Ynysdail	73	2222	3464	54
+Waterbirth Island	74	2543	3765	33
+Piscatoris	75	2304	3689	30
+Lunar Isle	76	2152	3881	31
+Buccaneers' Haven	76	2080	3690	55
+Drumstick Isle	79	2150	3529	56
+Weiss	80	2861	3971	34
+Brittle Isle	81	1954	4055	57
+Grimstone	87	2928	4055	58

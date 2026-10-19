@@ -51,6 +51,8 @@ public class RoutePlannerPlugin extends Plugin {
     @Inject private WorldMapPathOverlay worldMapPathOverlay;
     @Inject private RouteHudOverlay routeHudOverlay;
     @Inject @Getter private PathfinderOverlay pathfinderOverlay;
+    @Inject private com.routeplanner.sailing.ShoalRouteOverlay shoalRouteOverlay;
+    @Inject private com.routeplanner.sailing.NetDepthOverlay netDepthOverlay;
     @Inject private ShortestPathBridge shortestPathBridge;
     @Inject @Getter private com.routeplanner.record.RouteRecorder routeRecorder;
     @Inject private com.routeplanner.record.RecordingOverlay recordingOverlay;
@@ -60,10 +62,6 @@ public class RoutePlannerPlugin extends Plugin {
     @Inject private com.routeplanner.bank.BankOverlay bankOverlay;
     @Inject private com.routeplanner.bank.BankItemManager bankItemManager;
     private com.routeplanner.model.RouteStep lastKillStep = null;
-    /** The PICKUP/SHOP step whose inventory baseline is current; a new activation takes a fresh one. */
-    private com.routeplanner.model.RouteStep lastPickupStep = null;
-    /** The XP_GAIN step whose starting XP is current; a new activation takes a fresh one. */
-    private com.routeplanner.model.RouteStep lastXpStep = null;
     @Inject private com.routeplanner.dialog.DialogHighlightOverlay dialogHighlightOverlay;
     @Inject private com.routeplanner.skilling.StallHighlightOverlay stallHighlightOverlay;
     @Inject private com.routeplanner.teleport.SpellbookOverlay spellbookOverlay;
@@ -99,6 +97,8 @@ public class RoutePlannerPlugin extends Plugin {
     @Inject private com.routeplanner.bank.GroundItemOverlay groundItemOverlay;
     @Inject @Getter private TileMenuHandler tileMenuHandler;
     @Inject private SkillingNpcHighlighter skillingNpcHighlighter;
+    @Inject @Getter private com.routeplanner.sailing.SailingDocks sailingDocks;
+    @Inject @Getter private com.routeplanner.sailing.SailingTimers sailingTimers;
 
     private static final net.runelite.api.Skill[] NPC_GOAL_SKILLS = {
         net.runelite.api.Skill.THIEVING, net.runelite.api.Skill.ATTACK,
@@ -134,6 +134,7 @@ public class RoutePlannerPlugin extends Plugin {
     @Override
     protected void startUp() throws Exception {
         loadRoutes();
+        sailingDocks.loadLearnedPorts();
         restoreActiveRoute();
 
         panel = injector.getInstance(RoutePlannerPanel.class);
@@ -156,6 +157,9 @@ public class RoutePlannerPlugin extends Plugin {
         overlayManager.add(routeOverlay);
         overlayManager.add(minimapOverlay);
         overlayManager.add(pathfinderOverlay);
+        overlayManager.add(shoalRouteOverlay);
+        overlayManager.add(netDepthOverlay);
+        eventBus.register(sailingTimers);
         overlayManager.add(minimapArrowOverlay);
         overlayManager.add(worldMapPathOverlay);
         overlayManager.add(routeHudOverlay);
@@ -184,6 +188,10 @@ public class RoutePlannerPlugin extends Plugin {
         overlayManager.remove(routeOverlay);
         overlayManager.remove(minimapOverlay);
         overlayManager.remove(pathfinderOverlay);
+        overlayManager.remove(shoalRouteOverlay);
+        overlayManager.remove(netDepthOverlay);
+        eventBus.unregister(sailingTimers);
+        pathfinderOverlay.shutDown();
         overlayManager.remove(minimapArrowOverlay);
         overlayManager.remove(worldMapPathOverlay);
         overlayManager.remove(routeHudOverlay);
@@ -298,19 +306,54 @@ public class RoutePlannerPlugin extends Plugin {
         boolean itemsOk  = !step.hasItems()     || itemsSatisfied(step);
         boolean skillOk  = !step.hasSkillGoal() || skillGoalSatisfied(step);
         // Location: if worldPoint set, player must have reached it
-        boolean locOk    = step.getWorldPoint() == null || step.isLocationReached();
+        // (a catch step's tile is just where the shoal was met; it swims on, so catching anywhere counts)
+        boolean locOk    = step.getWorldPoint() == null || step.isLocationReached() || step.hasCatchGoal();
         // Note: if note present, it must be manually marked complete (locationReached used as the ack flag)
         // Kill steps: enough kills, which also stands in for acknowledging the note.
         boolean killsOk  = step.getNpcKillCount() <= 0 || step.getNpcKillProgress() >= step.getNpcKillCount();
-        boolean noteOk   = !step.hasNote() || step.isLocationReached() || step.getNpcKillCount() > 0;
+        // (a catch step's note, "Wait here for the shoal.", is guidance; the catch completes it)
+        boolean noteOk   = !step.hasNote() || step.isLocationReached() || step.getNpcKillCount() > 0
+            || step.hasCatchGoal();
         // Dialogue: every option in the sequence picked (arriving alone isn't enough).
         boolean dialogOk = step.getDialogOptions() == null || step.getDialogOptions().trim().isEmpty()
             || (step == lastDialogStep && dialogProgress >= step.getDialogOptions().split(",").length);
         // Quest: when set to complete with the quest, the quest must be finished.
         boolean questOk  = !step.hasQuest() || !step.isQuestComplete() || questFinished(step);
-        if (itemsOk && skillOk && locOk && noteOk && killsOk && dialogOk && questOk) {
+        // Boarding (Sailing): on the boat
+        boolean boardOk  = !step.hasBoarding() || step.isBoarded();
+        // Catch (Sailing): enough fish caught
+        boolean catchOk  = !step.hasCatchGoal() || step.getCatchProgress() >= step.getCatchGoal();
+        if (itemsOk && skillOk && locOk && noteOk && killsOk && dialogOk && questOk && boardOk && catchOk) {
             completeStep(step);
         }
+    }
+
+    private void takeBaselines(RouteStep step) {
+        boolean items = step.countsGainedItems();
+        boolean xp = step.hasSkillGoal() && "XP_GAIN".equals(step.getSkillingGoalType());
+        long account = client.getAccountHash();
+        if ((!items && !xp) || account == -1) return;
+        boolean fresh = step.getBaselineAccount() != account
+            || (items && step.getPickupBaseline() == null) || (xp && step.getSkillingStartXp() <= 0);
+        if (!fresh) return;
+
+        net.runelite.api.ItemContainer inv = client.getItemContainer(net.runelite.api.InventoryID.INVENTORY);
+        int nowXp = 0;
+        if (xp) {
+            try {
+                nowXp = client.getSkillExperience(net.runelite.api.Skill.valueOf(step.getSkillingSkill().toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                xp = false;
+            }
+        }
+        if ((items && inv == null) || (xp && nowXp <= 0)) return; // not loaded yet; next tick
+        if (items) step.setPickupBaseline(bankItemManager.snapshotInventory(step.getItemList()));
+        if (xp) {
+            step.setSkillingStartXp(nowXp);
+            step.setSkillingProgress(0);
+        }
+        step.setBaselineAccount(account);
+        saveRoutes();
     }
 
     private boolean questFinished(RouteStep step) {
@@ -362,8 +405,11 @@ public class RoutePlannerPlugin extends Plugin {
     public void resetStepProgress(RouteStep step) {
         if (step == null) return;
         step.setLocationReached(false);
+        step.setBoarded(false);
         step.setSellArmed(false);
         step.setPickupBaseline(null);
+        step.setBaselineAccount(0);
+        step.setCatchProgress(0);
         step.setSkillingProgress(0);
         if ("XP_GAIN".equals(step.getSkillingGoalType())) {
             step.setSkillingStartXp(0); // re-capture baseline on next StatChanged
@@ -698,9 +744,10 @@ public class RoutePlannerPlugin extends Plugin {
 @Subscribe
     public void onGameTick(GameTick tick) {
         pathfinderOverlay.onGameTick();
+        sailingTimers.onGameTick();
 
         if (client.getLocalPlayer() != null) {
-            lastPlayerLocation = client.getLocalPlayer().getWorldLocation();
+            lastPlayerLocation = com.routeplanner.sailing.Sailing.position(client);
         }
 
         if (activeRoute == null) { pushLive(null); return; }
@@ -716,29 +763,11 @@ public class RoutePlannerPlugin extends Plugin {
             }
         }
 
-        // Snapshot the inventory each time a PICKUP/SHOP step becomes active, so every attempt starts
-        // fresh. MUST happen before the completion check so carried-over items don't count.
-        if (step != null && step.countsGainedItems()
-            && (step != lastPickupStep || step.getPickupBaseline() == null)
-            && client.getItemContainer(net.runelite.api.InventoryID.INVENTORY) != null) {
-            step.setPickupBaseline(bankItemManager.snapshotInventory(step.getItemList()));
-            lastPickupStep = step;
-        }
-
-        // XP_GAIN: take the starting XP the moment the step becomes active, so the very first
-        // XP drop counts (waiting for the first StatChanged used to swallow that drop).
-        if (step != null && step.hasSkillGoal() && "XP_GAIN".equals(step.getSkillingGoalType())
-            && (step != lastXpStep || step.getSkillingStartXp() <= 0)) {
-            try {
-                net.runelite.api.Skill sk = net.runelite.api.Skill.valueOf(step.getSkillingSkill().toUpperCase());
-                int now = client.getSkillExperience(sk);
-                if (now > 0) {
-                    step.setSkillingStartXp(now);
-                    step.setSkillingProgress(0);
-                    lastXpStep = step;
-                }
-            } catch (IllegalArgumentException ignored) {}
-        }
+        // Baselines, taken the moment the step becomes active: the inventory for PICKUP/SHOP (so
+        // carried-over items don't count; MUST happen before the completion check) and the starting
+        // XP for XP_GAIN (so the very first drop counts). They're saved with the step, so a reload
+        // carries on; a reset, an imported route or another account takes fresh ones.
+        if (step != null) takeBaselines(step);
 
         // Quest steps set to complete with the quest: check now and then (it runs a client script).
         if (step != null && step.hasQuest() && step.isQuestComplete() && client.getTickCount() % 3 == 0) {
@@ -830,7 +859,7 @@ public class RoutePlannerPlugin extends Plugin {
             boolean landingIsGoal = goal == null
                 || (!house && goal.getPlane() == dest.getPlane() && goal.distanceTo2D(dest) <= 25);
             if (landingIsGoal) {
-                WorldPoint playerPos = client.getLocalPlayer().getWorldLocation();
+                WorldPoint playerPos = com.routeplanner.sailing.Sailing.position(client);
                 boolean landed = house
                     ? client.getTopLevelWorldView().isInstance() // the house has no fixed tile
                     : playerPos.getPlane() == dest.getPlane() && playerPos.distanceTo2D(dest) <= 25;
@@ -845,10 +874,20 @@ public class RoutePlannerPlugin extends Plugin {
 
         if (step == null) return;
 
+        // Boarding (Sailing): getting on a boat ends the walk to the gangplank. A step that
+        // only asks you to board is then done; otherwise it carries on over the sea.
+        if (step.hasBoarding() && !step.isBoarded()
+                && com.routeplanner.sailing.Sailing.isSailing(client)) {
+            step.setBoarded(true);
+            tryCompleteStep(step);
+            if (step.isCompleted()) return;
+        }
+        boolean boardingPending = pathfinderOverlay.isBoardingPending(step);
+
         // Sticky "reached": once we arrive, nav visuals (line + tile) switch off for the rest of the step
-        if (step.getWorldPoint() != null && !step.isLocationReached()
+        if (step.getWorldPoint() != null && !step.isLocationReached() && !boardingPending
                 && client.getLocalPlayer() != null
-                && client.getLocalPlayer().getWorldLocation().distanceTo(step.getWorldPoint()) <= 3) {
+                && com.routeplanner.sailing.Sailing.isWithin(client, step.getWorldPoint(), 3)) {
             step.setLocationReached(true);
             arrivalHoldTicksRemaining = config.arrivalHideDelay(); // 50 = never hide until step complete
         }
@@ -857,10 +896,9 @@ public class RoutePlannerPlugin extends Plugin {
         // At max value (50) = never auto-hide; only clears when step completes.
         if (arrivalHoldTicksRemaining > 0 && arrivalHoldTicksRemaining < 30) arrivalHoldTicksRemaining--;
 
-        if (step.getWorldPoint() != null && !step.hasSkillGoal() && !step.hasItems()
+        if (step.getWorldPoint() != null && !step.hasSkillGoal() && !step.hasItems() && !boardingPending
                 && (!step.hasNote() || step.isNoteAutoComplete())) {
-            WorldPoint playerPos = client.getLocalPlayer().getWorldLocation();
-            if (playerPos.distanceTo(step.getWorldPoint()) <= 3) {
+            if (com.routeplanner.sailing.Sailing.isWithin(client, step.getWorldPoint(), 3)) {
                 // Through the full check: a Talk-to or quest step still waits for its picks/quest.
                 tryCompleteStep(step);
             }
@@ -966,6 +1004,26 @@ public class RoutePlannerPlugin extends Plugin {
         log.info("Note kill {}/{}: {}", step.getNpcKillProgress(), step.getNpcKillCount(), name);
         if (step.getNpcKillProgress() >= step.getNpcKillCount()) {
             tryCompleteStep(step);
+        }
+    }
+
+    /** Trawling catches (Sailing) count toward the active step's catch goal. */
+    @Subscribe
+    public void onChatMessage(ChatMessage event) {
+        if (event.getType() != ChatMessageType.GAMEMESSAGE && event.getType() != ChatMessageType.SPAM) return;
+        if (activeRoute == null) return;
+        RouteStep step = activeRoute.getActiveStep();
+        if (step == null || !step.hasCatchGoal()) return;
+        com.routeplanner.sailing.CatchMessages.Catch c = com.routeplanner.sailing.CatchMessages.parse(event.getMessage());
+        if (c == null || !com.routeplanner.sailing.CatchMessages.sameFish(c.fish, step.getCatchFish())) return;
+        step.setCatchProgress(step.getCatchProgress() + c.count);
+        tryCompleteStep(step);
+    }
+
+    @Subscribe
+    public void onGameStateChanged(GameStateChanged event) {
+        if (event.getGameState() == GameState.LOGIN_SCREEN || event.getGameState() == GameState.HOPPING) {
+            sailingDocks.reset();
         }
     }
 

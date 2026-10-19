@@ -9,14 +9,14 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 /**
- * Reads collision-map.zip using the exact same format as Runemoro/shortest-path FlagMap.
+ * Reads collision-map.zip in the format of Skretzo/shortest-path's SplitFlagMap.
  *
- * Index formula (from FlagMap.java decompilation):
- *   index = (plane * 64 * 64 + (y - minY) * 64 + (x - minX)) * 2 + direction
+ * Index formula:
+ *   index = (plane * 64 * 64 + (y - minY) * 64 + (x - minX)) * 4 + flag
  *
- * Directions: 0 = can travel NORTH from tile, 1 = can travel EAST from tile
- * South is stored as North of the tile below. West is stored as East of the tile to the left.
- * A set bit means movement IS ALLOWED (not blocked).
+ * Flags: 0 = can travel NORTH from tile, 1 = can travel EAST from tile, 2 and 3 = the north and
+ * east edges are walls or doors (unused here). South is stored as North of the tile below. West is
+ * stored as East of the tile to the left. A set bit means movement IS ALLOWED (not blocked).
  */
 public class WorldCollisionMap {
 
@@ -24,6 +24,8 @@ public class WorldCollisionMap {
     public static final int EAST  = 1;
 
     private static final int REGION_SIZE = 64;
+    private static final int FLAG_COUNT = 4;
+    private static final int BITS_PER_PLANE = REGION_SIZE * REGION_SIZE * FLAG_COUNT;
 
     private static class RegionData {
         final int minX;
@@ -35,9 +37,8 @@ public class WorldCollisionMap {
             this.minX = minX;
             this.minY = minY;
             this.flags = BitSet.valueOf(data);
-            // planeCount = ceil(flags.size() / 8192)
             int size = flags.size();
-            this.planeCount = (byte) ((size + 8192 - 1) / 8192);
+            this.planeCount = (byte) ((size + BITS_PER_PLANE - 1) / BITS_PER_PLANE);
         }
 
         boolean get(int x, int y, int plane, int direction) {
@@ -47,7 +48,7 @@ public class WorldCollisionMap {
             if (direction < 0 || direction >= 2) return false;
             int idx = (plane * REGION_SIZE * REGION_SIZE
                 + (y - minY) * REGION_SIZE
-                + (x - minX)) * 2 + direction;
+                + (x - minX)) * FLAG_COUNT + direction;
             return flags.get(idx);
         }
     }

@@ -27,6 +27,18 @@ public class TransportLoader {
         "minecarts.tsv"
     };
 
+    /** Files whose edges travel between places (ships, minecarts) rather than through a door or up stairs. */
+    private static final Set<String> TRAVEL_FILES = new HashSet<>(Arrays.asList(
+        "boats.tsv", "ships.tsv", "charter_ships.tsv", "minecarts.tsv"));
+    /** Origins whose edges are all journeys from TRAVEL_FILES, mapped to those destinations. */
+    private static final Map<WorldPoint, Set<WorldPoint>> TRAVEL = new HashMap<>();
+
+    /** Whether the edge from {@code origin} to {@code destination} is a ship or minecart journey. */
+    public static boolean isTravel(WorldPoint origin, WorldPoint destination) {
+        Set<WorldPoint> dests = TRAVEL.get(origin);
+        return dests != null && dests.contains(destination);
+    }
+
     /** Every loaded edge with its menu text and object id, for highlighting the stairs to use. */
     private static final Map<WorldPoint, List<com.routeplanner.transport.Transport>> DETAILS = new HashMap<>();
 
@@ -56,6 +68,7 @@ public class TransportLoader {
                     WorldPoint dest = parsePoint(cols[1]);
                     if (origin == null || dest == null) continue;
                     edges.computeIfAbsent(origin, k -> new ArrayList<>()).add(dest);
+                    if (TRAVEL_FILES.contains(f)) TRAVEL.computeIfAbsent(origin, k -> new HashSet<>()).add(dest);
                     DETAILS.computeIfAbsent(origin, k -> new ArrayList<>()).add(detail(origin, dest, cols.length > 2 ? cols[2] : ""));
                     count++;
                 }

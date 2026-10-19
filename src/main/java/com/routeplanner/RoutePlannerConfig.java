@@ -35,6 +35,31 @@ public interface RoutePlannerConfig extends Config {
     )
     String recordSection = "recordSection";
 
+    @ConfigSection(
+        name = "Beta features",
+        description = "Features still being worked on. They may change, or not always behave yet.",
+        position = 1000,
+        closedByDefault = true
+    )
+    String betaSection = "betaSection";
+
+    @ConfigSection(
+        name = "Sailing",
+        description = "Routes by boat, docks, salvaging and trawling.",
+        position = 97,
+        closedByDefault = true
+    )
+    String sailingSection = "sailingSection";
+
+    @ConfigItem(
+        keyName = "betaFeatures",
+        name = "Enable beta features",
+        description = "Turns on features that are still being tried out. There are none right now.",
+        position = 0,
+        section = betaSection
+    )
+    default boolean betaFeatures() { return false; }
+
     @ConfigItem(
         keyName = "routes",
         name = "",
@@ -242,6 +267,35 @@ public interface RoutePlannerConfig extends Config {
     default PathfinderMode pathfinder() { return PathfinderMode.BUILT_IN; }
 
     @ConfigItem(
+        keyName = "shoalRoutesAlways",
+        name = "Always show shoal routes",
+        description = "Draw every trawling shoal's route and stops in view, not only while your nets are down"
+            + " by a shoal.",
+        position = 1,
+        section = sailingSection
+    )
+    default boolean shoalRoutesAlways() { return false; }
+
+    @ConfigItem(
+        keyName = "wreckAlert",
+        name = "Salvage Alert",
+        description = "Sound that plays when not actively salvaging",
+        position = 2,
+        section = sailingSection
+    )
+    default WreckAlert wreckAlert() { return WreckAlert.BOSUNS_CALL; }
+
+    @Range(min = 0, max = 100)
+    @ConfigItem(
+        keyName = "wreckAlertVolume",
+        name = "Alert Volume",
+        description = "",
+        position = 3,
+        section = sailingSection
+    )
+    default int wreckAlertVolume() { return 70; }
+
+    @ConfigItem(
         keyName = "pathDisplayMode",
         name = "Display mode",
         description = "Draw the route as a line, highlighted tiles, or both.",
@@ -417,9 +471,10 @@ public interface RoutePlannerConfig extends Config {
 
     @ConfigItem(
         keyName = "recordTrace",
-        name = "Diagnostic trace",
-        description = "While recording, write every event the recorder sees and what it decided"
-            + " to the RuneLite log (lines start with [RP-TRACE]). For tracking down recording bugs.",
+        name = "Bug report log",
+        description = "Only needed if you're reporting a problem with recording or Sailing: writes what the"
+            + " plugin sees and decides to RuneLite's log file (client.log, lines start with [RP-TRACE])."
+            + " It stays on your computer unless you send it. Leave off otherwise.",
         position = 302,
         section = recordSection
     )

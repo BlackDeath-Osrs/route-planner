@@ -96,7 +96,7 @@ class ItemRecorder {
             // Emptied the inventory: that's its own step; what's withdrawn after counts from empty.
             Inventory now = snapshot();
             if (now.isEmpty()) {
-                RouteStep step = host.stepAt(pos, "Deposit all at " + place(pos));
+                RouteStep step = host.stepAt(pos, "Deposit all" + LocationNames.at(pos));
                 step.setItemMode("DEPOSIT_ALL");
                 sessionStart = now;
             }
@@ -136,7 +136,7 @@ class ItemRecorder {
             }
         }
         if (!entries.isEmpty()) {
-            RouteStep step = host.stepAt(pos, "Withdraw from bank at " + place(pos));
+            RouteStep step = host.stepAt(pos, "Withdraw from bank" + LocationNames.at(pos));
             step.setItemMode("BANK");
             step.setItemList(String.join(", ", entries));
         }
@@ -157,12 +157,12 @@ class ItemRecorder {
             else if (delta > 0) bought.add(itemEntry(name, delta));
         }
         if (!sold.isEmpty()) {
-            RouteStep step = host.stepAt(pos, "Sell to shop at " + place(pos));
+            RouteStep step = host.stepAt(pos, "Sell to shop" + LocationNames.at(pos));
             step.setItemMode("SELL");
             step.setItemList(String.join(", ", sold));
         }
         if (!bought.isEmpty()) {
-            RouteStep step = host.stepAt(pos, "Buy from shop at " + place(pos));
+            RouteStep step = host.stepAt(pos, "Buy from shop" + LocationNames.at(pos));
             step.setItemMode("SHOP");
             step.setItemList(String.join(", ", bought));
         }
@@ -185,7 +185,7 @@ class ItemRecorder {
                 && host.isNear(last, pos, 15)) {
                 pickupStep = last;
             } else {
-                pickupStep = host.stepAt(pos, "Pick up items at " + place(pos));
+                pickupStep = host.stepAt(pos, "Pick up items" + LocationNames.at(pos));
             }
             pickupStep.setItemMode("PICKUP");
             pickupCounts.clear();
@@ -198,8 +198,8 @@ class ItemRecorder {
         }
         pickupStep.setItemList(String.join(", ", entries));
         if (renamable) pickupStep.setName(pickupCounts.size() == 1
-            ? "Pick up " + name + " at " + place(pos)
-            : "Pick up items at " + place(pos));
+            ? "Pick up " + name + LocationNames.at(pos)
+            : "Pick up items" + LocationNames.at(pos));
     }
 
     /** One item-list entry, e.g. "28 Yew logs" or "3 Amulet of glory(*)". */
@@ -257,7 +257,4 @@ class ItemRecorder {
         return w != null && !w.isHidden();
     }
 
-    private static String place(WorldPoint pos) {
-        return pos == null ? "here" : LocationNames.describe(pos);
-    }
 }

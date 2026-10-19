@@ -45,6 +45,9 @@ class DialogRecorder {
     private int talkTick = -1000;
 
     private boolean inConversation;
+    /** A crewmate on the boat was just clicked; the chat it opens isn't part of the route. */
+    private int crewTick = -1000;
+    private boolean muted;
     private int lastOpenTick;
     private RouteStep step;          // the step this conversation's picks go on (made on demand)
     private String convNpc;
@@ -63,6 +66,8 @@ class DialogRecorder {
     void start() {
         talkNpc = null;
         talkTick = -1000;
+        crewTick = -1000;
+        muted = false;
         inConversation = false;
         step = null;
         menu = new ArrayList<>();
@@ -71,6 +76,15 @@ class DialogRecorder {
     }
 
     /** An NPC was clicked; "Talk-to" means a conversation is coming. */
+    /**
+     * A crewmate or a facility on the player's boat was clicked: the conversation or menu that follows
+     * (chatting to the crew, where to send the net's fish) isn't recorded.
+     */
+    void onCrewClick(int tick) {
+        crewTick = tick;
+        talkNpc = null;
+    }
+
     void onNpcClick(String option, String target, int tick) {
         if (!"Talk-to".equalsIgnoreCase(option)) return;
         talkNpc = target.replaceAll("\\s*\\(level-\\d+\\)", "").trim();
@@ -133,6 +147,7 @@ class DialogRecorder {
             lastOpenTick = tick;
         } else if (inConversation && tick - lastOpenTick > END_TICKS && closedTick < 0) {
             inConversation = false;
+            muted = false;
             step = null;
             closedTick = -1;
         }
@@ -151,7 +166,7 @@ class DialogRecorder {
         if (quest == null) return true;
         RouteStep target = step != null ? step : host.lastDraft();
         if (target == null || target.hasQuest() || !host.isNear(target, pos, 15)) {
-            target = host.stepAt(pos, "Finish " + quest.getName() + " at " + place(pos));
+            target = host.stepAt(pos, "Finish " + quest.getName() + LocationNames.at(pos));
         }
         target.setQuestName(quest.name());
         target.setQuestComplete(true);
@@ -161,10 +176,15 @@ class DialogRecorder {
     private void beginConversation(WorldPoint pos, int tick) {
         inConversation = true;
         step = null;
+        if (tick - crewTick <= TALK_WINDOW_TICKS) {
+            muted = true;
+            host.trace("DIALOG with a crewmate, not recorded");
+            return;
+        }
         convNpc = tick - talkTick <= TALK_WINDOW_TICKS ? talkNpc : null;
         talkNpc = null;
         if (convNpc != null) {
-            step = host.stepAt(pos, "Talk to " + convNpc + " at " + place(pos));
+            step = host.stepAt(pos, "Talk to " + convNpc + LocationNames.at(pos));
             if (step.getSkillingTargetNpc() == null) step.setSkillingTargetNpc(convNpc);
         }
         host.trace("DIALOG start npc=" + convNpc + " step=" + RouteRecorder.describeStep(step));
@@ -173,9 +193,10 @@ class DialogRecorder {
     private void pick(int option, WorldPoint pos) {
         picked = true;
         closedTick = -1;
+        if (muted) return;
         if (step == null) {
             // Options without a Talk-to first (an object, an item, a cutscene): still a step.
-            step = host.stepAt(pos, "Dialogue at " + place(pos));
+            step = host.stepAt(pos, "Dialogue" + LocationNames.at(pos));
         }
         String seq = step.getDialogOptions();
         step.setDialogOptions(seq == null || seq.trim().isEmpty() ? String.valueOf(option) : seq + "," + option);
@@ -236,7 +257,4 @@ class DialogRecorder {
         return null;
     }
 
-    private static String place(WorldPoint pos) {
-        return pos == null ? "here" : LocationNames.describe(pos);
-    }
 }

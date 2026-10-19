@@ -58,6 +58,9 @@ class ActivityRecorder {
     private int targetTick = -1000;
     private int teleportTick = -1000;
     private int combatTick = -1000;
+    /** The NPC last clicked to attack, and when: a kill counts even if the target just changed. */
+    private String attackedName;
+    private int attackedTick = -1000;
 
     /** The step being added to, and what it's for. */
     private RouteStep step;
@@ -75,10 +78,13 @@ class ActivityRecorder {
     /** Items gained this tick before the XP drop that explains them arrived. */
     private final Map<String, Long> pendingGains = new LinkedHashMap<>();
     private int pendingTick = -1;
+    /** Salvaging, sorting and trawling (Sailing), which run as sessions. */
+    private final SailingActivity sailing;
 
     ActivityRecorder(Client client, RouteRecorder host) {
         this.client = client;
         this.host = host;
+        this.sailing = new SailingActivity(client, host);
     }
 
     void start() {
@@ -88,10 +94,12 @@ class ActivityRecorder {
             xp.put(s, client.getSkillExperience(s));
         }
         targetName = null;
-        targetTick = teleportTick = combatTick = lastXpTick = -1000;
+        attackedName = null;
+        targetTick = teleportTick = combatTick = lastXpTick = attackedTick = -1000;
         step = null;
         gathered.clear();
         pendingGains.clear();
+        sailing.start();
     }
 
     /** An NPC or object was clicked (not walking or examining). */
@@ -103,7 +111,26 @@ class ActivityRecorder {
         targetOption = option;
         targetIsNpc = npc;
         targetTick = tick;
-        if ("Attack".equalsIgnoreCase(option)) combatTick = tick;
+        if ("Attack".equalsIgnoreCase(option) && npc) {
+            attackedName = cleanName(target);
+            attackedTick = tick;
+        }
+        // A ship's cannon fights too: its hits give Sailing XP the way an attack gives Ranged
+        if ("Attack".equalsIgnoreCase(option)
+            || ("Operate".equalsIgnoreCase(option) && target != null && target.toLowerCase().contains("cannon"))) {
+            combatTick = tick;
+        }
+        sailing.onTargetClick(option, target, at, tick);
+    }
+
+    /** Fish caught by a trawling net: they make the trawl's catch step (see SailingActivity). */
+    void onCatch(String fish, int count, WorldPoint pos, int tick) {
+        if (sailing.onCatch(fish, count, pos, tick)) step = null; // a catch step isn't an XP activity
+    }
+
+    /** "Lower net" in the Sailing panel: trawling is on. */
+    void onLowerNet(int tick) {
+        sailing.onLowerNet(tick);
     }
 
     void onTeleportClick(int tick) {
@@ -112,6 +139,10 @@ class ActivityRecorder {
 
     /** True while the player is busy with an activity here, so standing still isn't a new stop. */
     boolean isBusy(WorldPoint pos, int tick) {
+        // Mid-fight: standing (or stopping the boat) between kills isn't a stop either; nor is
+        // waiting for a shoal mid-trawl
+        if (tick - combatTick <= BUSY_TICKS) return true;
+        if (sailing.isBusy(tick)) return true;
         if (step == null || host.lastDraft() != step || tick - lastXpTick > BUSY_TICKS) return false;
         if (skill == Skill.AGILITY) return true; // a lap ranges all over (and up) the course
         return pos == null || stepPos == null || pos.distanceTo2D(stepPos) <= ACTIVITY_RADIUS;
@@ -155,8 +186,24 @@ class ActivityRecorder {
             host.trace("XP+" + gained + " MAGIC ignored (teleport/combat)");
             return;
         }
+        // Trawling: its XP (the net's Sailing, the catches' Fishing) belongs to it; the catches make the
+        // step (see onCatch), since the fish are the point and a crewmate's catches give no Fishing XP
+        if (sailing.absorbTrawlXp(s, tick)) return;
+        // Fighting at sea: the kills make the step ("Kill 3 Vampyre kraken"), like any combat XP
+        if (s == Skill.SAILING && tick - combatTick <= TARGET_WINDOW_TICKS) {
+            host.trace("XP+" + gained + " SAILING ignored (sea combat, recorded as kills)");
+            return;
+        }
+        // Salvaging or sorting: a session; otherwise Sailing XP only counts after clicking a wreck
+        String session = s == Skill.SAILING ? sailing.session(pos, tick) : null;
+        boolean anywhere = sailing.anywhere(session);
+        if (s == Skill.SAILING && session == null
+                && (tick - targetTick > TARGET_WINDOW_TICKS || !SailingActivity.trainingClick(targetOption, targetName))) {
+            host.trace("XP+" + gained + " SAILING ignored (travel or boat facility, last target=" + targetOption + " " + targetName + ")");
+            return;
+        }
 
-        String target = tick - targetTick <= TARGET_WINDOW_TICKS ? targetName : null;
+        String target = session != null ? session : tick - targetTick <= TARGET_WINDOW_TICKS ? targetName : null;
         AgilityCourse course = s == Skill.AGILITY
             ? courseFor(tick - targetTick <= TARGET_WINDOW_TICKS ? targetObjectId : -1, pos) : null;
         if (course != null) target = course.getName();
@@ -168,18 +215,34 @@ class ActivityRecorder {
             stepTarget = course.getName();
             step.setRecipeLabel(course.getName());
         }
-        boolean same = step != null && host.lastDraft() == step && skill == s
+        // Back to this wreck's Salvage or Sort step after the other one (or a chat) came in between
+        RouteStep resume = sailing.sessionStep(session);
+        boolean resumed = false;
+        if (resume != null && resume != step) {
+            step = resume;
+            skill = s;
+            stepTarget = target;
+            stepPos = resume.getWorldPoint();
+            stepXp = sailing.xp(resume);
+            gathered.clear();
+            resumed = true;
+        }
+        boolean same = resumed || step != null && host.lastDraft() == step && skill == s
             && (course != null ? course.getName().equals(stepTarget)
                 // A course the plugin doesn't know: every obstacle has its own name, so keep
                 // the lap together while the XP keeps coming instead of matching the target.
                 : s == Skill.AGILITY ? stepTarget == null && tick - lastXpTick <= BUSY_TICKS
-                : near(pos) && (target == null || target.equals(stepTarget)));
+                : (anywhere || near(pos)) && (target == null || target.equals(stepTarget)));
         if (s == Skill.AGILITY && course == null) target = null;
         host.trace("XP+" + gained + " " + s + " target=" + target + " course=" + (course == null ? null : course.getName())
             + " -> " + (same ? "add to current step" : "new activity (current=" + RouteRecorder.describeStep(step)
             + ", lastDraftIsCurrent=" + (step != null && host.lastDraft() == step) + ")"));
-        if (!same) begin(s, target, course, pos);
+        if (!same) {
+            begin(s, target, course, anywhere ? null : pos);
+            sailing.began(session, step);
+        }
         stepXp += gained;
+        sailing.recordXp(step, stepXp);
         if (tick - recentXpTick > 2) recentXp = 0;
         recentXp += gained;
         recentXpTick = tick;
@@ -227,14 +290,26 @@ class ActivityRecorder {
     void onNpcDeath(NPC npc, WorldPoint pos) {
         Player me = client.getLocalPlayer();
         if (me == null || npc.getName() == null) return;
-        if (me.getInteracting() != npc && npc.getInteracting() != me) return;
         String name = cleanName(npc.getName());
+        // Ours if we were fighting it, or it's what we've been attacking: with several about (or a
+        // ship's cannon landing the last hit) the target has often moved on to the next one already.
+        boolean fighting = me.getInteracting() == npc || npc.getInteracting() == me;
+        // ...but not one another player was fighting (sea creatures go for the boat's crew, NPCs)
+        boolean otherPlayers = npc.getInteracting() instanceof Player && npc.getInteracting() != me;
+        boolean attacked = name.equalsIgnoreCase(attackedName) && host.currentTick() - attackedTick <= TARGET_WINDOW_TICKS
+            && !otherPlayers;
+        if (!fighting && !attacked) {
+            host.trace("DEATH '" + name + "' not ours (attacked=" + attackedName + " "
+                + (host.currentTick() - attackedTick) + " ticks ago, its target="
+                + (npc.getInteracting() == null ? "none" : npc.getInteracting().getName()) + ")");
+            return;
+        }
         RouteStep last = host.lastDraft();
         boolean same = last != null && name.equalsIgnoreCase(last.getNpcHighlight()) && last.getNpcKillCount() > 0
             && host.isNear(last, pos, ACTIVITY_RADIUS);
         if (!same) {
             // Loot picked up after a kill sits on the same step, so fighting and looting stay together.
-            last = host.stepAt(pos, "Kill " + name + " at " + place(pos), ActivityRecorder::canTakeKills);
+            last = host.stepAt(pos, "Kill " + name + LocationNames.at(pos), ActivityRecorder::canTakeKills);
             last.setNpcHighlight(name);
             last.setNpcKillCount(0);
             step = null; // a kill step isn't an XP activity
@@ -261,7 +336,7 @@ class ActivityRecorder {
             if (startTile == null && targetPos != null) startTile = targetPos;
             if (startTile != null) at = startTile;
         }
-        step = host.stepAt(at, "Train " + cap(s.name()) + " at " + place(pos), null);
+        step = host.stepAt(at, "Train " + cap(s.name()) + LocationNames.at(pos), null);
         skill = s;
         stepTarget = target;
         stepPos = pos;
@@ -270,6 +345,8 @@ class ActivityRecorder {
         gathered.clear();
         if (course != null) {
             step.setRecipeLabel(course.getName());
+        } else if (SailingActivity.SALVAGING.equals(target) || SailingActivity.SORTING.equals(target)) {
+            sailing.setUp(target, step);
         } else if (target != null) {
             if (targetIsNpc) step.setSkillingTargetNpc(target);
             else step.setSkillingTargetObject(target);
@@ -289,7 +366,7 @@ class ActivityRecorder {
             step.setItemList(String.join(", ", entries));
             step.setSkillingSkill(null);
             step.setSkillingGoalType(null);
-            step.setName((verb != null ? verb + " " + stepTarget : "Gather") + " at " + place(where));
+            step.setName((verb != null ? verb + " " + stepTarget : "Gather") + LocationNames.at(where));
             return;
         }
         step.setSkillingSkill(skill.name());
@@ -298,11 +375,13 @@ class ActivityRecorder {
         step.setSkillingStartXp(0); // captured when the step becomes active during playback
         if (skill == Skill.AGILITY) {
             step.setName(step.getRecipeLabel() != null
-                ? "Agility: " + step.getRecipeLabel() + " course" : "Agility at " + place(where));
+                ? "Agility: " + step.getRecipeLabel() + " course" : "Agility" + LocationNames.at(where));
+        } else if (sailing.name(stepTarget, step, stepPos, where) != null) {
+            step.setName(sailing.name(stepTarget, step, stepPos, where));
         } else if (verb != null) {
-            step.setName(verb + " " + stepTarget + " at " + place(where));
+            step.setName(verb + " " + stepTarget + LocationNames.at(where));
         } else {
-            step.setName("Train " + cap(skill.name()) + " at " + place(where));
+            step.setName("Train " + cap(skill.name()) + LocationNames.at(where));
         }
     }
 
@@ -324,7 +403,4 @@ class ActivityRecorder {
         return s.isEmpty() ? s : s.substring(0, 1).toUpperCase() + s.substring(1).toLowerCase();
     }
 
-    private static String place(WorldPoint pos) {
-        return pos == null ? "here" : LocationNames.describe(pos);
-    }
 }

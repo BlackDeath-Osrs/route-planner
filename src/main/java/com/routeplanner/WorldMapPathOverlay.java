@@ -41,7 +41,10 @@ public class WorldMapPathOverlay extends Overlay {
     public Dimension render(Graphics2D graphics) {
         if (plugin.getActiveRoute() == null) return null;
         RouteStep step = plugin.getActiveRoute().getActiveStep();
-        if (step == null || step.getWorldPoint() == null) return null;
+        if (step == null) return null;
+        // Until the player boards (Sailing), the dock is where they're headed.
+        WorldPoint target = plugin.getPathfinderOverlay().isBoardingPending(step) ? step.getBoardPoint() : step.getWorldPoint();
+        if (target == null) return null;
 
         // Check world map is open
         Widget mapWidget = client.getWidget(WORLD_MAP_INTERFACE, WORLD_MAP_CHILD);
@@ -50,23 +53,26 @@ public class WorldMapPathOverlay extends Overlay {
         Rectangle mapBounds = mapWidget.getBounds();
         if (mapBounds == null) return null;
 
-        WorldPoint player = client.getLocalPlayer().getWorldLocation();
-        WorldPoint target = step.getWorldPoint();
+        WorldPoint player = com.routeplanner.sailing.Sailing.position(client);
+        if (player == null) return null;
 
-        // Draw straight line from player to destination on world map
-        // (path tiles are too small to see on world map zoom, a line is clearer)
-        Point playerMapPoint = worldMapOverlay.mapWorldPointToGraphicsPoint(player);
-        Point targetMapPoint = worldMapOverlay.mapWorldPointToGraphicsPoint(target);
-
-        if (playerMapPoint != null && targetMapPoint != null) {
-            // Draw dashed line
-            graphics.setColor(new Color(255, 140, 0, 200));
-            float[] dash = {6f, 4f};
-            graphics.setStroke(new BasicStroke(2, BasicStroke.CAP_ROUND,
-                BasicStroke.JOIN_ROUND, 1f, dash, 0f));
-            graphics.drawLine(playerMapPoint.getX(), playerMapPoint.getY(),
-                              targetMapPoint.getX(), targetMapPoint.getY());
+        graphics.setColor(new Color(255, 140, 0, 200));
+        float[] dash = {6f, 4f};
+        graphics.setStroke(new BasicStroke(2, BasicStroke.CAP_ROUND,
+            BasicStroke.JOIN_ROUND, 1f, dash, 0f));
+        Shape oldClip = graphics.getClip();
+        graphics.clip(mapBounds);
+        // The route the pathfinder worked out (round coasts at sea, along roads on land); a straight
+        // line to the destination until there is one
+        if (!drawRoute(graphics, pathfinderOverlay.getCachedPath())) {
+            Point playerMapPoint = worldMapOverlay.mapWorldPointToGraphicsPoint(player);
+            Point targetMapPoint = worldMapOverlay.mapWorldPointToGraphicsPoint(target);
+            if (playerMapPoint != null && targetMapPoint != null) {
+                graphics.drawLine(playerMapPoint.getX(), playerMapPoint.getY(),
+                                  targetMapPoint.getX(), targetMapPoint.getY());
+            }
         }
+        graphics.setClip(oldClip);
 
         // Draw destination dot
         Point destPoint = worldMapOverlay.mapWorldPointToGraphicsPoint(target);
@@ -99,4 +105,31 @@ public class WorldMapPathOverlay extends Overlay {
 
         return null;
     }
+
+    /**
+     * Draws the path as one line on the map, broken where it jumps (stairs, a ship, a cave mouth) or goes
+     * off the map view. Returns false if there's no path to draw.
+     */
+    private boolean drawRoute(Graphics2D graphics, java.util.List<WorldPoint> path) {
+        if (path == null || path.size() < 2) return false;
+        java.awt.geom.Path2D.Float line = new java.awt.geom.Path2D.Float();
+        boolean drawing = false;
+        WorldPoint prev = null;
+        for (WorldPoint wp : path) {
+            Point p = worldMapOverlay.mapWorldPointToGraphicsPoint(wp);
+            boolean jump = prev != null && (prev.getPlane() != wp.getPlane()
+                || Math.max(Math.abs(prev.getX() - wp.getX()), Math.abs(prev.getY() - wp.getY())) > MAX_STEP_TILES);
+            if (p == null || jump) drawing = false;
+            prev = wp;
+            if (p == null) continue;
+            if (drawing) line.lineTo(p.getX(), p.getY());
+            else line.moveTo(p.getX(), p.getY());
+            drawing = true;
+        }
+        graphics.draw(line);
+        return true;
+    }
+
+    /** Path points further apart than this are a jump (stairs, a ship, a cave mouth), not a line. */
+    private static final int MAX_STEP_TILES = 5;
 }

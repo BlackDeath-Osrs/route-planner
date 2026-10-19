@@ -71,7 +71,7 @@ public class QuickStepDialog extends JFrame {
     private Runnable onSaved;
 
     private Type type = Type.WALK;
-    private boolean extraItems, extraSkill, extraQuest, extraHighlight, extraStairs, extraChat, extraTele;
+    private boolean extraItems, extraSkill, extraQuest, extraHighlight, extraStairs, extraChat, extraTele, extraBoat;
 
     // Teleport: only written back when changed here, so steps with unusual teleports stay intact
     private String teleMethod = "WALK"; // WALK | SPELL | ITEM | NEXUS
@@ -103,15 +103,16 @@ public class QuickStepDialog extends JFrame {
     private final HintField hlNpc = new HintField();
     private final HintField hlObject = new HintField();
     private final JTextField stairsField = field();
+    private final JComboBox<String> boatDock = combo(new String[0]);
     private final JTextArea noteArea = new JTextArea(3, 20);
     private final JCheckBox noteAuto = check("Complete on arrival", true);
     private final JTextArea doneLabel = new JTextArea();
     private final JPanel doneBox = new JPanel(new BorderLayout(7, 0));
     private final JLabel errorLabel = new JLabel(" ");
 
-    private JPanel whereSec, teleSec, whoSec, chatSec, itemsSec, skillSec, questSec, highlightSec, stairsSec, noteSec;
+    private JPanel whereSec, teleSec, whoSec, chatSec, itemsSec, skillSec, questSec, highlightSec, stairsSec, boatSec, noteSec;
     private JPanel addMore;
-    private JButton addItemsBtn, addSkillBtn, addQuestBtn, addHighlightBtn, addStairsBtn, addTeleBtn;
+    private JButton addItemsBtn, addSkillBtn, addQuestBtn, addHighlightBtn, addStairsBtn, addTeleBtn, addBoatBtn;
     private JPanel killRow;
     private final java.util.Map<JPanel, Component> gaps = new java.util.HashMap<>();
     private JPanel addMoreRow;
@@ -157,8 +158,9 @@ public class QuickStepDialog extends JFrame {
         questSec = buildQuest();
         highlightSec = buildHighlight();
         stairsSec = buildStairs();
+        boatSec = buildBoat();
         noteSec = buildNote();
-        for (JPanel p : new JPanel[]{whereSec, teleSec, whoSec, chatSec, itemsSec, skillSec, questSec, highlightSec, stairsSec, noteSec}) {
+        for (JPanel p : new JPanel[]{whereSec, teleSec, whoSec, chatSec, itemsSec, skillSec, questSec, highlightSec, stairsSec, boatSec, noteSec}) {
             Component gap = Box.createVerticalStrut(10);
             gaps.put(p, gap); // hidden with its section, so hidden sections leave no hole
             root.add(gap);
@@ -590,6 +592,48 @@ public class QuickStepDialog extends JFrame {
         return p;
     }
 
+    private JPanel buildBoat() {
+        JPanel p = section();
+        p.add(label("Board a boat at"));
+        java.util.List<String> names = new java.util.ArrayList<>();
+        for (com.routeplanner.sailing.SailingDocks.Dock d : plugin.getSailingDocks().getDocks()) names.add(d.name);
+        java.util.Collections.sort(names);
+        for (String n : names) boatDock.addItem(n);
+        JPanel row = new JPanel(new BorderLayout(6, 0));
+        row.setOpaque(false);
+        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        row.add(boatDock, BorderLayout.CENTER);
+        JButton nearest = button("Nearest");
+        nearest.addActionListener(e -> {
+            WorldPoint wp = plugin.getLastPlayerLocation();
+            com.routeplanner.sailing.SailingDocks.Dock d = wp == null ? null : plugin.getSailingDocks().nearest(wp, Integer.MAX_VALUE);
+            if (d != null) boatDock.setSelectedItem(d.name);
+        });
+        JButton remove = button("Remove");
+        remove.setToolTipText("No boat on this step");
+        remove.addActionListener(e -> { extraBoat = false; refresh(); });
+        JPanel buttons = new JPanel(new GridLayout(1, 2, 4, 0));
+        buttons.setOpaque(false);
+        buttons.add(nearest);
+        buttons.add(remove);
+        row.add(buttons, BorderLayout.EAST);
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, row.getPreferredSize().height));
+        p.add(row);
+        p.add(Box.createVerticalStrut(3));
+        p.add(small("<html>The route goes to this dock's gangplank first and tells you to board. Once you're on the boat it"
+            + " carries on to the tile over the sea. With no tile, boarding is the whole step.</html>"));
+        return p;
+    }
+
+    /** The dock picked in the Boat section, or null. */
+    private com.routeplanner.sailing.SailingDocks.Dock chosenDock() {
+        Object name = boatDock.getSelectedItem();
+        for (com.routeplanner.sailing.SailingDocks.Dock d : plugin.getSailingDocks().getDocks()) {
+            if (d.name.equals(name)) return d;
+        }
+        return null;
+    }
+
     private JPanel buildNote() {
         JPanel p = section();
         p.add(label("Note (optional)"));
@@ -640,6 +684,9 @@ public class QuickStepDialog extends JFrame {
         addHighlightBtn.addActionListener(e -> { extraHighlight = true; refresh(); });
         addStairsBtn = button("+ Stairs");
         addStairsBtn.addActionListener(e -> { extraStairs = true; refresh(); });
+        addBoatBtn = button("+ Boat");
+        addBoatBtn.setToolTipText("Board a boat at a dock first");
+        addBoatBtn.addActionListener(e -> { extraBoat = true; refresh(); });
         addTeleBtn = button("+ Teleport");
         addTeleBtn.setToolTipText("Get there with a spell, an item or the Portal Nexus");
         addTeleBtn.addActionListener(e -> { extraTele = true; refresh(); });
@@ -721,6 +768,7 @@ public class QuickStepDialog extends JFrame {
         questSec.setVisible(questOn());
         highlightSec.setVisible(extraHighlight);
         stairsSec.setVisible(extraStairs);
+        boatSec.setVisible(extraBoat);
         teleSec.setVisible(teleOn());
         noteAuto.setVisible(type == Type.NOTE || type == Type.WALK || !noteArea.getText().trim().isEmpty());
         highlight.setVisible(type == Type.TALK || type == Type.KILL || extraHighlight || skillOn() || itemsOn());
@@ -733,6 +781,7 @@ public class QuickStepDialog extends JFrame {
         if (!questOn()) addMoreRow.add(addQuestBtn);
         if (!extraHighlight) addMoreRow.add(addHighlightBtn);
         if (!extraStairs) addMoreRow.add(addStairsBtn);
+        if (!extraBoat) addMoreRow.add(addBoatBtn);
         if (!teleOn()) addMoreRow.add(addTeleBtn);
         addMoreRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, addMoreRow.getPreferredSize().height));
 
@@ -805,7 +854,7 @@ public class QuickStepDialog extends JFrame {
     }
 
     private String autoName(WorldPoint wp) {
-        String at = wp != null ? " at " + LocationNames.describe(wp) : "";
+        String at = LocationNames.at(wp);
         // Plain ifs rather than an enum switch: a switch compiles to a numbered helper class that
         // breaks if the dev client loads a half-old build (NoSuchFieldError on $SwitchMap$).
         if (type == Type.ITEMS) {
@@ -820,8 +869,8 @@ public class QuickStepDialog extends JFrame {
         if (type == Type.KILL) return "Kill " + Math.max(1, parseInt(killCount.getText())) + " " + orDefault(whoField.getText(), "NPC");
         if (type == Type.SKILL) return "Train " + skillBox.getSelectedItem() + at;
         if (type == Type.QUEST) return questBox.getSelectedItem() != null ? "Finish " + questBox.getSelectedItem() : "Quest";
-        if (type == Type.NOTE) return wp != null ? "Note at " + LocationNames.describe(wp) : "Note";
-        return wp != null ? "Go to " + LocationNames.describe(wp) : "Go somewhere";
+        if (type == Type.NOTE) return "Note" + LocationNames.at(wp);
+        return wp == null ? "Go somewhere" : LocationNames.nameOf(wp) != null ? "Go to " + LocationNames.nameOf(wp) : "Go to this spot";
     }
 
     // ------------------------------------------------------------------ load / save
@@ -913,6 +962,11 @@ public class QuickStepDialog extends JFrame {
             extraStairs = true;
             stairsField.setText(formatTile(s.getTransitionPoint()));
         }
+        if (s.hasBoarding()) {
+            extraBoat = true;
+            com.routeplanner.sailing.SailingDocks.Dock d = plugin.getSailingDocks().nearest(s.getBoardPoint(), Integer.MAX_VALUE);
+            if (d != null) boatDock.setSelectedItem(d.name);
+        }
         String note = s.getNoteText();
         // The recorder's "Kill 5 Chicken." note is generated; keep it out of the way.
         if (note != null && !(type == Type.KILL && AUTO_KILL_NOTE.matcher(note.trim()).matches())) noteArea.setText(note);
@@ -935,7 +989,7 @@ public class QuickStepDialog extends JFrame {
         if (wp == null && !tileField.getText().trim().isEmpty()) { fail(tileField, "The tile should look like 3222, 3218 (add , 1 for upstairs)."); return; }
         boolean teleports = teleOn() && (hasTeleport() || (!teleTouched && editing != null && editing.getTeleportMethod() != null));
         if (teleOn() && !teleports) { errorLabel.setText("Pick a teleport, or press Remove in the Teleport section."); return; }
-        if (type == Type.WALK && wp == null && !teleports) { fail(tileField, "Where should this step go? Enter a tile or press My tile."); return; }
+        if (type == Type.WALK && wp == null && !teleports && !extraBoat) { fail(tileField, "Where should this step go? Enter a tile or press My tile."); return; }
         if ((type == Type.TALK || type == Type.KILL) && whoField.getText().trim().isEmpty()) { fail(whoField, "Enter the NPC's name."); return; }
         if (type == Type.KILL && parseInt(killCount.getText()) <= 0) { fail(killCount, "Enter how many to kill."); return; }
         if (itemsOn() && !"DEPOSIT_ALL".equals(itemModeKey()) && itemListText().isEmpty()) { errorLabel.setText("Add at least one item, or remove the items section by switching type."); return; }
@@ -943,7 +997,9 @@ public class QuickStepDialog extends JFrame {
         if (questOn() && questBox.getSelectedItem() == null) { fail(questSearch, "Pick a quest from the list."); return; }
         WorldPoint stairs = extraStairs ? parseTile(stairsField.getText()) : null;
         if (extraStairs && stairs == null && !stairsField.getText().trim().isEmpty()) { fail(stairsField, "The stairs tile should look like 3205, 3209."); return; }
-        if (name.isEmpty()) name = autoName(wp);
+        com.routeplanner.sailing.SailingDocks.Dock dock = extraBoat ? chosenDock() : null;
+        if (extraBoat && dock == null) { errorLabel.setText("Pick the dock to board at, or press Remove in the Boat section."); return; }
+        if (name.isEmpty()) name = wp == null && dock != null ? plugin.getSailingDocks().boardingHint(dock.land) : autoName(wp);
 
         RouteStep step = editing != null ? editing : new RouteStep(name, StepType.LOCATION, wp, -1);
         step.setName(name);
@@ -1027,6 +1083,15 @@ public class QuickStepDialog extends JFrame {
         // Stairs
         s.setTransitionPoint(stairs);
         if (stairs == null) s.setTransitionObjectId(-1);
+
+        // Boat: the gangplank's object ID is only known from a recording, so keep it while the dock stays
+        com.routeplanner.sailing.SailingDocks.Dock dock = extraBoat ? chosenDock() : null;
+        boolean sameDock = dock != null && s.getBoardPoint() != null
+            && plugin.getSailingDocks().nearest(s.getBoardPoint(), 15) == dock;
+        if (!sameDock) {
+            s.setBoardPoint(dock == null ? null : dock.land);
+            s.setBoardObjectId(-1);
+        }
 
         // Note (kill steps need one for the HUD's kill counter)
         String note = noteArea.getText().trim();
