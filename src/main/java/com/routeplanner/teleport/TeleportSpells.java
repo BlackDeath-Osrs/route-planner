@@ -7,6 +7,11 @@ import java.util.List;
 
 public class TeleportSpells {
 
+    /** The "book" of the Minigame Teleport spell's destinations (the spell is in every spellbook). */
+    public static final String MINIGAME = "MINIGAME";
+    private static final int MINIGAME_SPRITE = net.runelite.api.gameval.SpriteID.SideIcons.MINIGAMES;
+    private static final String MINIGAME_SUFFIX = " Minigame Teleport";
+
     public static final List<TeleportSpell> ALL = Arrays.asList(
         new TeleportSpell("Home Teleport",              new WorldPoint(3221, 3219, 0), "STANDARD", SpriteID.SPELL_LUMBRIDGE_HOME_TELEPORT, "home"),
         new TeleportSpell("Teleport to House",          new WorldPoint(0, 0, 0),       "STANDARD", SpriteID.SPELL_TELEPORT_TO_HOUSE, "house"),
@@ -50,12 +55,37 @@ public class TeleportSpells {
         new TeleportSpell("West Ardougne Teleport",        new WorldPoint(2500, 3290, 0), "ARCEUUS", SpriteID.SPELL_WEST_ARDOUGNE_TELEPORT, "westard"),
         new TeleportSpell("Cemetery Teleport",             new WorldPoint(3477, 3504, 0), "ARCEUUS", SpriteID.SPELL_CEMETERY_TELEPORT, "cemetery"),
         new TeleportSpell("Barrows Teleport",              new WorldPoint(3565, 3314, 0), "ARCEUUS", SpriteID.SPELL_BARROWS_TELEPORT, "barrows"),
-        new TeleportSpell("Ape Atoll Teleport",            new WorldPoint(2757, 2764, 0), "ARCEUUS", SpriteID.SPELL_APE_ATOLL_TELEPORT, "apeatoll")
+        new TeleportSpell("Ape Atoll Teleport",            new WorldPoint(2757, 2764, 0), "ARCEUUS", SpriteID.SPELL_APE_ATOLL_TELEPORT, "apeatoll"),
+        // Minigame Teleport: one spell in every spellbook, then the minigame picked from its list
+        new TeleportSpell("Barbarian Assault Minigame Teleport", new WorldPoint(2531, 3569, 0), MINIGAME, MINIGAME_SPRITE, "minigame"),
+        new TeleportSpell("Blast Furnace Minigame Teleport",    new WorldPoint(2894, 10214, 0), MINIGAME, MINIGAME_SPRITE, "minigame"),
+        new TeleportSpell("Burthorpe Games Room Minigame Teleport", new WorldPoint(2899, 3553, 0), MINIGAME, MINIGAME_SPRITE, "minigame"),
+        new TeleportSpell("Castle Wars Minigame Teleport",      new WorldPoint(2442, 3093, 0), MINIGAME, MINIGAME_SPRITE, "minigame"),
+        new TeleportSpell("Clan Wars Minigame Teleport",        new WorldPoint(3150, 3635, 0), MINIGAME, MINIGAME_SPRITE, "minigame"),
+        new TeleportSpell("Fishing Trawler Minigame Teleport",  new WorldPoint(2658, 3157, 0), MINIGAME, MINIGAME_SPRITE, "minigame"),
+        new TeleportSpell("Giants' Foundry Minigame Teleport",  new WorldPoint(3361, 3149, 0), MINIGAME, MINIGAME_SPRITE, "minigame"),
+        new TeleportSpell("Guardians of the Rift Minigame Teleport", new WorldPoint(3614, 9477, 0), MINIGAME, MINIGAME_SPRITE, "minigame"),
+        new TeleportSpell("Last Man Standing Minigame Teleport", new WorldPoint(3150, 3635, 0), MINIGAME, MINIGAME_SPRITE, "minigame"),
+        new TeleportSpell("Mage Training Arena Minigame Teleport", new WorldPoint(3363, 3295, 0), MINIGAME, MINIGAME_SPRITE, "minigame"),
+        new TeleportSpell("Nightmare Zone Minigame Teleport",   new WorldPoint(2609, 3114, 0), MINIGAME, MINIGAME_SPRITE, "minigame"),
+        new TeleportSpell("Pest Control Minigame Teleport",     new WorldPoint(2658, 2663, 0), MINIGAME, MINIGAME_SPRITE, "minigame"),
+        new TeleportSpell("Shades of Mort'ton Minigame Teleport", new WorldPoint(3506, 3304, 0), MINIGAME, MINIGAME_SPRITE, "minigame"),
+        new TeleportSpell("Soul Wars Minigame Teleport",        new WorldPoint(2018, 5929, 0), MINIGAME, MINIGAME_SPRITE, "minigame"),
+        new TeleportSpell("Tithe Farm Minigame Teleport",       new WorldPoint(1792, 3501, 0), MINIGAME, MINIGAME_SPRITE, "minigame"),
+        new TeleportSpell("Trouble Brewing Minigame Teleport",  new WorldPoint(3801, 3015, 0), MINIGAME, MINIGAME_SPRITE, "minigame"),
+        new TeleportSpell("TzHaar Fight Pit Minigame Teleport", new WorldPoint(2399, 5177, 0), MINIGAME, MINIGAME_SPRITE, "minigame")
     );
 
     public static TeleportSpell getByName(String name) {
         return ALL.stream()
             .filter(t -> t.getName().equals(name))
             .findFirst().orElse(null);
+    }
+
+    /** The name the Minigame Teleport list shows, e.g. "Castle Wars"; null if not a minigame teleport. */
+    public static String minigameName(TeleportSpell spell) {
+        if (spell == null || !MINIGAME.equals(spell.getBook())) return null;
+        String n = spell.getName();
+        return n.endsWith(MINIGAME_SUFFIX) ? n.substring(0, n.length() - MINIGAME_SUFFIX.length()) : n;
     }
 }

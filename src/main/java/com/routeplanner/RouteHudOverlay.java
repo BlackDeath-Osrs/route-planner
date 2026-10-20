@@ -140,12 +140,15 @@ public class RouteHudOverlay extends Overlay {
             }
         }
 
-        // Getting on or off a boat (Sailing): say so, since the line stops at the dock
+        // Getting on or off a boat (Sailing), or a teleport the route takes: say so, since the line
+        // stops there and there's nothing in the world to highlight. Likewise "Use rope on Rock":
+        // the object lights up, but it takes an item rather than a click.
         if (routeHasIncompleteStep) {
             com.routeplanner.transport.Transport t = plugin.getPathfinderOverlay().getActiveTransition();
             if (t != null && t.actionText != null
-                    && (t.actionText.startsWith(com.routeplanner.sailing.SailingDocks.BOARD)
-                        || t.actionText.startsWith(com.routeplanner.sailing.SailingDocks.DISEMBARK))) {
+                    && (t.teleport || t.actionText.startsWith(com.routeplanner.sailing.SailingDocks.BOARD)
+                        || t.actionText.startsWith(com.routeplanner.sailing.SailingDocks.DISEMBARK)
+                        || t.actionText.startsWith("Use "))) {
                 lines.add(new String[]{"---", "DIM"});
                 for (String wrapped : wrapText(t.actionText, 42)) lines.add(new String[]{wrapped, "TITLE"});
             }

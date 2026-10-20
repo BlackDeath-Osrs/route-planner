@@ -9,7 +9,8 @@ Make a route by adding steps one at a time, or just press **Record** and play: w
 2. On the welcome screen, pick one:
    - **Build one step by step**: name your route and start adding steps.
    - **Record a route**: play normally and let the plugin write the steps.
-   - **Import a file**: load a route someone sent you.
+   - **Import a file**: load a route someone sent you. Importing a newer copy of a route you already have
+     offers to replace it, keeping the steps you've ticked off.
    - **Browse the Route Hub**: install a community route.
 3. Click the pencil to leave edit mode, then follow the line. Steps tick off as you do them.
 
@@ -40,12 +41,12 @@ Press **Record** and play normally. Walking, teleports, stairs and ladders, talk
 - Settings under **Record mode** control how long you stand still before a new step starts, and whether recorded NPCs and objects are highlighted.
 
 ### Step types
-- **Walk**: pathfinds to a tile and draws the way on the world map, the minimap, and the game scene. Stairs and ladders on the way are found for you, along with fairy rings, spirit trees, gnome gliders, charter ships, and more. A step can also say how to get there: a spellbook teleport, a teleport item, or the Portal Nexus, with the spell or item highlighted.
+- **Walk**: pathfinds to a tile and draws the way on the world map, the minimap, and the game scene. Stairs, ladders and dungeon entrances on the way are found for you, along with fairy rings, spirit trees, gnome gliders, charter ships, rafts, shortcuts, and more, and the one to use next lights up as you approach. A step can also say how to get there: a spellbook teleport, a minigame teleport, a teleport item, or the Portal Nexus, with each click highlighted (for a minigame teleport: the magic tab, the spell, then the minigame in its list).
 - **Items**: the items to bring from the bank, buy at a shop, sell, or pick up. Missing items show in orange and items you have in green. A step can also be "deposit everything".
 - **Talk**: an NPC to talk to, with the chat options to pick highlighted in order.
 - **Kill**: an NPC to kill, completing after a set number of kills.
 - **Skill**: a skill and a target (level, XP total, or XP gained), with an optional method such as foods, bars, logs, potions, rocks, trees, pickpocket targets, or agility courses.
-- **Quest**: completes when the quest is finished.
+- **Quest**: completes when the quest is finished. While a quest step is active, the quest's row in your quest list lights up, so you can right-click it and **Start Quest Helper** if you use that plugin.
 - **Note**: free-form text shown on the step.
 
 A step completes on its own once everything it tracks is done. For example, a step that fetches items and has a skill goal completes only when you have the items **and** reach the goal.
@@ -53,6 +54,7 @@ A step completes on its own once everything it tracks is done. For example, a st
 ### Highlighting
 - A **Route Planner bank tab** filters your bank down to just what the current step needs.
 - Shop, ground item, NPC, and object highlights point you at the right target.
+- Inventory items to use or wear on a step (a rope, a cocktail shaker) can be outlined in your inventory.
 - Dialogue options are highlighted as you talk.
 - In-game highlighting is opt-in per step.
 

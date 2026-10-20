@@ -44,12 +44,16 @@ public class ShortestPathBridge {
         final List<WorldPoint> path;
         final boolean reached;
         final boolean cancelled;
+        /** Shortest Path's own description of each jump on the path (stairs, teleports...). */
+        final List<com.routeplanner.transport.Transport> jumps;
 
-        Result(String id, List<WorldPoint> path, boolean reached, boolean cancelled) {
+        Result(String id, List<WorldPoint> path, boolean reached, boolean cancelled,
+               List<com.routeplanner.transport.Transport> jumps) {
             this.id = id;
             this.path = path;
             this.reached = reached;
             this.cancelled = cancelled;
+            this.jumps = jumps;
         }
     }
 
@@ -114,6 +118,7 @@ public class ShortestPathBridge {
         data.put("id", pendingId);
         data.put("start", start);
         data.put("target", target);
+        if (config.recordTrace()) log.info("[RP-TRACE] SP ASK {} from {} to {}", pendingId, start, target);
         eventBus.post(new PluginMessage(NAMESPACE, "query", data));
     }
 
@@ -134,6 +139,35 @@ public class ShortestPathBridge {
         latest = null;
     }
 
+    /**
+     * Shortest Path's "transports" list: per jump its origin, destination, objectInfo ("Climb-down
+     * Ladder 2147", none for a teleport) and displayInfo ("Guardians of the Rift Minigame Teleport").
+     */
+    private static List<com.routeplanner.transport.Transport> jumps(Object raw) {
+        List<com.routeplanner.transport.Transport> out = new ArrayList<>();
+        if (!(raw instanceof List)) return out;
+        for (Object o : (List<?>) raw) {
+            if (!(o instanceof Map)) continue;
+            Map<?, ?> m = (Map<?, ?>) o;
+            if (!(m.get("origin") instanceof WorldPoint) || !(m.get("destination") instanceof WorldPoint)) continue;
+            String object = m.get("objectInfo") instanceof String ? ((String) m.get("objectInfo")).trim() : "";
+            String display = m.get("displayInfo") instanceof String ? ((String) m.get("displayInfo")).trim() : "";
+            int objectId = -1;
+            String action = object;
+            java.util.regex.Matcher id = java.util.regex.Pattern.compile("^(.*\\S)\\s+(\\d+)$").matcher(object);
+            if (id.matches()) {
+                action = id.group(1);
+                objectId = Integer.parseInt(id.group(2));
+            }
+            boolean teleport = object.isEmpty();
+            String text = teleport ? (display.isEmpty() ? "Teleport" : "Teleport: " + display)
+                : (action.isEmpty() ? display : action);
+            out.add(new com.routeplanner.transport.Transport((WorldPoint) m.get("origin"),
+                (WorldPoint) m.get("destination"), text.isEmpty() ? null : text, objectId, teleport));
+        }
+        return out;
+    }
+
     @Subscribe
     public void onPluginMessage(PluginMessage message) {
         if (!NAMESPACE.equals(message.getNamespace()) || !"result".equals(message.getName())) return;
@@ -150,6 +184,11 @@ public class ShortestPathBridge {
         }
         boolean reached = Boolean.TRUE.equals(data.get("reached"));
         boolean cancelled = "CANCELLED".equals(data.get("reason"));
-        latest = new Result((String) id, path, reached, cancelled);
+        if (config.recordTrace()) {
+            log.info("[RP-TRACE] SP REPLY {} reached={} reason={} tiles={} end={} closest={} jumps={} transports={}", id,
+                reached, data.get("reason"), path.size(), path.isEmpty() ? null : path.get(path.size() - 1),
+                data.get("closest"), PathfinderOverlay.describeJumps(path), data.get("transports"));
+        }
+        latest = new Result((String) id, path, reached, cancelled, jumps(data.get("transports")));
     }
 }

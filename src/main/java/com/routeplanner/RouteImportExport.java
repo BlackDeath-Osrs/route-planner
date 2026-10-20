@@ -94,6 +94,34 @@ public class RouteImportExport {
         return chooser;
     }
 
+    /**
+     * Puts an updated copy of a route in place of the old one, in the same spot in the list. Ticks
+     * carry over by section and step name, unless the file brings ticks of its own.
+     */
+    private void replaceRoute(Route old, Route updated) {
+        boolean fileHasTicks = updated.getSteps().stream().anyMatch(com.routeplanner.model.RouteStep::isCompleted);
+        if (!fileHasTicks) {
+            java.util.Set<String> done = new java.util.HashSet<>();
+            for (com.routeplanner.model.RouteSection sec : old.getSections()) {
+                for (com.routeplanner.model.RouteStep st : sec.getSteps()) {
+                    if (st.isCompleted()) done.add(sec.getName() + "\n" + st.getName());
+                }
+            }
+            for (com.routeplanner.model.RouteSection sec : updated.getSections()) {
+                for (com.routeplanner.model.RouteStep st : sec.getSteps()) {
+                    st.setCompleted(done.contains(sec.getName() + "\n" + st.getName()));
+                }
+            }
+        }
+        updated.setName(old.getName());
+        updated.setHubSourceId(old.getHubSourceId());
+        int at = plugin.getRoutes().indexOf(old);
+        plugin.deleteRoute(old);
+        plugin.getRoutes().add(Math.max(0, Math.min(at, plugin.getRoutes().size())), updated);
+        plugin.saveRoutesPublic();
+        plugin.setActiveRoute(updated);
+    }
+
     public void importRoute() {
         JFileChooser chooser = newSystemFileChooser("Import Route");
         chooser.setFileFilter(new FileNameExtensionFilter("JSON files", "json"));
@@ -111,9 +139,24 @@ public class RouteImportExport {
                 if (route != null) route.migrateIfNeeded();
                 if (route != null && route.getName() != null) {
                     String name = route.getName();
-                    boolean exists = plugin.getRoutes().stream()
-                        .anyMatch(r -> r.getName().equalsIgnoreCase(name));
-                    if (exists) {
+                    Route existing = plugin.getRoutes().stream()
+                        .filter(r -> r.getName().equalsIgnoreCase(name)).findFirst().orElse(null);
+                    if (existing != null) {
+                        Object[] options = {"Replace it", "Keep both", "Cancel"};
+                        int choice = JOptionPane.showOptionDialog(null,
+                            "You already have a route called \"" + existing.getName() + "\".\n"
+                                + "Replace it with this one? Steps you've ticked off stay ticked.",
+                            "Route already exists", JOptionPane.YES_NO_CANCEL_OPTION,
+                            JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
+                        if (choice == 2 || choice == JOptionPane.CLOSED_OPTION) return;
+                        if (choice == 0) {
+                            replaceRoute(existing, route);
+                            JOptionPane.showMessageDialog(null,
+                                "Route \"" + route.getName() + "\" updated!",
+                                "Import Successful", JOptionPane.INFORMATION_MESSAGE);
+                            log.info("Replaced route: {}", route.getName());
+                            return;
+                        }
                         route.setName(name + " (imported)");
                     }
                     plugin.getRoutes().add(route);

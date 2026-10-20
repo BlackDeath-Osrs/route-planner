@@ -17,12 +17,19 @@ public class Transport {
     // actually exist independently in the source file.
     public final String actionText;   // e.g. "Climb-up Staircase", "Open Door"
     public final int objectId;        // -1 if absent/unparseable
+    /** A teleport (spell, item, minigame...): nothing to click in the world, just where it goes. */
+    public final boolean teleport;
 
     public Transport(WorldPoint origin, WorldPoint destination, String actionText, int objectId) {
+        this(origin, destination, actionText, objectId, false);
+    }
+
+    public Transport(WorldPoint origin, WorldPoint destination, String actionText, int objectId, boolean teleport) {
         this.origin = origin;
         this.destination = destination;
         this.actionText = actionText;
         this.objectId = objectId;
+        this.teleport = teleport;
     }
 
     /** A short, human-readable hint built from the row's own data, e.g. "Climb-up the Staircase". */

@@ -60,7 +60,8 @@ public class RouteOverlay extends Overlay {
         // Show transition highlight whenever the active step has a transitionPoint set,
         // regardless of whether the plane-transition logic is active.
         net.runelite.api.coords.WorldPoint transOrigin = activeStep != null ? activeStep.getTransitionPoint() : null;
-        if (transOrigin == null && transition != null) transOrigin = transition.origin;
+        // A teleport has nothing in the world to point at (the HUD names it instead)
+        if (transOrigin == null && transition != null && !transition.teleport) transOrigin = transition.origin;
 
         if (transOrigin != null && activeStep != null) {
             WorldPoint player = client.getLocalPlayer() == null ? null

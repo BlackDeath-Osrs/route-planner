@@ -32,6 +32,8 @@ public class PathfinderOverlay extends Overlay {
     private WorldCollisionMap collisionMap = null;
     private boolean loadAttempted = false;
     private java.util.Map<WorldPoint, java.util.List<WorldPoint>> transports = new java.util.HashMap<>();
+    /** Shortest Path's descriptions of the jumps on cachedPath, when its path is the one in use. */
+    private volatile List<com.routeplanner.transport.Transport> cachedJumps = Collections.emptyList();
     /** The transition currently being routed to, if the active step is on a different plane than
      *  the player. Null whenever no plane redirect is in effect. Read by the overlay/highlight code
      *  to know what (if anything) to highlight as the "climb this" object. */
@@ -136,6 +138,11 @@ public class PathfinderOverlay extends Overlay {
             log.warn("Route Planner: path search failed", e);
             cachedPath = new ArrayList<>();
         }
+        cachedJumps = Collections.emptyList();
+        if (config.recordTrace()) {
+            log.info("[RP-TRACE] BUILT-IN to {}: tiles={} end={} jumps={}", target, cachedPath.size(),
+                cachedPath.isEmpty() ? null : cachedPath.get(cachedPath.size() - 1), describeJumps(cachedPath));
+        }
         // The player kept moving while it ran; a boat can be several tiles on.
         trimCachedPathTo(indexOnPath(player, sailing ? 8 : 2));
         lastFailedTarget = cachedPath.isEmpty() ? target : null;
@@ -163,11 +170,17 @@ public class PathfinderOverlay extends Overlay {
         RouteStep step = plugin.getActiveRoute() == null ? null : plugin.getActiveRoute().getActiveStep();
         WorldPoint at = Sailing.position(client);
         boolean stepStairs = step != null && step.getTransitionPoint() != null && step.getWorldPoint() != null
-            && at != null && at.getPlane() != step.getWorldPoint().getPlane();
+            && at != null && otherFloor(at, step.getWorldPoint());
         // Likewise the gangplank set on the step, until the player is on the boat.
         boolean stepBoarding = step != null && isBoardingPending(step);
         if (!stepStairs && !stepBoarding) {
             activeTransition = step == null || step.isLocationReached() ? null : firstFloorChange();
+            if (config.recordTrace() && !sameTransition(lastLoggedTransition, activeTransition)) {
+                lastLoggedTransition = activeTransition;
+                log.info("[RP-TRACE] STAIRS {}", activeTransition == null ? "none"
+                    : activeTransition.actionText + " " + activeTransition.objectId + " at " + activeTransition.origin
+                        + " -> " + activeTransition.destination);
+            }
         }
     }
 
@@ -185,22 +198,86 @@ public class PathfinderOverlay extends Overlay {
      * the right stairs even when nobody set them on the step (e.g. a recording that started
      * upstairs), and points at the dock before a sea crossing.
      */
+    /** The stairs last written to the bug report log (activeTransition itself is reset each update). */
+    private com.routeplanner.transport.Transport lastLoggedTransition;
+
+    /** Shortest Path's description of the jump from a to b on the path in use, or null. */
+    private com.routeplanner.transport.Transport shortestPathJump(WorldPoint a, WorldPoint b) {
+        for (com.routeplanner.transport.Transport t : cachedJumps) {
+            if (t.origin.equals(a) && t.destination.equals(b)) return t;
+        }
+        return null;
+    }
+
+    private static boolean sameTransition(com.routeplanner.transport.Transport a, com.routeplanner.transport.Transport b) {
+        if (a == null || b == null) return a == b;
+        return java.util.Objects.equals(a.origin, b.origin) && java.util.Objects.equals(a.destination, b.destination);
+    }
+
+    /** The places a path jumps (stairs, ladders, teleports), for the bug report log. */
+    static String describeJumps(List<WorldPoint> path) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i + 1 < path.size(); i++) {
+            WorldPoint a = path.get(i), b = path.get(i + 1);
+            if (a.getPlane() != b.getPlane() || a.distanceTo2D(b) > 2) {
+                sb.append(sb.length() == 0 ? "" : ", ").append(a.getX()).append(',').append(a.getY()).append(',')
+                    .append(a.getPlane()).append(" -> ").append(b.getX()).append(',').append(b.getY()).append(',').append(b.getPlane());
+            }
+        }
+        return sb.length() == 0 ? "none" : sb.toString();
+    }
+
+    /** Underground areas sit on plane 0 like the surface, but this far north of it (about y + 6400). */
+    private static final int UNDERGROUND_Y = 4400;
+
+    /**
+     * Whether two tiles are on different floors: another plane, or one underground and the other not
+     * (the ladder into the Wizards' Tower basement stays on plane 0 but jumps from y 3162 to 9576).
+     */
+    public static boolean otherFloor(WorldPoint a, WorldPoint b) {
+        return a.getPlane() != b.getPlane() || (a.getY() >= UNDERGROUND_Y) != (b.getY() >= UNDERGROUND_Y);
+    }
+
+    /** Further than this between two path tiles underground is a ladder or vine, not a step. */
+    private static final int UNDERGROUND_JUMP = 20;
+
+    /**
+     * Whether the route changes floor between two neighbouring path tiles. Besides otherFloor, a jump
+     * underground counts: dungeon levels all sit on plane 0, side by side (Stronghold floor 3 to floor 2
+     * is a vine from 2122,5251 to 2042,5245).
+     */
+    private static boolean floorChange(WorldPoint a, WorldPoint b) {
+        return otherFloor(a, b) || (a.getY() >= UNDERGROUND_Y && a.distanceTo2D(b) > UNDERGROUND_JUMP);
+    }
+
     private com.routeplanner.transport.Transport firstFloorChange() {
         WorldPoint at = Sailing.position(client);
         if (at == null || cachedPath.size() < 2) return null;
-        int plane = at.getPlane();
         for (int i = 0; i + 1 < cachedPath.size(); i++) {
             WorldPoint a = cachedPath.get(i), b = cachedPath.get(i + 1);
-            if (a.getPlane() != plane) return null;
+            if (otherFloor(a, at)) return null;
             com.routeplanner.transport.Transport dock = sailingDocks.crossing(a, b);
             if (dock != null) return dock;
-            if (b.getPlane() != a.getPlane()) {
+            com.routeplanner.transport.Transport sp = shortestPathJump(a, b);
+            // A Shortest Path teleport counts anywhere, surface to surface too
+            if (sp != null && sp.teleport) return sp;
+            if (floorChange(a, b)) {
                 com.routeplanner.transport.Transport known = TransportLoader.find(a, b);
-                return known != null ? known : new com.routeplanner.transport.Transport(a, b, null, -1);
+                if (known != null) return known;
+                return sp != null ? sp : new com.routeplanner.transport.Transport(a, b, null, -1);
+            }
+            // Same floor: a raft, a rope swing, an agility shortcut. Doors and gates (one tile) aren't
+            // worth pointing at, so only longer jumps with an object to click count.
+            if (a.distanceTo2D(b) > SAME_FLOOR_JUMP) {
+                com.routeplanner.transport.Transport known = TransportLoader.find(a, b);
+                if (known != null && known.objectId > 0) return known;
             }
         }
         return null;
     }
+
+    /** Further than this between two path tiles on one floor is a transport (raft, rope...), not a door. */
+    private static final int SAME_FLOOR_JUMP = 2;
 
     private void updatePath() {
         tickCount++;
@@ -240,7 +317,7 @@ public class PathfinderOverlay extends Overlay {
         if (boarding) {
             activeTransition = new com.routeplanner.transport.Transport(step.getBoardPoint(), step.getWorldPoint(),
                 sailingDocks.boardingHint(step.getBoardPoint()), step.getBoardObjectId());
-        } else if (step.getTransitionPoint() != null && player.getPlane() != target.getPlane()) {
+        } else if (step.getTransitionPoint() != null && otherFloor(player, target)) {
             target = step.getTransitionPoint();
             exactTargetMatch = true; // path to exact tile, not "within 1" which can cut through walls
             activeTransition = new com.routeplanner.transport.Transport(
@@ -290,7 +367,12 @@ public class PathfinderOverlay extends Overlay {
                 } else if (shortestPath.isActive() && !sailing) {
                     // Shortest Path can't route a boat yet, so sailing always uses the built-in search.
                     // Asynchronous: the answer is picked up by applyShortestPathResult on a later update.
-                    if (targetChanged) cachedPath = new ArrayList<>();
+                    // A long route can keep it busy for seconds, so a new target also gets the built-in
+                    // search (well under a second), drawn until Shortest Path's answer replaces it.
+                    if (targetChanged) {
+                        cachedPath = new ArrayList<>();
+                        startSearch(player, target, exactTargetMatch, sailing);
+                    }
                     shortestPath.request(player, target);
                 } else {
                     if (targetChanged) cachedPath = new ArrayList<>();
@@ -314,11 +396,14 @@ public class PathfinderOverlay extends Overlay {
         // the exact tile -- the target is often an NPC or object tile that can't be stood on.
         boolean usable = result.reached || (!exact && !path.isEmpty()
             && path.get(path.size() - 1).distanceTo(target) <= 1);
+        if (config.recordTrace()) log.info("[RP-TRACE] SP {} for {}", usable ? "USED" : "NOT USED, built-in instead", target);
         if (!usable) {
             startSearch(player, target, exact, sailing);
             return;
         }
+        cancelSearch();   // a stand-in built-in search still running mustn't overwrite this
         cachedPath = new ArrayList<>(path);
+        cachedJumps = result.jumps;
         trimCachedPathTo(indexOnPath(player, 1));
         lastFailedTarget = cachedPath.isEmpty() ? target : null;
     }
@@ -374,7 +459,12 @@ public class PathfinderOverlay extends Overlay {
             // it ends at the stairs to the next floor, or at the dock where the boat is boarded or left.
             path = new ArrayList<>();
             for (WorldPoint wp : cachedPath) {
-                if (wp.getPlane() != player.getPlane()) break;
+                if (otherFloor(wp, player)) break;
+                if (!path.isEmpty() && floorChange(path.get(path.size() - 1), wp)) break;
+                if (!path.isEmpty()) {
+                    com.routeplanner.transport.Transport sp = shortestPathJump(path.get(path.size() - 1), wp);
+                    if (sp != null && sp.teleport) break;
+                }
                 if (!path.isEmpty() && sailingDocks.crossing(path.get(path.size() - 1), wp) != null) break;
                 path.add(wp);
             }
@@ -811,12 +901,22 @@ public class PathfinderOverlay extends Overlay {
         // A target inside a sea cave sits in dungeon coordinates thousands of tiles away; the
         // estimate has to know the way in, or the search heads off across the wrong ocean.
         estimateLinks = sailingDocks.getSeaLinkPairs();
+        // Same for a dungeon: its tiles are far from the entrance, so estimate through the ways down
+        if (ey >= UNDERGROUND_Y && (start.getY() < UNDERGROUND_Y || otherDungeon(start.getX(), start.getY(), ex, ey))) {
+            List<WorldPoint[]> links = new ArrayList<>(estimateLinks);
+            links.addAll(entrancesNear(end));
+            estimateLinks = links;
+        }
         graph.offer(SearchGraph.key(start.getX(), start.getY(), start.getPlane()), 0,
             heuristic(start.getX(), start.getY(), ex, ey), SearchGraph.NONE);
 
         int explored = 0;
         int node;
+        // The nearest the search got on foot, for a target nobody can stand on or next to
+        int closest = SearchGraph.NONE, closestDist = Integer.MAX_VALUE, closestAt = 0;
         while (explored < maxNodes && (node = graph.poll()) != SearchGraph.NONE) {
+            // Close by and no nearer for a good while: the target itself can't be reached
+            if (closestDist <= NEAR_ENOUGH && explored - closestAt > GIVE_UP_AFTER) break;
             if ((++explored & 0xFFF) == 0 && Thread.currentThread().isInterrupted()) return Collections.emptyList();
             long key = graph.key(node);
             int x = SearchGraph.x(key);
@@ -824,10 +924,12 @@ public class PathfinderOverlay extends Overlay {
             // Search nodes carry the boat state in their plane (see ON_BOAT); rplane is the real one.
             int cplane = SearchGraph.plane(key);
             int rplane = cplane % BOAT_LEFT;
-            if (rplane == eplane && Math.max(Math.abs(x - ex), Math.abs(y - ey)) <= 1) {
+            int dist = rplane == eplane ? Math.max(Math.abs(x - ex), Math.abs(y - ey)) : Integer.MAX_VALUE;
+            if (dist <= 1) {
                 return reconstructPath(graph, node);
             }
             boolean onBoat = cplane >= ON_BOAT;
+            if (!onBoat && dist < closestDist) { closest = node; closestDist = dist; closestAt = explored; }
             boolean boatLeft = !onBoat && cplane >= BOAT_LEFT;
             int g = graph.g(node);
             int step = onBoat ? SAIL_STEP : WALK_STEP;
@@ -889,8 +991,16 @@ public class PathfinderOverlay extends Overlay {
             }
         }
 
+        // Couldn't get there (a tile in the water, inside a wall...): lead as close as it can, the way
+        // Shortest Path does, rather than drawing nothing
+        if (closestDist <= NEAR_ENOUGH) return reconstructPath(graph, closest);
         return Collections.emptyList();
     }
+
+    /** How far off an unreachable target the nearest reachable tile may be and still be led to. */
+    private static final int NEAR_ENOUGH = 10;
+    /** Tiles searched without getting any nearer before settling for the nearest one. */
+    private static final int GIVE_UP_AFTER = 40000;
 
 
     /** A step to (x, y); at sea only where the hull fits, and dearer the closer it is to the shore. */
@@ -1112,12 +1222,45 @@ public class PathfinderOverlay extends Overlay {
         return heuristic(a.getX(), a.getY(), b.getX(), b.getY());
     }
 
-    /** Sea links (cave mouths) the current search's estimate may go through; set per search. */
+    /** Underground tiles further apart than this are in different dungeons (Varrock sewers and the
+     *  museum basement are 1,500 tiles apart): the way between is up to the surface and down again. */
+    private static final int OTHER_DUNGEON = 500;
+
+    private static boolean otherDungeon(int x, int y, int ex, int ey) {
+        return Math.max(Math.abs(x - ex), Math.abs(y - ey)) > OTHER_DUNGEON;
+    }
+
+    /** How far from an underground goal a way down may land and still count as its way in. */
+    private static final int ENTRANCE_REACH = 300;
+    private static final int MAX_ENTRANCES = 16;
+
+    /** The ways down from the surface (origin, landing) that land nearest an underground goal. */
+    private List<WorldPoint[]> entrancesNear(WorldPoint goal) {
+        List<WorldPoint[]> found = new ArrayList<>();
+        for (Map.Entry<WorldPoint, List<WorldPoint>> e : transports.entrySet()) {
+            if (e.getKey().getY() >= UNDERGROUND_Y) continue;
+            for (WorldPoint d : e.getValue()) {
+                if (d.getY() >= UNDERGROUND_Y && d.distanceTo2D(goal) <= ENTRANCE_REACH) {
+                    found.add(new WorldPoint[]{e.getKey(), d});
+                }
+            }
+        }
+        found.sort(java.util.Comparator.comparingInt(l -> l[1].distanceTo2D(goal)));
+        return found.size() > MAX_ENTRANCES ? new ArrayList<>(found.subList(0, MAX_ENTRANCES)) : found;
+    }
+
+    /** Sea links (cave mouths) and dungeon entrances the current search's estimate may go through;
+     *  set per search. */
     private List<WorldPoint[]> estimateLinks = Collections.emptyList();
 
     /** In walking steps: exact on land, and over-eager at sea, which only costs some optimality on a
      *  leg the sea smoothing straightens anyway. Goes through a sea link when that's shorter. */
     private int heuristic(int x, int y, int ex, int ey) {
+        // Climbing out, the straight line to a surface goal says nothing about which way up is nearest
+        // (floor 4 of the Stronghold "looks" nearer Barbarian Village than floor 2's ladders), so no
+        // estimate there: the underground part is small and gets searched in full. Going down keeps the
+        // estimate, or a long walk to a dungeon would search half the map.
+        if (y >= UNDERGROUND_Y && (ey < UNDERGROUND_Y || otherDungeon(x, y, ex, ey))) return 0;
         int direct = Math.abs(x - ex) + Math.abs(y - ey);
         for (WorldPoint[] link : estimateLinks) {
             int via = Math.abs(x - link[0].getX()) + Math.abs(y - link[0].getY())

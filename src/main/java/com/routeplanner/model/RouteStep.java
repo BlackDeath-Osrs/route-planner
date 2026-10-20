@@ -61,6 +61,7 @@ public class RouteStep {
     private String gearReminder; // fishing gear reminder (e.g. "Fly fishing rod, Feathers")
     private String herblorePotion; // potion for Herblore steps (drives the bank highlight)
     private String bankHighlightItems; // generic bank highlight for skilling steps (Cooking, etc.)
+    private String inventoryHighlightItems; // items to outline in the inventory, e.g. "Cocktail shaker, Lemon"
 
     // Transition point: when set, this step has two phases.
     // Phase 1: path to transitionPoint (the staircase/ladder tile).

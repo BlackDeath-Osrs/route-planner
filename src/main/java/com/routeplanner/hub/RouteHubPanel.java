@@ -214,6 +214,7 @@ public class RouteHubPanel extends JPanel {
                 if (err == null) err = com.routeplanner.util.RouteTextValidator.checkField("Highlight NPC", step.getNpcHighlight());
                 if (err == null) err = com.routeplanner.util.RouteTextValidator.checkField("Dialogue options", step.getDialogOptions());
                 if (err == null) err = com.routeplanner.util.RouteTextValidator.checkField("Items", step.getItemList());
+                if (err == null) err = com.routeplanner.util.RouteTextValidator.checkField("Inventory items", step.getInventoryHighlightItems());
                 if (err != null) return err;
             }
         }

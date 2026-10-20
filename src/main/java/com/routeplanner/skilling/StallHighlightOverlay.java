@@ -94,33 +94,46 @@ public class StallHighlightOverlay extends Overlay {
                 if (tile.getWorldLocation() == null
                     || origin.distanceTo(tile.getWorldLocation()) > range) continue;
                 GameObject[] objects = tile.getGameObjects();
-                if (objects == null) continue;
-                for (GameObject obj : objects) {
-                    if (obj == null) continue;
-                    // GameObjects span multiple tiles; only draw from the anchor tile
-                    if (!obj.getSceneMinLocation().equals(tile.getSceneLocation())) continue;
-                    ObjectComposition comp = client.getObjectDefinition(obj.getId());
-                    if (comp != null && comp.getImpostorIds() != null) comp = comp.getImpostor();
-                    if (comp == null) continue;
-                    String name = comp.getName();
-                    // "Baker's stall" by its start; a kind by its end ("shipwreck" lights any of the eight)
-                    String lower = name == null ? null : name.toLowerCase();
-                    if (lower == null || !(lower.startsWith(target) || lower.endsWith(" " + target))) continue;
-                    if (isSunkenShipwreck(lower, comp)) continue;
-
-                    Shape hull = obj.getConvexHull();
-                    if (hull == null) continue;
-                    Color base = plugin.getConfig().npcHighlightColor();
-                    int outA = base.getAlpha();
-                    int fillA = Math.max(0, Math.min(255, (int) (outA * 0.22)));
-                    graphics.setColor(new Color(base.getRed(), base.getGreen(), base.getBlue(), fillA));
-                    graphics.fill(hull);
-                    graphics.setColor(new Color(base.getRed(), base.getGreen(), base.getBlue(), outA));
-                    graphics.setStroke(new BasicStroke(2));
-                    graphics.draw(hull);
+                if (objects != null) {
+                    for (GameObject obj : objects) {
+                        if (obj == null) continue;
+                        // GameObjects span multiple tiles; only draw from the anchor tile
+                        if (!obj.getSceneMinLocation().equals(tile.getSceneLocation())) continue;
+                        if (matches(obj.getId(), target)) draw(graphics, obj.getConvexHull());
+                    }
                 }
+                // Drains, levers on walls, wall decorations and floor objects are other kinds of object
+                net.runelite.api.WallObject wall = tile.getWallObject();
+                if (wall != null && matches(wall.getId(), target)) draw(graphics, wall.getConvexHull());
+                net.runelite.api.DecorativeObject deco = tile.getDecorativeObject();
+                if (deco != null && matches(deco.getId(), target)) draw(graphics, deco.getConvexHull());
+                net.runelite.api.GroundObject ground = tile.getGroundObject();
+                if (ground != null && matches(ground.getId(), target)) draw(graphics, ground.getConvexHull());
             }
         }
+    }
+
+    /** Whether the object is the step's target: "Baker's stall" by its start, a kind by its end
+     *  ("shipwreck" lights any of the eight). */
+    private boolean matches(int id, String target) {
+        ObjectComposition comp = client.getObjectDefinition(id);
+        if (comp != null && comp.getImpostorIds() != null) comp = comp.getImpostor();
+        if (comp == null) return false;
+        String lower = comp.getName() == null ? null : comp.getName().toLowerCase();
+        if (lower == null || !(lower.startsWith(target) || lower.endsWith(" " + target))) return false;
+        return !isSunkenShipwreck(lower, comp);
+    }
+
+    private void draw(Graphics2D graphics, Shape hull) {
+        if (hull == null) return;
+        Color base = plugin.getConfig().npcHighlightColor();
+        int outA = base.getAlpha();
+        int fillA = Math.max(0, Math.min(255, (int) (outA * 0.22)));
+        graphics.setColor(new Color(base.getRed(), base.getGreen(), base.getBlue(), fillA));
+        graphics.fill(hull);
+        graphics.setColor(new Color(base.getRed(), base.getGreen(), base.getBlue(), outA));
+        graphics.setStroke(new BasicStroke(2));
+        graphics.draw(hull);
     }
 
     /**

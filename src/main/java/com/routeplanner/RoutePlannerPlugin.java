@@ -65,6 +65,9 @@ public class RoutePlannerPlugin extends Plugin {
     @Inject private com.routeplanner.dialog.DialogHighlightOverlay dialogHighlightOverlay;
     @Inject private com.routeplanner.skilling.StallHighlightOverlay stallHighlightOverlay;
     @Inject private com.routeplanner.teleport.SpellbookOverlay spellbookOverlay;
+    @Inject private com.routeplanner.teleport.MinigameTeleportOverlay minigameTeleportOverlay;
+    @Inject private com.routeplanner.quest.QuestListOverlay questListOverlay;
+    @Inject private com.routeplanner.bank.InventoryItemOverlay inventoryItemOverlay;
     @Inject private com.routeplanner.teleport.TeleportItemOverlay teleportItemOverlay;
     private com.routeplanner.model.RouteStep lastDialogStep = null;
     /** Deposit-all steps: when the bank was opened for this step (-1 = not open). */
@@ -169,6 +172,9 @@ public class RoutePlannerPlugin extends Plugin {
         overlayManager.add(dialogHighlightOverlay);
         overlayManager.add(stallHighlightOverlay);
         overlayManager.add(spellbookOverlay);
+        overlayManager.add(minigameTeleportOverlay);
+        overlayManager.add(questListOverlay);
+        overlayManager.add(inventoryItemOverlay);
         overlayManager.add(teleportItemOverlay);
         overlayManager.add(recordingOverlay);
         overlayManager.add(nexusTeleportOverlay);
@@ -201,6 +207,9 @@ public class RoutePlannerPlugin extends Plugin {
         overlayManager.remove(dialogHighlightOverlay);
         overlayManager.remove(stallHighlightOverlay);
         overlayManager.remove(spellbookOverlay);
+        overlayManager.remove(minigameTeleportOverlay);
+        overlayManager.remove(questListOverlay);
+        overlayManager.remove(inventoryItemOverlay);
         overlayManager.remove(teleportItemOverlay);
         overlayManager.remove(recordingOverlay);
         overlayManager.remove(nexusTeleportOverlay);
@@ -614,7 +623,7 @@ public class RoutePlannerPlugin extends Plugin {
         int dist = com.routeplanner.ui.StepLive.NO_TARGET;
         WorldPoint wp = step.getWorldPoint();
         if (wp != null && lastPlayerLocation != null) {
-            dist = wp.getPlane() != lastPlayerLocation.getPlane() ? com.routeplanner.ui.StepLive.OTHER_FLOOR
+            dist = PathfinderOverlay.otherFloor(wp, lastPlayerLocation) ? com.routeplanner.ui.StepLive.OTHER_FLOOR
                 : lastPlayerLocation.distanceTo2D(wp);
         }
 

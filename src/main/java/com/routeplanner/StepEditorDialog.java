@@ -56,6 +56,7 @@ public class StepEditorDialog extends JFrame {
     private JCheckBox highlightCheck;
     private JTextField hlNpc;
     private JTextField hlObject;
+    private JTextField hlInventory;
     private JCheckBox noteCheck;
     private JCheckBox questCheck;
     private javax.swing.JComboBox<String> questPicker;
@@ -281,7 +282,7 @@ public class StepEditorDialog extends JFrame {
         hlBody.setLayout(new BoxLayout(hlBody, BoxLayout.Y_AXIS));
         hlBody.setBackground(ColorScheme.DARKER_GRAY_COLOR);
         hlBody.setBorder(new EmptyBorder(6, 8, 8, 8));
-        JLabel hlHint = new JLabel("<html>When on, lights up this step's NPC / object /<br>bank targets while the step is active.</html>");
+        JLabel hlHint = new JLabel("<html>When on, lights up this step's NPC / object /<br>inventory / bank targets while the step is active.</html>");
         hlHint.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
         hlHint.setAlignmentX(Component.LEFT_ALIGNMENT);
         hlBody.add(hlHint);
@@ -293,6 +294,11 @@ public class StepEditorDialog extends JFrame {
         hlObject = new JTextField();
         hlObject.setToolTipText("Object name, e.g. Yew tree, Iron rocks, Baker's stall");
         hlBody.add(labeled("Object (optional; a recipe can also set this)", hlObject));
+        hlBody.add(Box.createVerticalStrut(6));
+        hlInventory = new JTextField();
+        hlInventory.setToolTipText("<html>Items to outline in your inventory, e.g. <b>Cocktail shaker, Lemon</b>.<br>"
+            + "For \"use X on Y\" steps. Add (*) for any charge, e.g. Amulet of glory(*).</html>");
+        hlBody.add(labeled("Inventory items (optional; comma-separated)", hlInventory));
         root.add(toggleableSection("Highlight", highlightCheck, hlBody));
         root.add(Box.createVerticalStrut(6));
         // Note component (toggleable): text always displays; NPC highlight is gated by Highlight toggle
@@ -464,6 +470,7 @@ public class StepEditorDialog extends JFrame {
             if (editing.isHighlightEnabled()) highlightCheck.setSelected(true);
             if (editing.getSkillingTargetNpc() != null) hlNpc.setText(editing.getSkillingTargetNpc());
             if (editing.getSkillingTargetObject() != null) hlObject.setText(editing.getSkillingTargetObject());
+            if (editing.getInventoryHighlightItems() != null) hlInventory.setText(editing.getInventoryHighlightItems());
             boolean hasNote = (editing.getNoteText() != null && !editing.getNoteText().isEmpty())
                 || (editing.getNpcHighlight() != null && !editing.getNpcHighlight().isEmpty())
                 || (editing.getDialogOptions() != null && !editing.getDialogOptions().isEmpty());
@@ -496,6 +503,7 @@ public class StepEditorDialog extends JFrame {
         if (linkErr == null && noteNpc != null) linkErr = RouteTextValidator.checkField("Highlight NPC", noteNpc.getText());
         if (linkErr == null && hlNpc != null) linkErr = RouteTextValidator.checkField("Highlight NPC", hlNpc.getText());
         if (linkErr == null && hlObject != null) linkErr = RouteTextValidator.checkField("Highlight object", hlObject.getText());
+        if (linkErr == null && hlInventory != null) linkErr = RouteTextValidator.checkField("Inventory items", hlInventory.getText());
         if (linkErr == null && noteDialog != null) linkErr = RouteTextValidator.checkField("Dialogue options", noteDialog.getText());
         if (linkErr == null && itemsField != null) linkErr = RouteTextValidator.checkField("Items", itemsField.getText());
         if (linkErr != null) {
@@ -698,6 +706,8 @@ public class StepEditorDialog extends JFrame {
         else if (!recipe) step.setSkillingTargetNpc(null);
         if (!obj.isEmpty()) step.setSkillingTargetObject(obj);
         else if (!recipe) step.setSkillingTargetObject(null);
+        String inv = hlInventory != null ? hlInventory.getText().trim() : "";
+        step.setInventoryHighlightItems(inv.isEmpty() ? null : inv);
     }
 
     private void applySkillGoal(RouteStep step) {
