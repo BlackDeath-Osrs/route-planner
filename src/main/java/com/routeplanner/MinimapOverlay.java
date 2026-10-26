@@ -3,6 +3,7 @@ package com.routeplanner;
 import com.routeplanner.model.RouteStep;
 import net.runelite.api.Client;
 import net.runelite.api.Point;
+import net.runelite.api.coords.WorldArea;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
@@ -36,6 +37,11 @@ public class MinimapOverlay extends Overlay {
         RouteStep step = plugin.getActiveRoute().getActiveStep();
         if (step == null || step.getWorldPoint() == null) return null;
 
+        // The area on the minimap, up until the whole step is done
+        WorldArea area = plugin.areaOf(step);
+        if (area != null) {
+            AreaGraphics.drawMinimap(graphics, client, area, config.tileHighlightColor());
+        }
         drawMinimapDot(graphics, step.getWorldPoint());
         return null;
     }

@@ -1,23 +1,31 @@
 package com.routeplanner;
 
-import lombok.extern.slf4j.Slf4j;
-
 import com.routeplanner.model.RouteStep;
 import com.routeplanner.model.StepType;
+import com.routeplanner.sailing.Sailing;
+import com.routeplanner.sailing.SailingDocks;
+import com.routeplanner.transport.Transport;
+import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
+import net.runelite.api.GameObject;
 import net.runelite.api.NPC;
+import net.runelite.api.ObjectComposition;
 import net.runelite.api.Perspective;
+import net.runelite.api.Tile;
+import net.runelite.api.TileObject;
+import net.runelite.api.WorldView;
 import net.runelite.api.coords.LocalPoint;
+import net.runelite.api.coords.WorldArea;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.ui.overlay.*;
 import net.runelite.client.ui.overlay.outline.ModelOutlineRenderer;
+import net.runelite.client.util.ColorUtil;
 
-import com.routeplanner.model.RouteStep;
-import com.routeplanner.transport.Transport;
-import net.runelite.api.GameObject;
-import java.awt.Color;
 import javax.inject.Inject;
 import java.awt.*;
+import java.awt.Color;
+import java.util.ArrayList;
+import java.util.List;
 
 @Slf4j
 public class RouteOverlay extends Overlay {
@@ -45,10 +53,15 @@ public class RouteOverlay extends Overlay {
         if (step == null) return null;
         // A step that only has you board a boat has no tile of its own, just the gangplank.
         if (step.getWorldPoint() == null && !plugin.getPathfinderOverlay().isBoardingPending(step)) return null;
+        // An area stays up until the whole step is done (the step stops being active)
+        WorldArea area = plugin.areaOf(step);
+        if (area != null) {
+            AreaGraphics.drawGround(graphics, client, area, config.tileHighlightColor());
+        }
         if (step.isLocationReached() && plugin.getArrivalHoldTicksRemaining() <= 0) return null;
 
-        // Highlight target tile
-        if (step.getWorldPoint() != null) {
+        // Highlight the step's tile
+        if (area == null && step.getWorldPoint() != null) {
             highlightTile(graphics, step.getWorldPoint(), config.tileHighlightColor());
         }
 
@@ -59,13 +72,13 @@ public class RouteOverlay extends Overlay {
 
         // Show transition highlight whenever the active step has a transitionPoint set,
         // regardless of whether the plane-transition logic is active.
-        net.runelite.api.coords.WorldPoint transOrigin = activeStep != null ? activeStep.getTransitionPoint() : null;
+        WorldPoint transOrigin = activeStep != null ? activeStep.getTransitionPoint() : null;
         // A teleport has nothing in the world to point at (the HUD names it instead)
         if (transOrigin == null && transition != null && !transition.teleport) transOrigin = transition.origin;
 
         if (transOrigin != null && activeStep != null) {
             WorldPoint player = client.getLocalPlayer() == null ? null
-                : com.routeplanner.sailing.Sailing.position(client);
+                : Sailing.position(client);
             // Use raw Chebyshev distance ignoring plane so underground transitions still highlight.
             int distToTransition = player == null ? 999 :
                 Math.max(Math.abs(player.getX() - transOrigin.getX()),
@@ -74,8 +87,7 @@ public class RouteOverlay extends Overlay {
                 long ms = System.currentTimeMillis();
                 int alpha = 120 + (int)(80 * Math.sin(ms / 400.0));
                 Color base = config.npcHighlightColor();
-                Color pulse = new Color(base.getRed(), base.getGreen(), base.getBlue(),
-                    Math.max(0, Math.min(255, alpha)));
+                Color pulse = ColorUtil.colorWithAlpha(base, Math.max(0, Math.min(255, alpha)));
                 // Stairs set on the step win; otherwise the ones the route itself climbs.
                 int objId = activeStep.getTransitionPoint() != null ? activeStep.getTransitionObjectId()
                     : transition != null ? transition.objectId : -1;
@@ -83,31 +95,31 @@ public class RouteOverlay extends Overlay {
                 // Gangplanks: when the object isn't known (a dock the route picked, or a step made in
                 // the editor), light up whatever gangplank is beside the dock.
                 if (objId <= 0 && transition != null && transition.actionText != null
-                        && transition.actionText.startsWith(com.routeplanner.sailing.SailingDocks.BOARD)) {
+                        && transition.actionText.startsWith(SailingDocks.BOARD)) {
                     drewHull = highlightNamedNear(graphics, transOrigin, "Gangplank", 6, pulse);
                 }
                 if (objId > 0) {
                     // Highlight all tiles occupied by the transition object by scanning the scene
                     // and drawing filled polygons on matching tiles. Works with HD plugin unlike
                     // ModelOutlineRenderer which requires the standard renderer.
-                    net.runelite.api.Tile[][][] tiles = client.getTopLevelWorldView().getScene().getTiles();
+                    Tile[][][] tiles = client.getTopLevelWorldView().getScene().getTiles();
                     int plane = client.getTopLevelWorldView().getPlane();
-                    for (net.runelite.api.Tile[] row : tiles[plane]) {
-                        for (net.runelite.api.Tile t : row) {
+                    for (Tile[] row : tiles[plane]) {
+                        for (Tile t : row) {
                             if (t == null) continue;
                             // Build a list of all renderable objects on this tile
-                            java.util.List<net.runelite.api.TileObject> candidates = new java.util.ArrayList<>();
+                            List<TileObject> candidates = new ArrayList<>();
                             for (GameObject obj : t.getGameObjects()) { if (obj != null) candidates.add(obj); }
                             if (t.getWallObject() != null) candidates.add(t.getWallObject());
                             if (t.getDecorativeObject() != null) candidates.add(t.getDecorativeObject());
                             if (t.getGroundObject() != null) candidates.add(t.getGroundObject());
-                            for (net.runelite.api.TileObject obj : candidates) {
+                            for (TileObject obj : candidates) {
                                 if (obj == null || obj.getId() != objId) continue;
                                 // Use the object's clickbox (convex hull of the 3D model)
                                 // which gives the actual shape rather than a tile square.
-                                java.awt.Shape clickbox = obj.getClickbox();
+                                Shape clickbox = obj.getClickbox();
                                 if (clickbox != null) {
-                                    graphics.setColor(new Color(pulse.getRed(), pulse.getGreen(), pulse.getBlue(), pulse.getAlpha() / 3));
+                                    graphics.setColor(ColorUtil.colorWithAlpha(pulse, pulse.getAlpha() / 3));
                                     graphics.fill(clickbox);
                                     graphics.setColor(pulse);
                                     graphics.setStroke(new java.awt.BasicStroke(2));
@@ -119,7 +131,7 @@ public class RouteOverlay extends Overlay {
                                     if (lp == null) continue;
                                     Polygon poly = Perspective.getCanvasTilePoly(client, lp);
                                     if (poly == null) continue;
-                                    graphics.setColor(new Color(pulse.getRed(), pulse.getGreen(), pulse.getBlue(), pulse.getAlpha() / 3));
+                                    graphics.setColor(ColorUtil.colorWithAlpha(pulse, pulse.getAlpha() / 3));
                                     graphics.fillPolygon(poly);
                                     graphics.setColor(pulse);
                                     graphics.setStroke(new java.awt.BasicStroke(2));
@@ -143,27 +155,27 @@ public class RouteOverlay extends Overlay {
 
     /** Highlights every object called {@code name} within {@code radius} tiles of {@code center}. */
     private boolean highlightNamedNear(Graphics2D graphics, WorldPoint center, String name, int radius, Color pulse) {
-        net.runelite.api.WorldView wv = client.getTopLevelWorldView();
+        WorldView wv = client.getTopLevelWorldView();
         LocalPoint c = LocalPoint.fromWorld(wv, center);
         if (c == null) return false;
         int cx = c.getSceneX(), cy = c.getSceneY();
-        net.runelite.api.Tile[][] tiles = wv.getScene().getTiles()[wv.getPlane()];
+        Tile[][] tiles = wv.getScene().getTiles()[wv.getPlane()];
         boolean drew = false;
         for (int x = Math.max(0, cx - radius); x <= Math.min(tiles.length - 1, cx + radius); x++) {
             for (int y = Math.max(0, cy - radius); y <= Math.min(tiles[x].length - 1, cy + radius); y++) {
-                net.runelite.api.Tile t = tiles[x][y];
+                Tile t = tiles[x][y];
                 if (t == null) continue;
-                java.util.List<net.runelite.api.TileObject> objs = new java.util.ArrayList<>();
+                List<TileObject> objs = new ArrayList<>();
                 for (GameObject obj : t.getGameObjects()) { if (obj != null) objs.add(obj); }
                 if (t.getGroundObject() != null) objs.add(t.getGroundObject());
                 if (t.getDecorativeObject() != null) objs.add(t.getDecorativeObject());
-                for (net.runelite.api.TileObject obj : objs) {
-                    net.runelite.api.ObjectComposition def = client.getObjectDefinition(obj.getId());
+                for (TileObject obj : objs) {
+                    ObjectComposition def = client.getObjectDefinition(obj.getId());
                     if (def != null && def.getImpostorIds() != null) def = def.getImpostor();
                     if (def == null || !name.equalsIgnoreCase(def.getName())) continue;
-                    java.awt.Shape clickbox = obj.getClickbox();
+                    Shape clickbox = obj.getClickbox();
                     if (clickbox == null) continue;
-                    graphics.setColor(new Color(pulse.getRed(), pulse.getGreen(), pulse.getBlue(), pulse.getAlpha() / 3));
+                    graphics.setColor(ColorUtil.colorWithAlpha(pulse, pulse.getAlpha() / 3));
                     graphics.fill(clickbox);
                     graphics.setColor(pulse);
                     graphics.setStroke(new java.awt.BasicStroke(2));

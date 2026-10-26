@@ -8,8 +8,11 @@ import net.runelite.client.config.ConfigSection;
 import net.runelite.client.config.Range;
 import java.awt.Color;
 
-@ConfigGroup("routeplanner")
+@ConfigGroup(RoutePlannerConfig.GROUP)
 public interface RoutePlannerConfig extends Config {
+
+    /** The config group everything is saved under, including the routes themselves. */
+    String GROUP = "routeplanner";
 
     @ConfigSection(
         name = "HUD Custom Configuration",
@@ -54,7 +57,8 @@ public interface RoutePlannerConfig extends Config {
     @ConfigItem(
         keyName = "betaFeatures",
         name = "Enable beta features",
-        description = "Turns on features that are still being tried out. There are none right now.",
+        description = "Turns on features that are still being tried out: drawn areas on location steps"
+            + " (Draw area in the step editor).",
         position = 0,
         section = betaSection
     )
@@ -102,7 +106,7 @@ public interface RoutePlannerConfig extends Config {
         description = "Increase the tick value 0-30 for the delay. 0 = hide on arrival, 30 = Always On.",
         position = 3
     )
-    @net.runelite.client.config.Range(min = 0, max = 30)
+    @Range(min = 0, max = 30)
     default int arrivalHideDelay() { return 0; }
 
     @Alpha
@@ -311,7 +315,7 @@ public interface RoutePlannerConfig extends Config {
         position = 201,
         section = waypointSection
     )
-    default LineStyle lineStyle() { return LineStyle.DASHED; }
+    default LineStyle lineStyle() { return LineStyle.TRACER; }
 
     @Alpha
     @ConfigItem(
@@ -326,7 +330,7 @@ public interface RoutePlannerConfig extends Config {
     @ConfigItem(
         keyName = "lineUseDashColor",
         name = "Separate dash color",
-        description = "Draw the dashes/dots in their own color over a faint base line.",
+        description = "Draw the dashes/dots (or the tracer pulse) in their own color over a faint base line.",
         position = 203,
         section = waypointSection
     )
@@ -361,10 +365,30 @@ public interface RoutePlannerConfig extends Config {
     )
     default boolean lineGlow() { return true; }
 
+    @Range(min = 0, max = 60)
+    @ConfigItem(
+        keyName = "tracerSpeed",
+        name = "Tracer speed",
+        description = "How fast the tracer pulse runs along the line, in tiles per second (Tracer style).",
+        position = 207,
+        section = waypointSection
+    )
+    default int tracerSpeed() { return 30; }
+
+    @Range(min = 0, max = 100)
+    @ConfigItem(
+        keyName = "tracerIntensity",
+        name = "Tracer intensity",
+        description = "How much dimmer the line is than the pulse (Tracer style). 0 = no difference.",
+        position = 208,
+        section = waypointSection
+    )
+    default int tracerIntensity() { return 50; }
+
     @ConfigItem(
         keyName = "lineAnimate",
         name = "Animate flow",
-        description = "Move the dashes or dots along the line toward the destination (not the solid style).",
+        description = "Move the dashes, dots or tracer pulse along the line toward the destination (not the solid style).",
         position = 209,
         section = waypointSection
     )

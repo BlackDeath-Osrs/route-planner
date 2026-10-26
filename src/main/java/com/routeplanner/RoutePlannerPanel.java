@@ -1,13 +1,17 @@
 package com.routeplanner;
 
 import com.routeplanner.bank.BankItemManager;
+import com.routeplanner.hub.RouteHubPanel;
 import com.routeplanner.model.Route;
 import com.routeplanner.model.RouteSection;
 import com.routeplanner.model.RouteStep;
+import com.routeplanner.record.RecordReviewDialog;
+import com.routeplanner.record.RouteRecorder;
 import com.routeplanner.ui.StepIcon;
 import com.routeplanner.ui.StepLive;
 import com.routeplanner.ui.ThinBar;
 import com.routeplanner.util.RouteTextValidator;
+import net.runelite.api.Quest;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
@@ -15,21 +19,27 @@ import net.runelite.client.ui.components.IconTextField;
 import net.runelite.client.ui.components.materialtabs.MaterialTab;
 import net.runelite.client.ui.components.materialtabs.MaterialTabGroup;
 import net.runelite.client.util.AsyncBufferedImage;
+import net.runelite.client.util.LinkBrowser;
 
 import javax.inject.Inject;
 import javax.swing.*;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.MatteBorder;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.geom.Arc2D;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Path2D;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * The side panel.
@@ -67,7 +77,7 @@ public class RoutePlannerPanel extends PluginPanel {
     private int guidePage;
     private MaterialTabGroup tabGroup;
     private MaterialTab routeTab, mineTab, hubTab;
-    private com.routeplanner.hub.RouteHubPanel hubPanel;
+    private RouteHubPanel hubPanel;
 
     // Route tab
     private JLabel routeNameLabel, routeSubLabel;
@@ -159,7 +169,7 @@ public class RoutePlannerPanel extends PluginPanel {
         tabGroup = new MaterialTabGroup(display);
         tabGroup.setBorder(new EmptyBorder(4, 0, 0, 0));
 
-        hubPanel = new com.routeplanner.hub.RouteHubPanel(plugin, plugin.getRouteHubCatalog(), () -> tabGroup.select(routeTab));
+        hubPanel = new RouteHubPanel(plugin, plugin.getRouteHubCatalog(), () -> tabGroup.select(routeTab));
         hubPanel.setBackVisible(false);
 
         routeTab = new MaterialTab("Route", tabGroup, buildRouteView());
@@ -566,7 +576,7 @@ public class RoutePlannerPanel extends PluginPanel {
     }
 
     private void updateRecBanner() {
-        com.routeplanner.record.RouteRecorder rec = plugin.getRouteRecorder();
+        RouteRecorder rec = plugin.getRouteRecorder();
         if (!rec.isRecording()) return;
         long secs = Math.max(0, (System.currentTimeMillis() - recStartMillis) / 1000);
         int n = rec.getDraftCount();
@@ -777,9 +787,8 @@ public class RoutePlannerPanel extends PluginPanel {
         back.addActionListener(e -> {
             if (prev == null) return;
             prev.setCompleted(false);
-            plugin.resetStepProgress(prev);
-            prev.setNpcKillProgress(0);
-            plugin.saveRoutesPublic();
+            prev.resetProgress();
+            plugin.saveRoutes();
             plugin.setActiveRoute(route); // re-runs section collapsing for the restored step
         });
         JPanel right = new JPanel(new GridLayout(1, 2, 4, 0));
@@ -878,7 +887,7 @@ public class RoutePlannerPanel extends PluginPanel {
         if (step.hasQuest() && step.isQuestComplete()) {
             liveBox.add(Box.createVerticalStrut(8));
             String q = step.getQuestName();
-            try { q = net.runelite.api.Quest.valueOf(q).getName(); } catch (IllegalArgumentException ignored) {}
+            try { q = Quest.valueOf(q).getName(); } catch (IllegalArgumentException ignored) {}
             JLabel ql = new JLabel("<html><div style='width:170px'>Finish the quest <b>" + htmlEscape(q)
                 + "</b></div></html>", new StepIcon(StepIcon.Kind.QUEST, 16, false), SwingConstants.LEFT);
             ql.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
@@ -1019,7 +1028,7 @@ public class RoutePlannerPanel extends PluginPanel {
                     if (SwingUtilities.isLeftMouseButton(e)) {
                         if (dev) selectedSectionId = section.getId();
                         section.setCollapsed(!section.isCollapsed());
-                        plugin.saveRoutesPublic();
+                        plugin.saveRoutes();
                         rebuild();
                     }
                 }
@@ -1077,9 +1086,10 @@ public class RoutePlannerPanel extends PluginPanel {
         name.setForeground(step.isCompleted() ? DONE_FG : Color.WHITE);
         row.add(name, BorderLayout.CENTER);
         if (now) {
-            JLabel pill = new JLabel(" NOW ");
+            boolean testing = route != null && step == route.getTestStep();
+            JLabel pill = new JLabel(!testing ? " NOW " : route.isTestPassed() ? " PASS " : " TEST ");
             pill.setOpaque(true);
-            pill.setBackground(ORANGE);
+            pill.setBackground(testing && route.isTestPassed() ? GREEN : ORANGE);
             pill.setForeground(new Color(27, 18, 0));
             pill.setFont(FontManager.getRunescapeSmallFont());
             JPanel east = new JPanel(new GridBagLayout());
@@ -1144,9 +1154,8 @@ public class RoutePlannerPanel extends PluginPanel {
         complete.addActionListener(ev -> {
             if (step.isCompleted()) {
                 step.setCompleted(false);
-                plugin.resetStepProgress(step);
-                step.setNpcKillProgress(0);
-                plugin.saveRoutesPublic();
+                step.resetProgress();
+                plugin.saveRoutes();
                 refresh();
             } else {
                 plugin.completeStep(step);
@@ -1164,7 +1173,7 @@ public class RoutePlannerPanel extends PluginPanel {
             mv.addActionListener(ev -> {
                 active.removeStep(step);
                 active.addStepToSection(step, ts.getId());
-                plugin.saveRoutesPublic();
+                plugin.saveRoutes();
                 refresh();
             });
             move.add(mv);
@@ -1180,6 +1189,15 @@ public class RoutePlannerPanel extends PluginPanel {
         delete.addActionListener(ev -> plugin.removeStep(active, step));
         menu.add(move);
         menu.add(edit);
+        if (plugin.isDeveloperMode()) {
+            boolean testing = step == active.getTestStep();
+            JMenuItem test = new JMenuItem(testing ? "Resume Route" : "Test Step");
+            test.addActionListener(ev -> {
+                if (testing) plugin.resumeRoute();
+                else plugin.testStep(step);
+            });
+            menu.add(test);
+        }
         menu.add(delete);
         return menu;
     }
@@ -1190,9 +1208,9 @@ public class RoutePlannerPanel extends PluginPanel {
         mark.addActionListener(ev -> {
             for (RouteStep s : section.getSteps()) {
                 s.setCompleted(!allDone);
-                if (allDone) plugin.resetStepProgress(s);
+                if (allDone) s.resetProgress();
             }
-            plugin.saveRoutesPublic();
+            plugin.saveRoutes();
             refresh();
         });
         if (!dev) { menu.add(mark); return menu; }
@@ -1201,12 +1219,12 @@ public class RoutePlannerPanel extends PluginPanel {
         JMenuItem up = new JMenuItem("Move Up");
         up.addActionListener(ev -> {
             int i = secs.indexOf(section);
-            if (i > 0) { java.util.Collections.swap(secs, i, i - 1); plugin.saveRoutesPublic(); refresh(); }
+            if (i > 0) { Collections.swap(secs, i, i - 1); plugin.saveRoutes(); refresh(); }
         });
         JMenuItem down = new JMenuItem("Move Down");
         down.addActionListener(ev -> {
             int i = secs.indexOf(section);
-            if (i >= 0 && i < secs.size() - 1) { java.util.Collections.swap(secs, i, i + 1); plugin.saveRoutesPublic(); refresh(); }
+            if (i >= 0 && i < secs.size() - 1) { Collections.swap(secs, i, i + 1); plugin.saveRoutes(); refresh(); }
         });
         JMenuItem rename = new JMenuItem("Rename Section");
         rename.addActionListener(ev -> {
@@ -1215,7 +1233,7 @@ public class RoutePlannerPanel extends PluginPanel {
             String err = RouteTextValidator.checkField("Section name", nn.trim());
             if (err != null) { JOptionPane.showMessageDialog(this, err, "Links not allowed", JOptionPane.WARNING_MESSAGE); return; }
             section.setName(nn.trim());
-            plugin.saveRoutesPublic();
+            plugin.saveRoutes();
             refresh();
         });
         JMenuItem delete = new JMenuItem("Delete Section");
@@ -1225,7 +1243,7 @@ public class RoutePlannerPanel extends PluginPanel {
             if (c != JOptionPane.YES_OPTION) return;
             active.getSections().remove(section);
             if (section.getId().equals(selectedSectionId)) selectedSectionId = null;
-            plugin.saveRoutesPublic();
+            plugin.saveRoutes();
             refresh();
         });
         menu.add(up);
@@ -1261,7 +1279,7 @@ public class RoutePlannerPanel extends PluginPanel {
         dst.add(to, draggedStep);
         // Otherwise the step would silently disappear into a collapsed section.
         if (targetSection.isCollapsed()) targetSection.setCollapsed(false);
-        plugin.saveRoutesPublic();
+        plugin.saveRoutes();
         refresh();
     }
 
@@ -1290,10 +1308,10 @@ public class RoutePlannerPanel extends PluginPanel {
         mineSearch.setBackground(ColorScheme.DARKER_GRAY_COLOR);
         mineSearch.setHoverBackgroundColor(ColorScheme.DARKER_GRAY_HOVER_COLOR);
         mineSearch.setPreferredSize(new Dimension(10, 30));
-        mineSearch.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
-            public void insertUpdate(javax.swing.event.DocumentEvent e) { rebuildMine(); }
-            public void removeUpdate(javax.swing.event.DocumentEvent e) { rebuildMine(); }
-            public void changedUpdate(javax.swing.event.DocumentEvent e) { rebuildMine(); }
+        mineSearch.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { rebuildMine(); }
+            public void removeUpdate(DocumentEvent e) { rebuildMine(); }
+            public void changedUpdate(DocumentEvent e) { rebuildMine(); }
         });
         view.add(mineSearch, BorderLayout.NORTH);
 
@@ -1421,12 +1439,12 @@ public class RoutePlannerPanel extends PluginPanel {
             String err = RouteTextValidator.checkField("Route name", newName.trim());
             if (err != null) { JOptionPane.showMessageDialog(this, err, "Links not allowed", JOptionPane.WARNING_MESSAGE); return; }
             route.setName(newName.trim());
-            plugin.saveRoutesPublic();
+            plugin.saveRoutes();
             refresh();
         });
         JMenuItem repeat = new JMenuItem(route.isRepeatable() ? "Repeatable: on" : "Repeatable: off");
         repeat.setToolTipText("A repeatable route starts over by itself when you finish it");
-        repeat.addActionListener(e -> { route.setRepeatable(!route.isRepeatable()); plugin.saveRoutesPublic(); refresh(); });
+        repeat.addActionListener(e -> { route.setRepeatable(!route.isRepeatable()); plugin.saveRoutes(); refresh(); });
         JMenuItem reset = new JMenuItem("Reset progress");
         reset.addActionListener(e -> plugin.resetRoute(route));
         JMenuItem export = new JMenuItem("Export to file");
@@ -1434,7 +1452,7 @@ public class RoutePlannerPanel extends PluginPanel {
         JMenuItem share = new JMenuItem("Share to the Route Hub...");
         share.setToolTipText("Opens the routes repo on GitHub. Submitting is a pull request, not an upload "
             + "from the plugin. See the repo's README for the how-to.");
-        share.addActionListener(e -> net.runelite.client.util.LinkBrowser.browse("https://github.com/BlackDeath-Osrs/route-planner-routes"));
+        share.addActionListener(e -> LinkBrowser.browse("https://github.com/BlackDeath-Osrs/route-planner-routes"));
         JMenuItem delete = new JMenuItem("Delete");
         delete.addActionListener(e -> {
             int c = JOptionPane.showConfirmDialog(this, "Delete route \"" + route.getName() + "\" and its "
@@ -1478,15 +1496,15 @@ public class RoutePlannerPanel extends PluginPanel {
         if (name == null || name.trim().isEmpty()) return;
         String err = RouteTextValidator.checkField("Section name", name.trim());
         if (err != null) { JOptionPane.showMessageDialog(this, err, "Links not allowed", JOptionPane.WARNING_MESSAGE); return; }
-        RouteSection sec = new RouteSection(java.util.UUID.randomUUID().toString(), name.trim());
+        RouteSection sec = new RouteSection(UUID.randomUUID().toString(), name.trim());
         active.getSections().add(sec);
         selectedSectionId = sec.getId();
-        plugin.saveRoutesPublic();
+        plugin.saveRoutes();
         refresh();
     }
 
     private void startRecording(Route route) {
-        com.routeplanner.record.RouteRecorder recorder = plugin.getRouteRecorder();
+        RouteRecorder recorder = plugin.getRouteRecorder();
         if (recorder.isRecording()) return;
         plugin.getClientThread().invokeLater(() -> {
             recorder.start(route);
@@ -1495,7 +1513,7 @@ public class RoutePlannerPanel extends PluginPanel {
     }
 
     private void stopRecording() {
-        com.routeplanner.record.RouteRecorder recorder = plugin.getRouteRecorder();
+        RouteRecorder recorder = plugin.getRouteRecorder();
         if (!recorder.isRecording()) return;
         plugin.getClientThread().invokeLater(() -> {
             List<RouteStep> drafts = recorder.stop();
@@ -1503,7 +1521,7 @@ public class RoutePlannerPanel extends PluginPanel {
             SwingUtilities.invokeLater(() -> {
                 refresh();
                 if (drafts.isEmpty()) JOptionPane.showMessageDialog(this, "Nothing was recorded.");
-                else new com.routeplanner.record.RecordReviewDialog(plugin, route, drafts).setVisible(true);
+                else new RecordReviewDialog(plugin, route, drafts).setVisible(true);
             });
         });
     }
@@ -1513,7 +1531,7 @@ public class RoutePlannerPanel extends PluginPanel {
         if (text == null || text.trim().isEmpty()) return;
         String err = RouteTextValidator.checkField("Note", text.trim());
         if (err != null) { JOptionPane.showMessageDialog(this, err, "Links not allowed", JOptionPane.WARNING_MESSAGE); return; }
-        com.routeplanner.record.RouteRecorder recorder = plugin.getRouteRecorder();
+        RouteRecorder recorder = plugin.getRouteRecorder();
         plugin.getClientThread().invokeLater(() -> recorder.addNote(text.trim()));
     }
 
@@ -1775,7 +1793,7 @@ public class RoutePlannerPanel extends PluginPanel {
             if (redo) { g2.translate(16, 0); g2.scale(-1, 1); }
             g2.setColor(comp.getForeground());
             g2.setStroke(new BasicStroke(1.8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-            g2.draw(new java.awt.geom.Arc2D.Float(3, 3, 10, 10, 30, 220, java.awt.geom.Arc2D.OPEN));
+            g2.draw(new Arc2D.Float(3, 3, 10, 10, 30, 220, Arc2D.OPEN));
             int hx = 4, hy = 11;
             g2.fill(new Polygon(new int[]{hx, hx + 4, hx - 1}, new int[]{hy - 4, hy + 1, hy + 3}, 3));
             g2.dispose();

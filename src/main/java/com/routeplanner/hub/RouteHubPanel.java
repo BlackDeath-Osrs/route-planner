@@ -1,14 +1,28 @@
 package com.routeplanner.hub;
 
+import com.routeplanner.RoutePlannerPlugin;
+import com.routeplanner.model.Route;
+import com.routeplanner.model.RouteSection;
+import com.routeplanner.model.RouteStep;
+import com.routeplanner.util.RouteTextValidator;
 import lombok.extern.slf4j.Slf4j;
-
 import net.runelite.client.ui.ColorScheme;
 
+import javax.imageio.ImageIO;
 import javax.inject.Inject;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.io.ByteArrayInputStream;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * The Route Hub browse view. Skeleton for now (v1.4 step 4b): fetches the catalog and lists
@@ -19,7 +33,7 @@ import java.util.List;
 @Slf4j
 public class RouteHubPanel extends JPanel {
 
-    private final com.routeplanner.RoutePlannerPlugin plugin;
+    private final RoutePlannerPlugin plugin;
     private final RouteHubCatalog catalog;
     private final Runnable onBack;
     private final JPanel listPanel;
@@ -33,7 +47,7 @@ public class RouteHubPanel extends JPanel {
         back.setVisible(visible);
     }
 
-    public RouteHubPanel(com.routeplanner.RoutePlannerPlugin plugin, RouteHubCatalog catalog, Runnable onBack) {
+    public RouteHubPanel(RoutePlannerPlugin plugin, RouteHubCatalog catalog, Runnable onBack) {
         this.plugin = plugin;
         this.catalog = catalog;
         this.onBack = onBack;
@@ -69,10 +83,10 @@ public class RouteHubPanel extends JPanel {
             BorderFactory.createLineBorder(new Color(60, 60, 60), 1),
             new EmptyBorder(5, 7, 5, 7)));
         search.putClientProperty("JTextField.placeholderText", "Search routes\u2026");
-        search.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
-            public void insertUpdate(javax.swing.event.DocumentEvent e) { applyFilter(search.getText()); }
-            public void removeUpdate(javax.swing.event.DocumentEvent e) { applyFilter(search.getText()); }
-            public void changedUpdate(javax.swing.event.DocumentEvent e) { applyFilter(search.getText()); }
+        search.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { applyFilter(search.getText()); }
+            public void removeUpdate(DocumentEvent e) { applyFilter(search.getText()); }
+            public void changedUpdate(DocumentEvent e) { applyFilter(search.getText()); }
         });
         JPanel searchWrap = new JPanel(new BorderLayout());
         searchWrap.setOpaque(false);
@@ -125,8 +139,8 @@ public class RouteHubPanel extends JPanel {
     // Decoded icons keyed by entry id, so re-rendering the list (e.g. after a tab switch) does not
     // re-fetch or re-decode icons that already loaded successfully this session. Cleared never --
     // the panel's lifetime is one Hub-view visit, and 12-48px icons are cheap to hold in memory.
-    private final java.util.Map<String, ImageIcon> iconCache = new java.util.HashMap<>();
-    private java.util.List<HubRouteEntry> allEntries = java.util.Collections.emptyList();
+    private final Map<String, ImageIcon> iconCache = new HashMap<>();
+    private List<HubRouteEntry> allEntries = Collections.emptyList();
 
     /** Fetches and decodes one entry's icon off the EDT, then swaps it into the given label. Never
      *  throws back to the caller and never leaves the label in a broken state -- on any failure the
@@ -144,10 +158,10 @@ public class RouteHubPanel extends JPanel {
             protected ImageIcon doInBackground() {
                 try {
                     byte[] bytes = catalog.fetchIconBytes(entry.icon);
-                    java.awt.Image img = javax.imageio.ImageIO.read(new java.io.ByteArrayInputStream(bytes));
+                    Image img = ImageIO.read(new ByteArrayInputStream(bytes));
                     if (img == null) return null; // not a decodable image
                     if (img.getWidth(null) <= 0 || img.getHeight(null) <= 0) return null;
-                    java.awt.Image scaled = img.getScaledInstance(48, 48, java.awt.Image.SCALE_SMOOTH);
+                    Image scaled = img.getScaledInstance(48, 48, Image.SCALE_SMOOTH);
                     return new ImageIcon(scaled);
                 } catch (Exception e) {
                     log.debug("Icon load failed for {}: {}", entry.id, e.toString());
@@ -180,24 +194,24 @@ public class RouteHubPanel extends JPanel {
      * import-time re-validation layer from the security model. Returns null if the route is safe
      * to install, or a short user-facing reason if it should be refused.
      */
-    private String validateFetchedRoute(com.routeplanner.model.Route route) {
+    private String validateFetchedRoute(Route route) {
         if (route == null || route.getName() == null) return "The route file is empty or malformed.";
         if (route.getName().length() > MAX_NAME_LEN) return "The route's name is too long.";
 
-        String nameErr = com.routeplanner.util.RouteTextValidator.checkField("Route name", route.getName());
+        String nameErr = RouteTextValidator.checkField("Route name", route.getName());
         if (nameErr != null) return nameErr;
 
         int totalSteps = 0;
-        java.util.List<com.routeplanner.model.RouteSection> sections = route.getSections();
+        List<RouteSection> sections = route.getSections();
         if (sections == null) return null; // an empty route is unusual but not unsafe
 
-        for (com.routeplanner.model.RouteSection section : sections) {
+        for (RouteSection section : sections) {
             if (section == null || section.getSteps() == null) continue;
 
-            String secErr = com.routeplanner.util.RouteTextValidator.checkField("Section name", section.getName());
+            String secErr = RouteTextValidator.checkField("Section name", section.getName());
             if (secErr != null) return secErr;
 
-            for (com.routeplanner.model.RouteStep step : section.getSteps()) {
+            for (RouteStep step : section.getSteps()) {
                 if (step == null) continue;
                 totalSteps++;
                 if (totalSteps > MAX_STEPS) return "This route has too many steps.";
@@ -209,12 +223,12 @@ public class RouteHubPanel extends JPanel {
                     return "A step's note is too long.";
                 }
 
-                String err = com.routeplanner.util.RouteTextValidator.checkField("Step name", step.getName());
-                if (err == null) err = com.routeplanner.util.RouteTextValidator.checkField("Note", step.getNoteText());
-                if (err == null) err = com.routeplanner.util.RouteTextValidator.checkField("Highlight NPC", step.getNpcHighlight());
-                if (err == null) err = com.routeplanner.util.RouteTextValidator.checkField("Dialogue options", step.getDialogOptions());
-                if (err == null) err = com.routeplanner.util.RouteTextValidator.checkField("Items", step.getItemList());
-                if (err == null) err = com.routeplanner.util.RouteTextValidator.checkField("Inventory items", step.getInventoryHighlightItems());
+                String err = RouteTextValidator.checkField("Step name", step.getName());
+                if (err == null) err = RouteTextValidator.checkField("Note", step.getNoteText());
+                if (err == null) err = RouteTextValidator.checkField("Highlight NPC", step.getNpcHighlight());
+                if (err == null) err = RouteTextValidator.checkField("Dialogue options", step.getDialogOptions());
+                if (err == null) err = RouteTextValidator.checkField("Items", step.getItemList());
+                if (err == null) err = RouteTextValidator.checkField("Inventory items", step.getInventoryHighlightItems());
                 if (err != null) return err;
             }
         }
@@ -246,6 +260,7 @@ public class RouteHubPanel extends JPanel {
                 try {
                     entries = get();
                 } catch (Exception e) {
+                    log.warn("Route Planner: loading the Route Hub failed", e);
                     showMessage("Something went wrong loading the Route Hub.");
                     return;
                 }
@@ -268,7 +283,7 @@ public class RouteHubPanel extends JPanel {
         listPanel.removeAll();
         String q = query == null ? "" : query.trim().toLowerCase();
 
-        java.util.List<HubRouteEntry> matches = new java.util.ArrayList<>();
+        List<HubRouteEntry> matches = new ArrayList<>();
         for (HubRouteEntry entry : allEntries) {
             if (q.isEmpty() || matchesQuery(entry, q)) matches.add(entry);
         }
@@ -299,7 +314,7 @@ public class RouteHubPanel extends JPanel {
 
     /** Shows the most recent "updated" date across the catalog, in a small footer. A single line
      *  for the whole Hub, not per-row, since the ask was catalog freshness at a glance. */
-    private void updateFooter(java.util.List<HubRouteEntry> entries) {
+    private void updateFooter(List<HubRouteEntry> entries) {
         String latest = null;
         for (HubRouteEntry entry : entries) {
             if (entry.updated == null || entry.updated.isEmpty()) continue;
@@ -375,9 +390,9 @@ public class RouteHubPanel extends JPanel {
         };
         applyState.run();
 
-        java.awt.event.MouseAdapter toggle = new java.awt.event.MouseAdapter() {
+        MouseAdapter toggle = new MouseAdapter() {
             @Override
-            public void mouseClicked(java.awt.event.MouseEvent e) {
+            public void mouseClicked(MouseEvent e) {
                 plugin.setHubWarningCollapsed(!plugin.isHubWarningCollapsed());
                 applyState.run();
                 banner.revalidate();
@@ -461,8 +476,8 @@ public class RouteHubPanel extends JPanel {
      *  the real route list as the source of truth means there is no separate persisted "installed"
      *  set to drift out of sync -- e.g. if the user deletes the route manually from their list, the
      *  button correctly reverts to Install with no extra bookkeeping. */
-    private com.routeplanner.model.Route findInstalled(HubRouteEntry entry) {
-        for (com.routeplanner.model.Route r : plugin.getRoutes()) {
+    private Route findInstalled(HubRouteEntry entry) {
+        for (Route r : plugin.getRoutes()) {
             if (entry.id.equals(r.getHubSourceId())) return r;
         }
         return null;
@@ -476,10 +491,10 @@ public class RouteHubPanel extends JPanel {
         btn.setFont(btn.getFont().deriveFont(Font.BOLD, 13f));
         btn.setHorizontalAlignment(SwingConstants.CENTER);
         btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        btn.addMouseListener(new java.awt.event.MouseAdapter() {
+        btn.addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(java.awt.event.MouseEvent e) {
-                com.routeplanner.model.Route existing = findInstalled(entry);
+            public void mouseClicked(MouseEvent e) {
+                Route existing = findInstalled(entry);
                 if (existing != null) {
                     removeInstalled(entry, existing, btn);
                 } else {
@@ -520,13 +535,13 @@ public class RouteHubPanel extends JPanel {
         btn.setEnabled(false);
         new SwingWorker<Void, Void>() {
             private String failureMessage;
-            private com.routeplanner.model.Route parsedRoute;
+            private Route parsedRoute;
 
             @Override
             protected Void doInBackground() {
                 try {
                     String json = catalog.fetchRouteJson(entry.file);
-                    com.routeplanner.model.Route route = plugin.getRouteGson().fromJson(json, com.routeplanner.model.Route.class);
+                    Route route = plugin.getRouteGson().fromJson(json, Route.class);
                     if (route == null) {
                         failureMessage = "The route file is empty or malformed.";
                         return null;
@@ -560,7 +575,7 @@ public class RouteHubPanel extends JPanel {
                     return;
                 }
                 plugin.getRoutes().add(parsedRoute);
-                plugin.saveRoutesPublic();
+                plugin.saveRoutes();
                 plugin.setActiveRoute(parsedRoute);
                 refreshInstallControl(btn, entry);
             }
@@ -572,7 +587,7 @@ public class RouteHubPanel extends JPanel {
      *  matched, forgets its undo/redo history, and refreshes the main panel. A bare
      *  routes.remove(route) skips all of that, which is what originally left stale step data
      *  visible after a hub removal: the main panel was never told to refresh. */
-    private void removeInstalled(HubRouteEntry entry, com.routeplanner.model.Route route, JLabel btn) {
+    private void removeInstalled(HubRouteEntry entry, Route route, JLabel btn) {
         int confirm = JOptionPane.showConfirmDialog(this,
             "Remove \"" + route.getName() + "\" from your routes?",
             "Remove route", JOptionPane.YES_NO_OPTION);

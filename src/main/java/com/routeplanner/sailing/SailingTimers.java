@@ -5,6 +5,7 @@ import net.runelite.api.Client;
 import net.runelite.api.GameObject;
 import net.runelite.api.ObjectComposition;
 import net.runelite.api.Perspective;
+import net.runelite.api.Point;
 import net.runelite.api.Skill;
 import net.runelite.api.Tile;
 import net.runelite.api.WorldEntity;
@@ -14,13 +15,19 @@ import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.api.events.StatChanged;
 import net.runelite.api.gameval.VarbitID;
+import net.runelite.client.Notifier;
+import net.runelite.client.audio.AudioPlayer;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.util.Text;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import java.awt.Toolkit;
 import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Countdowns and the voyage time for the HUD while sailing:
@@ -66,9 +73,9 @@ public class SailingTimers {
     private long shoalMovesAt = -1;
 
     /** The wrecks being salvaged (in hook reach since a hook went down or salvage came in), by their tile. */
-    private final java.util.Set<WorldPoint> wrecks = new java.util.LinkedHashSet<>();
-    private final net.runelite.client.audio.AudioPlayer audioPlayer;
-    private final net.runelite.client.Notifier notifier;
+    private final Set<WorldPoint> wrecks = new LinkedHashSet<>();
+    private final AudioPlayer audioPlayer;
+    private final Notifier notifier;
 
     private WorldPoint boatLast;
     private double measured;   // tiles per tick, over the last few ticks
@@ -76,8 +83,8 @@ public class SailingTimers {
     private long arrivalAt = -1;
 
     @Inject
-    public SailingTimers(Client client, RoutePlannerConfig config, net.runelite.client.audio.AudioPlayer audioPlayer,
-                         net.runelite.client.Notifier notifier) {
+    public SailingTimers(Client client, RoutePlannerConfig config, AudioPlayer audioPlayer,
+                         Notifier notifier) {
         this.client = client;
         this.config = config;
         this.audioPlayer = audioPlayer;
@@ -101,7 +108,7 @@ public class SailingTimers {
         boatLast = boat;
         followShoal(tick);
         boolean sank = false;
-        java.util.Iterator<WorldPoint> it = wrecks.iterator();
+        Iterator<WorldPoint> it = wrecks.iterator();
         while (it.hasNext()) {
             WorldPoint wreck = it.next();
             if (!activeWreckAt(wreck)) { sank = true; it.remove(); }
@@ -122,11 +129,11 @@ public class SailingTimers {
                     float gainDb = (float) (20 * Math.log10(Math.min(100, volume) / 100.0));
                     audioPlayer.play(SailingTimers.class, "/com/routeplanner/sailing/bosun-call.wav", gainDb);
                 } catch (Exception e) {
-                    java.awt.Toolkit.getDefaultToolkit().beep();   // no sound device for it: at least a beep
+                    Toolkit.getDefaultToolkit().beep();   // no sound device for it: at least a beep
                 }
                 break;
             case SYSTEM:
-                java.awt.Toolkit.getDefaultToolkit().beep();
+                Toolkit.getDefaultToolkit().beep();
                 break;
             case RUNELITE:
                 notifier.notify("All wrecks have sunk");
@@ -245,8 +252,8 @@ public class SailingTimers {
     }
 
     /** The tiles of shipwrecks that can be salvaged and that a hook can reach from the hull. */
-    private java.util.Set<WorldPoint> wrecksInReach() {
-        java.util.Set<WorldPoint> out = new java.util.LinkedHashSet<>();
+    private Set<WorldPoint> wrecksInReach() {
+        Set<WorldPoint> out = new LinkedHashSet<>();
         WorldPoint boat = Sailing.position(client);
         WorldView wv = client.getTopLevelWorldView();
         LocalPoint c = boat == null || wv == null ? null : LocalPoint.fromWorld(wv, boat);
@@ -268,7 +275,7 @@ public class SailingTimers {
     }
 
     private boolean inHookReach(WorldView wv, GameObject obj) {
-        net.runelite.api.Point min = obj.getSceneMinLocation(), max = obj.getSceneMaxLocation();
+        Point min = obj.getSceneMinLocation(), max = obj.getSceneMaxLocation();
         for (int x = min.getX(); x <= max.getX(); x++) {
             for (int y = min.getY(); y <= max.getY(); y++) {
                 WorldPoint tile = new WorldPoint(wv.getBaseX() + x, wv.getBaseY() + y, wv.getPlane());

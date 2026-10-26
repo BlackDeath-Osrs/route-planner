@@ -1,6 +1,7 @@
 package com.routeplanner.util;
 
 import com.google.gson.*;
+import com.google.gson.reflect.TypeToken;
 import com.routeplanner.model.Route;
 import net.runelite.api.coords.WorldPoint;
 
@@ -17,16 +18,17 @@ public class RouteSerializer {
         return gson.toJson(routes);
     }
 
+    /**
+     * Parses saved routes. Empty input is an empty list, but text that doesn't parse throws: an
+     * empty list there would look like "no routes" and the next save would overwrite them.
+     */
     public static List<Route> fromJson(String json, Gson gson) {
         if (json == null || json.isEmpty()) return new ArrayList<>();
-        try {
-            Type listType = new com.google.gson.reflect.TypeToken<List<Route>>(){}.getType();
-            List<Route> loaded = gson.fromJson(json, listType);
-            if (loaded != null) { for (Route r : loaded) r.migrateIfNeeded(); }
-            return loaded;
-        } catch (Exception e) {
-            return new ArrayList<>();
-        }
+        Type listType = new TypeToken<List<Route>>(){}.getType();
+        List<Route> loaded = gson.fromJson(json, listType);
+        if (loaded == null) return new ArrayList<>();
+        for (Route r : loaded) r.migrateIfNeeded();
+        return loaded;
     }
 
     public static class WorldPointAdapter implements JsonSerializer<WorldPoint>, JsonDeserializer<WorldPoint> {

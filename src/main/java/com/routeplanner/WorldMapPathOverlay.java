@@ -1,8 +1,10 @@
 package com.routeplanner;
 
 import com.routeplanner.model.RouteStep;
+import com.routeplanner.sailing.Sailing;
 import net.runelite.api.Client;
 import net.runelite.api.Point;
+import net.runelite.api.coords.WorldArea;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.ui.overlay.Overlay;
@@ -12,7 +14,11 @@ import net.runelite.client.ui.overlay.worldmap.WorldMapOverlay;
 
 import javax.inject.Inject;
 import java.awt.*;
+import java.awt.geom.AffineTransform;
 import java.awt.geom.Ellipse2D;
+import java.awt.geom.Path2D;
+import java.util.ArrayList;
+import java.util.List;
 
 public class WorldMapPathOverlay extends Overlay {
 
@@ -24,13 +30,15 @@ public class WorldMapPathOverlay extends Overlay {
     private final RoutePlannerPlugin plugin;
     private final WorldMapOverlay worldMapOverlay;
     private final PathfinderOverlay pathfinderOverlay;
+    private final RoutePlannerConfig config;
 
     @Inject
-    public WorldMapPathOverlay(Client client, RoutePlannerPlugin plugin,
+    public WorldMapPathOverlay(Client client, RoutePlannerPlugin plugin, RoutePlannerConfig config,
                                 WorldMapOverlay worldMapOverlay,
                                 PathfinderOverlay pathfinderOverlay) {
         this.client = client;
         this.plugin = plugin;
+        this.config = config;
         this.worldMapOverlay = worldMapOverlay;
         this.pathfinderOverlay = pathfinderOverlay;
         setPosition(OverlayPosition.DYNAMIC);
@@ -53,13 +61,24 @@ public class WorldMapPathOverlay extends Overlay {
         Rectangle mapBounds = mapWidget.getBounds();
         if (mapBounds == null) return null;
 
-        WorldPoint player = com.routeplanner.sailing.Sailing.position(client);
+        WorldPoint player = Sailing.position(client);
         if (player == null) return null;
 
-        graphics.setColor(new Color(255, 140, 0, 200));
-        float[] dash = {6f, 4f};
-        graphics.setStroke(new BasicStroke(2, BasicStroke.CAP_ROUND,
-            BasicStroke.JOIN_ROUND, 1f, dash, 0f));
+        // The area first, under the line
+        WorldArea area = plugin.areaOf(step);
+        if (area != null) {
+            Shape clip = graphics.getClip();
+            graphics.clip(mapBounds);
+            drawArea(graphics, area);
+            graphics.setClip(clip);
+        }
+
+        // A thin line with small arrowheads along it pointing the way to go
+        Color lineColor = config.lineColor();
+        graphics.setColor(new Color(lineColor.getRed(), lineColor.getGreen(), lineColor.getBlue()));
+        graphics.setStroke(new BasicStroke(1));
+        Object oldAa = graphics.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
+        graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         Shape oldClip = graphics.getClip();
         graphics.clip(mapBounds);
         // The route the pathfinder worked out (round coasts at sea, along roads on land); a straight
@@ -68,11 +87,14 @@ public class WorldMapPathOverlay extends Overlay {
             Point playerMapPoint = worldMapOverlay.mapWorldPointToGraphicsPoint(player);
             Point targetMapPoint = worldMapOverlay.mapWorldPointToGraphicsPoint(target);
             if (playerMapPoint != null && targetMapPoint != null) {
-                graphics.drawLine(playerMapPoint.getX(), playerMapPoint.getY(),
-                                  targetMapPoint.getX(), targetMapPoint.getY());
+                List<Point> run = new ArrayList<>();
+                run.add(playerMapPoint);
+                run.add(targetMapPoint);
+                drawRun(graphics, run);
             }
         }
         graphics.setClip(oldClip);
+        graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, oldAa);
 
         // Draw destination dot
         Point destPoint = worldMapOverlay.mapWorldPointToGraphicsPoint(target);
@@ -106,30 +128,101 @@ public class WorldMapPathOverlay extends Overlay {
         return null;
     }
 
+    /** The step's area as a box on the map, in the tile highlight colour. */
+    private void drawArea(Graphics2D graphics, WorldArea area) {
+        // Opposite outer corners: one past the far tile, so a small area still covers its tiles
+        Point a = worldMapOverlay.mapWorldPointToGraphicsPoint(new WorldPoint(area.getX(), area.getY(), area.getPlane()));
+        Point b = worldMapOverlay.mapWorldPointToGraphicsPoint(
+            new WorldPoint(area.getX() + area.getWidth(), area.getY() + area.getHeight(), area.getPlane()));
+        if (a == null || b == null) return;
+        Rectangle box = new Rectangle(Math.min(a.getX(), b.getX()), Math.min(a.getY(), b.getY()),
+            Math.max(2, Math.abs(b.getX() - a.getX())), Math.max(2, Math.abs(b.getY() - a.getY())));
+        Color c = config.tileHighlightColor();
+        graphics.setColor(AreaGraphics.fill(c));
+        graphics.fill(box);
+        graphics.setColor(AreaGraphics.outline(c));
+        graphics.setStroke(new BasicStroke(2));
+        graphics.draw(box);
+    }
+
     /**
-     * Draws the path as one line on the map, broken where it jumps (stairs, a ship, a cave mouth) or goes
-     * off the map view. Returns false if there's no path to draw.
+     * Draws the path on the map, broken where it jumps (stairs, a ship, a cave mouth) or goes off the
+     * map view. Returns false if there's no path to draw.
      */
-    private boolean drawRoute(Graphics2D graphics, java.util.List<WorldPoint> path) {
+    private boolean drawRoute(Graphics2D graphics, List<WorldPoint> path) {
         if (path == null || path.size() < 2) return false;
-        java.awt.geom.Path2D.Float line = new java.awt.geom.Path2D.Float();
-        boolean drawing = false;
+        List<Point> run = new ArrayList<>();
         WorldPoint prev = null;
         for (WorldPoint wp : path) {
             Point p = worldMapOverlay.mapWorldPointToGraphicsPoint(wp);
             boolean jump = prev != null && (prev.getPlane() != wp.getPlane()
                 || Math.max(Math.abs(prev.getX() - wp.getX()), Math.abs(prev.getY() - wp.getY())) > MAX_STEP_TILES);
-            if (p == null || jump) drawing = false;
+            if (p == null || jump) {
+                drawRun(graphics, run);
+                run = new ArrayList<>();
+            }
             prev = wp;
-            if (p == null) continue;
-            if (drawing) line.lineTo(p.getX(), p.getY());
-            else line.moveTo(p.getX(), p.getY());
-            drawing = true;
+            if (p != null) run.add(p);
+        }
+        drawRun(graphics, run);
+        return true;
+    }
+
+    /** One unbroken stretch of the route: the line, an arrowhead every so often, and one at its end. */
+    private void drawRun(Graphics2D graphics, List<Point> run) {
+        if (run.size() < 2) return;
+        Path2D.Float line = new Path2D.Float();
+        line.moveTo(run.get(0).getX(), run.get(0).getY());
+        double[] at = new double[run.size()];  // distance along the run to each point, in pixels
+        for (int i = 1; i < run.size(); i++) {
+            line.lineTo(run.get(i).getX(), run.get(i).getY());
+            at[i] = at[i - 1] + Math.hypot(run.get(i).getX() - run.get(i - 1).getX(), run.get(i).getY() - run.get(i - 1).getY());
         }
         graphics.draw(line);
-        return true;
+        double total = at[run.size() - 1];
+        if (total < ARROW_LENGTH) return;
+        for (double d = ARROW_SPACING; d < total - ARROW_SPACING / 2; d += ARROW_SPACING) {
+            drawArrowhead(graphics, run, at, d);
+        }
+        drawArrowhead(graphics, run, at, total);
+    }
+
+    /** A small filled arrowhead with its tip {@code d} pixels along the run, pointing along it. */
+    private void drawArrowhead(Graphics2D graphics, List<Point> run, double[] at, double d) {
+        // Aimed from a little way back rather than along the last segment: a path drawn tile by tile
+        // zigzags on the diagonals, and the arrows would wobble with it
+        double[] tip = pointAt(run, at, d);
+        double[] back = pointAt(run, at, d - ARROW_LENGTH * 2);
+        double angle = Math.atan2(tip[1] - back[1], tip[0] - back[0]);
+        if (tip[0] == back[0] && tip[1] == back[1]) return;
+        Path2D.Double head = new Path2D.Double();
+        head.moveTo(0, 0);
+        head.lineTo(-ARROW_LENGTH, -ARROW_LENGTH / 2);
+        head.lineTo(-ARROW_LENGTH, ARROW_LENGTH / 2);
+        head.closePath();
+        AffineTransform tx = AffineTransform.getTranslateInstance(tip[0], tip[1]);
+        tx.rotate(angle);
+        graphics.fill(tx.createTransformedShape(head));
+    }
+
+    /** The point {@code d} pixels along the run (clamped to its ends). */
+    private static double[] pointAt(List<Point> run, double[] at, double d) {
+        if (d <= 0) return new double[]{run.get(0).getX(), run.get(0).getY()};
+        for (int i = 1; i < run.size(); i++) {
+            if (at[i] >= d) {
+                double seg = at[i] - at[i - 1];
+                double f = seg == 0 ? 0 : (d - at[i - 1]) / seg;
+                Point a = run.get(i - 1), b = run.get(i);
+                return new double[]{a.getX() + (b.getX() - a.getX()) * f, a.getY() + (b.getY() - a.getY()) * f};
+            }
+        }
+        Point last = run.get(run.size() - 1);
+        return new double[]{last.getX(), last.getY()};
     }
 
     /** Path points further apart than this are a jump (stairs, a ship, a cave mouth), not a line. */
     private static final int MAX_STEP_TILES = 5;
+    /** Pixels between the arrowheads along the line, and the arrowhead's length. */
+    private static final double ARROW_SPACING = 60;
+    private static final double ARROW_LENGTH = 6;
 }

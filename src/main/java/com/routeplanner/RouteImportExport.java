@@ -1,6 +1,8 @@
 package com.routeplanner;
 
 import com.routeplanner.model.Route;
+import com.routeplanner.model.RouteSection;
+import com.routeplanner.model.RouteStep;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.swing.*;
@@ -10,7 +12,9 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Slf4j
 public class RouteImportExport {
@@ -38,7 +42,7 @@ public class RouteImportExport {
         }
 
         try {
-            String json = plugin.getRouteGson().toJson(route);
+            String json = plugin.getExportGson().toJson(route);
             Files.write(file.toPath(), json.getBytes(StandardCharsets.UTF_8));
             JOptionPane.showMessageDialog(null,
                 "Route exported to:\n" + file.getAbsolutePath(),
@@ -67,7 +71,7 @@ public class RouteImportExport {
         }
 
         try {
-            String json = plugin.getRouteGson().toJson(plugin.getRoutes());
+            String json = plugin.getExportGson().toJson(plugin.getRoutes());
             Files.write(file.toPath(), json.getBytes(StandardCharsets.UTF_8));
             JOptionPane.showMessageDialog(null,
                 "All routes exported to:\n" + file.getAbsolutePath(),
@@ -99,16 +103,16 @@ public class RouteImportExport {
      * carry over by section and step name, unless the file brings ticks of its own.
      */
     private void replaceRoute(Route old, Route updated) {
-        boolean fileHasTicks = updated.getSteps().stream().anyMatch(com.routeplanner.model.RouteStep::isCompleted);
+        boolean fileHasTicks = updated.getSteps().stream().anyMatch(RouteStep::isCompleted);
         if (!fileHasTicks) {
-            java.util.Set<String> done = new java.util.HashSet<>();
-            for (com.routeplanner.model.RouteSection sec : old.getSections()) {
-                for (com.routeplanner.model.RouteStep st : sec.getSteps()) {
+            Set<String> done = new HashSet<>();
+            for (RouteSection sec : old.getSections()) {
+                for (RouteStep st : sec.getSteps()) {
                     if (st.isCompleted()) done.add(sec.getName() + "\n" + st.getName());
                 }
             }
-            for (com.routeplanner.model.RouteSection sec : updated.getSections()) {
-                for (com.routeplanner.model.RouteStep st : sec.getSteps()) {
+            for (RouteSection sec : updated.getSections()) {
+                for (RouteStep st : sec.getSteps()) {
                     st.setCompleted(done.contains(sec.getName() + "\n" + st.getName()));
                 }
             }
@@ -118,7 +122,7 @@ public class RouteImportExport {
         int at = plugin.getRoutes().indexOf(old);
         plugin.deleteRoute(old);
         plugin.getRoutes().add(Math.max(0, Math.min(at, plugin.getRoutes().size())), updated);
-        plugin.saveRoutesPublic();
+        plugin.saveRoutes();
         plugin.setActiveRoute(updated);
     }
 
@@ -160,7 +164,7 @@ public class RouteImportExport {
                         route.setName(name + " (imported)");
                     }
                     plugin.getRoutes().add(route);
-                    plugin.saveRoutesPublic();
+                    plugin.saveRoutes();
                     plugin.setActiveRoute(route);
                     JOptionPane.showMessageDialog(null,
                         "Route \"" + route.getName() + "\" imported!",
@@ -168,7 +172,9 @@ public class RouteImportExport {
                     log.info("Imported route: {}", route.getName());
                     return;
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                log.debug("Import: not a single route, trying a list of routes: {}", e.toString());
+            }
 
             // Try list of routes
             Route[] routes = plugin.getRouteGson().fromJson(json, Route[].class);
@@ -184,7 +190,7 @@ public class RouteImportExport {
                     plugin.getRoutes().add(route);
                     imported++;
                 }
-                plugin.saveRoutesPublic();
+                plugin.saveRoutes();
                 panel.refresh();
                 JOptionPane.showMessageDialog(null,
                     imported + " route(s) imported!",

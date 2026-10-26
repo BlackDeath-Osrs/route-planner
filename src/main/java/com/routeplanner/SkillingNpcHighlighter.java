@@ -2,17 +2,19 @@ package com.routeplanner;
 
 import com.routeplanner.model.RouteStep;
 import com.routeplanner.model.StepType;
+import com.routeplanner.sailing.Sailing;
+import com.routeplanner.util.NpcNames;
 import net.runelite.api.Client;
 import net.runelite.api.NPC;
+import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.game.npcoverlay.HighlightedNpc;
 import net.runelite.client.game.npcoverlay.NpcOverlayService;
 
-import net.runelite.api.events.NpcSpawned;
-import net.runelite.api.events.NpcDespawned;
-import net.runelite.client.eventbus.Subscribe;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.awt.Color;
+import java.util.Collections;
+import java.util.List;
 import java.util.function.Function;
 
 @Singleton
@@ -44,14 +46,19 @@ public class SkillingNpcHighlighter {
         npcOverlayService.unregisterHighlighter(highlightFunction);
     }
 
-    @Subscribe
-    public void onNpcSpawned(NpcSpawned event) {
-        npcOverlayService.rebuild();
-    }
+    // No NpcSpawned/NpcDespawned handlers: NpcOverlayService checks new NPCs itself, and a full
+    // rebuild on every spawn re-ran shouldHighlight for every NPC in the scene.
 
-    @Subscribe
-    public void onNpcDespawned(NpcDespawned event) {
-        npcOverlayService.rebuild();
+    /** The target names, lower-cased, parsed once per target string instead of once per NPC. */
+    private String parsedTarget;
+    private List<String> targetNames = Collections.emptyList();
+
+    private List<String> targetNames(String target) {
+        if (!target.equals(parsedTarget)) {
+            targetNames = NpcNames.parse(target);
+            parsedTarget = target;
+        }
+        return targetNames;
     }
 
     private HighlightedNpc shouldHighlight(NPC npc) {
@@ -72,29 +79,14 @@ public class SkillingNpcHighlighter {
 
         // Support multiple NPCs: comma-separated, with / for alternatives
         // e.g. "Rommik,Shop assistant/Shop keeper"
-        String npcName = npc.getName();
-        if (npcName == null) return null;
-        boolean nameMatch = false;
-        outer:
-        for (String entry : targetName.split(",")) {
-            for (String alt : entry.split("/")) {
-                String t = alt.trim();
-                if (npcName.equalsIgnoreCase(t)
-                    || npcName.toLowerCase().startsWith(t.toLowerCase() + " ")
-                    || npcName.toLowerCase().startsWith(t.toLowerCase() + "(")) {
-                    nameMatch = true;
-                    break outer;
-                }
-            }
-        }
-        if (!nameMatch) return null;
+        if (!NpcNames.matches(targetNames(targetName), npc.getName())) return null;
 
         // Only highlight NPCs within 30 tiles of the player; at sea, measured from the boat and out
         // as far as the client draws (sea creatures are further apart)
-        net.runelite.api.coords.WorldPoint at = com.routeplanner.sailing.Sailing.position(client);
+        WorldPoint at = Sailing.position(client);
         if (at == null) return null;
         int range = 30;
-        if (com.routeplanner.sailing.Sailing.isSailing(client) && client.getTopLevelWorldView() != null) {
+        if (Sailing.isSailing(client) && client.getTopLevelWorldView() != null) {
             range = Math.max(range, client.getTopLevelWorldView().getScene().getDrawDistance());
         }
         if (npc.getWorldLocation().distanceTo(at) > range) return null;

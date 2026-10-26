@@ -4,23 +4,35 @@ import com.routeplanner.model.RouteStep;
 import com.routeplanner.model.StepType;
 import com.routeplanner.sailing.Sailing;
 import com.routeplanner.sailing.SailingDocks;
+import com.routeplanner.util.Strokes;
+import com.routeplanner.transport.Transport;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.Perspective;
+import net.runelite.api.Point;
+import net.runelite.api.Scene;
+import net.runelite.api.WorldEntity;
 import net.runelite.api.coords.LocalPoint;
+import net.runelite.api.coords.WorldArea;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.ui.overlay.*;
+import net.runelite.client.util.ColorUtil;
 
 import javax.inject.Inject;
+import javax.inject.Singleton;
 import java.awt.*;
+import java.awt.geom.Path2D;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.*;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 @Slf4j
-@javax.inject.Singleton   // one route for everything that shows it (the scene, the world map, the HUD)
+@Singleton   // one route for everything that shows it (the scene, the world map, the HUD)
 public class PathfinderOverlay extends Overlay {
 
     private final Client client;
@@ -31,16 +43,16 @@ public class PathfinderOverlay extends Overlay {
 
     private WorldCollisionMap collisionMap = null;
     private boolean loadAttempted = false;
-    private java.util.Map<WorldPoint, java.util.List<WorldPoint>> transports = new java.util.HashMap<>();
+    private Map<WorldPoint, List<WorldPoint>> transports = new HashMap<>();
     /** Shortest Path's descriptions of the jumps on cachedPath, when its path is the one in use. */
-    private volatile List<com.routeplanner.transport.Transport> cachedJumps = Collections.emptyList();
+    private volatile List<Transport> cachedJumps = Collections.emptyList();
     /** The transition currently being routed to, if the active step is on a different plane than
      *  the player. Null whenever no plane redirect is in effect. Read by the overlay/highlight code
      *  to know what (if anything) to highlight as the "climb this" object. */
-    private com.routeplanner.transport.Transport activeTransition;
+    private Transport activeTransition;
 
     /** Returns the transition the player should climb/use next, or null if none. */
-    public com.routeplanner.transport.Transport getActiveTransition() { return activeTransition; }
+    public Transport getActiveTransition() { return activeTransition; }
 
     /** Returns the loaded collision map, or null if not yet loaded. */
     public WorldCollisionMap getCollisionMap() { return collisionMap; }
@@ -75,8 +87,8 @@ public class PathfinderOverlay extends Overlay {
     @Getter private List<WorldPoint> cachedPath = new ArrayList<>();
 
     /** The built-in search runs here, off the client thread: a route over the sea can take a moment. */
-    private java.util.concurrent.ExecutorService searchExecutor;
-    private java.util.concurrent.Future<List<WorldPoint>> search;
+    private ExecutorService searchExecutor;
+    private Future<List<WorldPoint>> search;
     private WorldPoint searchTarget;
 
     /** Force an immediate path recalculation on the next tick. */
@@ -111,7 +123,7 @@ public class PathfinderOverlay extends Overlay {
         if (search != null && target.equals(searchTarget)) return;
         cancelSearch();
         if (searchExecutor == null) {
-            searchExecutor = java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+            searchExecutor = Executors.newSingleThreadExecutor(r -> {
                 Thread t = new Thread(r, "route-planner-path");
                 t.setDaemon(true);
                 return t;
@@ -127,7 +139,7 @@ public class PathfinderOverlay extends Overlay {
     /** Installs a finished built-in search for this target. */
     private void applySearchResult(WorldPoint player, WorldPoint target, boolean sailing) {
         if (search == null || !search.isDone()) return;
-        java.util.concurrent.Future<List<WorldPoint>> done = search;
+        Future<List<WorldPoint>> done = search;
         boolean forTarget = target.equals(searchTarget);
         search = null;
         searchTarget = null;
@@ -153,7 +165,7 @@ public class PathfinderOverlay extends Overlay {
 
     public void onGameTick() {
         sailingDocks.onGameTick();
-        net.runelite.api.WorldEntity boat = Sailing.boat(client);
+        WorldEntity boat = Sailing.boat(client);
         if (boat != null && boat.getConfig() != null) {
             int width = Math.max(1, Math.round(boat.getConfig().getBoundsWidth() / (float) Perspective.LOCAL_TILE_SIZE));
             if (width != boatWidthTiles && config.recordTrace()) {
@@ -199,19 +211,19 @@ public class PathfinderOverlay extends Overlay {
      * upstairs), and points at the dock before a sea crossing.
      */
     /** The stairs last written to the bug report log (activeTransition itself is reset each update). */
-    private com.routeplanner.transport.Transport lastLoggedTransition;
+    private Transport lastLoggedTransition;
 
     /** Shortest Path's description of the jump from a to b on the path in use, or null. */
-    private com.routeplanner.transport.Transport shortestPathJump(WorldPoint a, WorldPoint b) {
-        for (com.routeplanner.transport.Transport t : cachedJumps) {
+    private Transport shortestPathJump(WorldPoint a, WorldPoint b) {
+        for (Transport t : cachedJumps) {
             if (t.origin.equals(a) && t.destination.equals(b)) return t;
         }
         return null;
     }
 
-    private static boolean sameTransition(com.routeplanner.transport.Transport a, com.routeplanner.transport.Transport b) {
+    private static boolean sameTransition(Transport a, Transport b) {
         if (a == null || b == null) return a == b;
-        return java.util.Objects.equals(a.origin, b.origin) && java.util.Objects.equals(a.destination, b.destination);
+        return Objects.equals(a.origin, b.origin) && Objects.equals(a.destination, b.destination);
     }
 
     /** The places a path jumps (stairs, ladders, teleports), for the bug report log. */
@@ -250,26 +262,26 @@ public class PathfinderOverlay extends Overlay {
         return otherFloor(a, b) || (a.getY() >= UNDERGROUND_Y && a.distanceTo2D(b) > UNDERGROUND_JUMP);
     }
 
-    private com.routeplanner.transport.Transport firstFloorChange() {
+    private Transport firstFloorChange() {
         WorldPoint at = Sailing.position(client);
         if (at == null || cachedPath.size() < 2) return null;
         for (int i = 0; i + 1 < cachedPath.size(); i++) {
             WorldPoint a = cachedPath.get(i), b = cachedPath.get(i + 1);
             if (otherFloor(a, at)) return null;
-            com.routeplanner.transport.Transport dock = sailingDocks.crossing(a, b);
+            Transport dock = sailingDocks.crossing(a, b);
             if (dock != null) return dock;
-            com.routeplanner.transport.Transport sp = shortestPathJump(a, b);
+            Transport sp = shortestPathJump(a, b);
             // A Shortest Path teleport counts anywhere, surface to surface too
             if (sp != null && sp.teleport) return sp;
             if (floorChange(a, b)) {
-                com.routeplanner.transport.Transport known = TransportLoader.find(a, b);
+                Transport known = TransportLoader.find(a, b);
                 if (known != null) return known;
-                return sp != null ? sp : new com.routeplanner.transport.Transport(a, b, null, -1);
+                return sp != null ? sp : new Transport(a, b, null, -1);
             }
             // Same floor: a raft, a rope swing, an agility shortcut. Doors and gates (one tile) aren't
             // worth pointing at, so only longer jumps with an object to click count.
             if (a.distanceTo2D(b) > SAME_FLOOR_JUMP) {
-                com.routeplanner.transport.Transport known = TransportLoader.find(a, b);
+                Transport known = TransportLoader.find(a, b);
                 if (known != null && known.objectId > 0) return known;
             }
         }
@@ -315,12 +327,12 @@ public class PathfinderOverlay extends Overlay {
         activeTransition = null;
         boolean exactTargetMatch = false;
         if (boarding) {
-            activeTransition = new com.routeplanner.transport.Transport(step.getBoardPoint(), step.getWorldPoint(),
+            activeTransition = new Transport(step.getBoardPoint(), step.getWorldPoint(),
                 sailingDocks.boardingHint(step.getBoardPoint()), step.getBoardObjectId());
         } else if (step.getTransitionPoint() != null && otherFloor(player, target)) {
             target = step.getTransitionPoint();
             exactTargetMatch = true; // path to exact tile, not "within 1" which can cut through walls
-            activeTransition = new com.routeplanner.transport.Transport(
+            activeTransition = new Transport(
                 step.getTransitionPoint(), step.getWorldPoint(), "Climb", 0);
         }
         if (player.distanceTo(target) <= 3 || (sailing && Sailing.isWithin(client, target, 3))) {
@@ -458,15 +470,18 @@ public class PathfinderOverlay extends Overlay {
             // Only the part of the route on this floor, and on land or at sea as the player is now:
             // it ends at the stairs to the next floor, or at the dock where the boat is boarded or left.
             path = new ArrayList<>();
+            // A step with an area is reached at its edge: the line stops where it goes in.
+            WorldArea area = isBoardingPending(step) ? null : plugin.areaOf(step);
             for (WorldPoint wp : cachedPath) {
                 if (otherFloor(wp, player)) break;
                 if (!path.isEmpty() && floorChange(path.get(path.size() - 1), wp)) break;
                 if (!path.isEmpty()) {
-                    com.routeplanner.transport.Transport sp = shortestPathJump(path.get(path.size() - 1), wp);
+                    Transport sp = shortestPathJump(path.get(path.size() - 1), wp);
                     if (sp != null && sp.teleport) break;
                 }
                 if (!path.isEmpty() && sailingDocks.crossing(path.get(path.size() - 1), wp) != null) break;
                 path.add(wp);
+                if (area != null && area.contains(wp)) break;
             }
         }
         if (path.size() < 2) return null;
@@ -476,20 +491,27 @@ public class PathfinderOverlay extends Overlay {
         int maxDist = pathDrawDistance();
 
         // Tiles are drawn first so that in BOTH mode the line sits on top of them.
-        com.routeplanner.PathDisplayMode mode = config.pathDisplayMode();
-        if (mode != com.routeplanner.PathDisplayMode.LINE) {
+        PathDisplayMode mode = config.pathDisplayMode();
+        if (mode != PathDisplayMode.LINE) {
             drawPathTiles(graphics, plane, player, maxDist, path);
         }
-        boolean drawLine = mode != com.routeplanner.PathDisplayMode.TILES;
+        boolean drawLine = mode != PathDisplayMode.TILES;
+
+        boolean tracer = config.lineStyle() == LineStyle.TRACER;
+        double tracerShift = tracerShift(config);
+        double along = 0;  // tiles along the path to the start of this segment, for the tracer pulse
 
         // Draw path segment by segment, skipping transport "jumps" (far-apart points)
         for (int i = 0; i < path.size() - 1; i++) {
             if (!drawLine) break;
             WorldPoint wa = path.get(i);
             WorldPoint wb = path.get(i + 1);
+            int len = wa.distanceTo(wb);
+            double segStart = along;
+            along += len;
 
             // Transport jump: don't draw a line across the map
-            if (wa.distanceTo(wb) > 5) continue;
+            if (len > 5) continue;
 
             // Beyond the draw limit: skip only when BOTH ends are out of range
             if (wa.distanceTo(player) > maxDist && wb.distanceTo(player) > maxDist) continue;
@@ -497,8 +519,8 @@ public class PathfinderOverlay extends Overlay {
             LocalPoint la = LocalPoint.fromWorld(client, wa);
             LocalPoint lb = LocalPoint.fromWorld(client, wb);
             if (la == null || lb == null) continue;
-            net.runelite.api.Point pa = Perspective.localToCanvas(client, la, plane);
-            net.runelite.api.Point pb = Perspective.localToCanvas(client, lb, plane);
+            Point pa = Perspective.localToCanvas(client, la, plane);
+            Point pb = Perspective.localToCanvas(client, lb, plane);
             if (pa == null || pb == null) continue;
 
             int thick = config.lineThickness();
@@ -506,20 +528,27 @@ public class PathfinderOverlay extends Overlay {
 
             // Optional glow underlay
             if (config.lineGlow()) {
-                graphics.setColor(new Color(lineC.getRed(), lineC.getGreen(), lineC.getBlue(),
-                    Math.min(120, lineC.getAlpha()) / 2));
-                graphics.setStroke(new BasicStroke(thick + 3, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                graphics.setColor(ColorUtil.colorWithAlpha(lineC, Math.min(120, lineC.getAlpha()) / 2));
+                graphics.setStroke(Strokes.round(thick + 3));
                 graphics.drawLine(pa.getX(), pa.getY(), pb.getX(), pb.getY());
             }
 
-            boolean dashed = config.lineStyle() != com.routeplanner.LineStyle.SOLID;
+            if (tracer) {
+                // A dim line with a bright pulse on the segments a pulse is passing over
+                boolean lit = tracerLit(segStart, segStart + Math.max(1, len), tracerShift);
+                graphics.setColor(lit ? tracerPulseColor(config) : tracerBaseColor(config));
+                graphics.setStroke(Strokes.round(thick));
+                graphics.drawLine(pa.getX(), pa.getY(), pb.getX(), pb.getY());
+                continue;
+            }
+
+            boolean dashed = config.lineStyle() != LineStyle.SOLID;
             boolean useDashColor = dashed && config.lineUseDashColor();
 
             // Faint base line under the dashes when a separate dash color is used
             if (useDashColor) {
-                graphics.setColor(new Color(lineC.getRed(), lineC.getGreen(), lineC.getBlue(),
-                    (int) (lineC.getAlpha() * 0.45)));
-                graphics.setStroke(new BasicStroke(thick, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                graphics.setColor(ColorUtil.colorWithAlpha(lineC, (int) (lineC.getAlpha() * 0.45)));
+                graphics.setStroke(Strokes.round(thick));
                 graphics.drawLine(pa.getX(), pa.getY(), pb.getX(), pb.getY());
             }
 
@@ -548,7 +577,7 @@ public class PathfinderOverlay extends Overlay {
 
         // Hoisted out of the loop: the stroke is identical for every tile.
         BasicStroke borderStroke = borderW > 0
-            ? new BasicStroke(borderW, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
+            ? Strokes.round(borderW)
             : null;
 
         float pulse = 1f;
@@ -573,7 +602,7 @@ public class PathfinderOverlay extends Overlay {
             }
 
             // Built at most once per tile, then reused for both the fill and the border.
-            java.awt.Shape shape = rounded ? roundedTile(poly) : null;
+            Shape shape = rounded ? roundedTile(poly) : null;
 
             graphics.setColor(scaleAlpha(fill, scale));
             if (shape != null) {
@@ -619,7 +648,7 @@ public class PathfinderOverlay extends Overlay {
      */
     private int pathDrawDistance() {
         if (config.pathFollowDrawDistance()) {
-            net.runelite.api.Scene scene = client.getScene();
+            Scene scene = client.getScene();
             if (scene != null) {
                 int dd = scene.getDrawDistance();
                 if (dd > 0) return dd;
@@ -632,16 +661,16 @@ public class PathfinderOverlay extends Overlay {
     /** Multiply a color's alpha by a 0..1 factor, clamped. */
     private Color scaleAlpha(Color c, float factor) {
         int a = Math.max(0, Math.min(255, Math.round(c.getAlpha() * Math.max(0f, Math.min(1f, factor)))));
-        return new Color(c.getRed(), c.getGreen(), c.getBlue(), a);
+        return ColorUtil.colorWithAlpha(c, a);
     }
 
     /**
      * Soften the corners of a projected tile polygon. Because tiles are drawn in perspective the
      * result is a rounded diamond rather than a rounded square, but it takes the hard edge off.
      */
-    private java.awt.geom.Path2D roundedTile(Polygon poly) {
+    private Path2D roundedTile(Polygon poly) {
         int n = poly.npoints;
-        java.awt.geom.Path2D.Float p = new java.awt.geom.Path2D.Float();
+        Path2D.Float p = new Path2D.Float();
         if (n < 3) { p.append(poly, false); return p; }
         for (int i = 0; i < n; i++) {
             int prev = (i - 1 + n) % n;
@@ -659,17 +688,45 @@ public class PathfinderOverlay extends Overlay {
         return p;
     }
 
+    /** Tiles between one tracer pulse and the next along the line. */
+    public static final double TRACER_SPACING = 50;
+
+    /** How far the tracer pulses have moved along the line by now, in tiles (0..spacing). */
+    public static double tracerShift(RoutePlannerConfig config) {
+        if (!config.lineAnimate() || config.tracerSpeed() <= 0) return 0;
+        long cycleMs = Math.round(TRACER_SPACING * 1000 / config.tracerSpeed());
+        return (System.currentTimeMillis() % cycleMs) / (double) cycleMs * TRACER_SPACING;
+    }
+
+    /** Whether a pulse sits in the stretch [from, to) of the line, in tiles along it. */
+    public static boolean tracerLit(double from, double to, double shift) {
+        double first = Math.ceil((from - shift) / TRACER_SPACING) * TRACER_SPACING + shift;
+        return first < to;
+    }
+
+    /** The pulse: the line (or dash) color at full strength. */
+    public static Color tracerPulseColor(RoutePlannerConfig config) {
+        return config.lineUseDashColor() ? config.lineDashColor() : config.lineColor();
+    }
+
+    /** The line between pulses: the line color darkened and faded by the tracer intensity. */
+    public static Color tracerBaseColor(RoutePlannerConfig config) {
+        Color c = config.lineColor();
+        float f = 1f - Math.max(0, Math.min(100, config.tracerIntensity())) / 100f;
+        return new Color(Math.round(c.getRed() * f), Math.round(c.getGreen() * f),
+            Math.round(c.getBlue() * f), Math.round(c.getAlpha() * f));
+    }
+
     /** Build the main line stroke: dash pattern from the style, animated offset when enabled.
      *  Shared with the shoal routes so they look like the waypoint line. */
     public static BasicStroke lineStroke(RoutePlannerConfig config, int thick) {
         float t = Math.max(1, thick);
+        LineStyle style = config.lineStyle();
         float[] dash;
-        switch (config.lineStyle()) {
-            case DASHED:   dash = new float[]{ t * 4f, t * 3f }; break;
-            case DOTTED:   dash = new float[]{ 0.1f, t * 2.2f }; break;
-            case DASH_DOT: dash = new float[]{ t * 4f, t * 2f, 0.1f, t * 2f }; break;
-            default:       return new BasicStroke(t, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
-        }
+        if (style == LineStyle.DASHED)        dash = new float[]{ t * 4f, t * 3f };
+        else if (style == LineStyle.DOTTED)   dash = new float[]{ 0.1f, t * 2.2f };
+        else if (style == LineStyle.DASH_DOT) dash = new float[]{ t * 4f, t * 2f, 0.1f, t * 2f };
+        else return Strokes.round((int) t);
         float offset = 0f;
         if (config.lineAnimate()) {
             // Continuous flow: advance the dash phase over time (render runs per-frame).
@@ -688,7 +745,7 @@ public class PathfinderOverlay extends Overlay {
             offset = period - (phase * period);         // period .. 0+, always >= 0
             if (offset < 0f) offset = 0f;               // belt & braces
         }
-        int cap = (config.lineStyle() == com.routeplanner.LineStyle.DOTTED)
+        int cap = (style == LineStyle.DOTTED)
             ? BasicStroke.CAP_ROUND : BasicStroke.CAP_BUTT;
         return new BasicStroke(t, cap, BasicStroke.JOIN_ROUND, 10f, dash, offset);
     }
@@ -725,6 +782,8 @@ public class PathfinderOverlay extends Overlay {
         cachedPath = new ArrayList<>(cachedPath.subList(idx, cachedPath.size()));
     }
 
+    /** The route line from start to end: a search that keeps the boat clear of the shore at sea,
+     *  then one without that margin if the first finds no way. */
     private List<WorldPoint> buildPath(WorldPoint start, WorldPoint end, boolean onBoat) {
         int cap = SAILING_MAX_NODES;
         WorldPoint from = onBoat ? start.dz(ON_BOAT) : start;
@@ -734,10 +793,10 @@ public class PathfinderOverlay extends Overlay {
         marginEnd = end;
         hullMargin = true;
         hullClearance = clearanceFor(boatWidthTiles);
-        List<WorldPoint> path = buildPath(from, end, cap);
+        List<WorldPoint> path = search(from, end, cap);
         if (path.isEmpty() && hullMargin) {
             hullMargin = false;
-            path = buildPath(from, end, cap);
+            path = search(from, end, cap);
         }
         return path;
     }
@@ -752,7 +811,7 @@ public class PathfinderOverlay extends Overlay {
      * per tile holding clearance + 1 (0 = not worked out yet). Re-planning at sea then costs a fraction.
      * Only the search thread (and tests) use it.
      */
-    private final java.util.Map<Long, byte[]> clearanceRegions = new HashMap<>();
+    private final Map<Long, byte[]> clearanceRegions = new HashMap<>();
     /** Within this many tiles of the start, the end or a mooring, the boat may come right up to land. */
     private static final int MARGIN_EXEMPT_TILES = 6;
     /** How far out from the shore clearance is measured; open water this far out costs nothing extra. */
@@ -855,7 +914,7 @@ public class PathfinderOverlay extends Overlay {
             WorldPoint cp = current.point;
             explored++;
             if (current.g > bestG.getOrDefault(cp, Integer.MAX_VALUE)) continue;
-            if (cp.equals(end)) return reconstructPath(cameFrom, cp, start);
+            if (cp.equals(end)) return walkBack(cameFrom, cp, start);
             int x = cp.getX(), y = cp.getY(), cplane = cp.getPlane();
             int[][] moves = {{x, y+1}, {x, y-1}, {x+1, y}, {x-1, y}};
             boolean[] allowed = {
@@ -878,20 +937,14 @@ public class PathfinderOverlay extends Overlay {
         return Collections.emptyList();
     }
 
-    /**
-     * Same A* search as buildPath(start, end), but with a configurable node-exploration cap
-     * instead of the fixed default. Exists so cheaper, capped searches can be used to COMPARE
-     * candidates (e.g. is a real walkable route to this tile much longer than to that one) without
-     * paying the cost of a full 350,000-node search for a comparison that only needs to detect a
-     * large difference, not find the exact optimal route. The real, uncapped call sites are
-     * completely unaffected -- this is purely additive.
-     */
     private static final int DEFAULT_MAX_NODES = 350000;
     /** With sailing on, a search can spread over the sea as well as the land. Long crossings jump
      *  between moorings on precomputed sea routes, so this only has to cover the legs either side. */
     private static final int SAILING_MAX_NODES = 1000000;
 
-    private List<WorldPoint> buildPath(WorldPoint start, WorldPoint end, int maxNodes) {
+    /** The A* search over walking, transports, boats and sea routes, exploring at most
+     *  {@code maxNodes} nodes. Ends on the target or, failing that, next to it (NEAR_ENOUGH). */
+    private List<WorldPoint> search(WorldPoint start, WorldPoint end, int maxNodes) {
         if (collisionMap == null || !collisionMap.isLoaded()) {
             return Collections.emptyList();
         }
@@ -944,7 +997,7 @@ public class PathfinderOverlay extends Overlay {
             // A boat has no stairs or ships to take.
             if (!onBoat) {
                 real = new WorldPoint(x, y, rplane);
-                java.util.List<WorldPoint> dests = transports.get(real);
+                List<WorldPoint> dests = transports.get(real);
                 if (dests != null) {
                     int layer = boatLeft ? BOAT_LEFT : 0;
                     for (WorldPoint d : dests) {
@@ -959,7 +1012,7 @@ public class PathfinderOverlay extends Overlay {
             // From one mooring straight to the others, along sea routes worked out ahead of time
             if (onBoat) {
                 if (real == null) real = new WorldPoint(x, y, rplane);
-                java.util.List<SailingDocks.SeaRoute> routes = useSeaRoutes ? sailingDocks.seaRoutesFrom(real, boatWidthTiles) : null;
+                List<SailingDocks.SeaRoute> routes = useSeaRoutes ? sailingDocks.seaRoutesFrom(real, boatWidthTiles) : null;
                 if (routes != null) {
                     for (SailingDocks.SeaRoute r : routes) {
                         graph.offer(SearchGraph.key(r.to.getX(), r.to.getY(), r.to.getPlane() + ON_BOAT),
@@ -967,7 +1020,7 @@ public class PathfinderOverlay extends Overlay {
                     }
                 }
                 // Through a cave mouth into water the map keeps apart (Wyrmscraig Cavern)
-                java.util.List<WorldPoint> links = sailingDocks.seaLinksFrom(real);
+                List<WorldPoint> links = sailingDocks.seaLinksFrom(real);
                 if (links != null) {
                     for (WorldPoint d : links) {
                         graph.offer(SearchGraph.key(d.getX(), d.getY(), d.getPlane() + ON_BOAT),
@@ -981,7 +1034,7 @@ public class PathfinderOverlay extends Overlay {
             // where no dock can be boarded again.
             if (!boatLeft) {
                 if (real == null) real = new WorldPoint(x, y, rplane);
-                java.util.List<WorldPoint> crossings = sailingDocks.edgesFrom(real);
+                List<WorldPoint> crossings = sailingDocks.edgesFrom(real);
                 if (crossings != null && onBoat == sailingDocks.isMooring(real)) {
                     for (WorldPoint d : crossings) {
                         graph.offer(SearchGraph.key(d.getX(), d.getY(), d.getPlane() + (onBoat ? BOAT_LEFT : ON_BOAT)),
@@ -1018,10 +1071,10 @@ public class PathfinderOverlay extends Overlay {
      * stairs or ships, nor the precomputed routes), by the same rules and costs as a live search. One sweep
      * serves them all; it's how the precomputed routes are made (see SeaRouteGenerator in the tests).
      */
-    Map<WorldPoint, List<WorldPoint>> seaPathsFrom(WorldPoint start, java.util.Set<WorldPoint> targets, int boatWidth) {
+    Map<WorldPoint, List<WorldPoint>> seaPathsFrom(WorldPoint start, Set<WorldPoint> targets, int boatWidth) {
         Map<WorldPoint, List<WorldPoint>> found = new HashMap<>();
         if (collisionMap == null || !collisionMap.isLoaded()) return found;
-        java.util.Set<WorldPoint> left = new java.util.HashSet<>(targets);
+        Set<WorldPoint> left = new HashSet<>(targets);
         hullMargin = true;
         hullClearance = clearanceFor(boatWidth);
         marginStart = start;
@@ -1042,7 +1095,7 @@ public class PathfinderOverlay extends Overlay {
                 if (!roomForHull(nx, ny, plane)) continue;
                 graph.offer(SearchGraph.key(nx, ny, layer), g + SAIL_STEP + shorePenalty(nx, ny, plane), 0, node);
             }
-            java.util.List<WorldPoint> links = sailingDocks.seaLinksFrom(real);
+            List<WorldPoint> links = sailingDocks.seaLinksFrom(real);
             if (links != null) {
                 for (WorldPoint d : links) graph.offer(SearchGraph.key(d.getX(), d.getY(), layer), g + TRANSPORT_COST, 0, node);
             }
@@ -1096,7 +1149,7 @@ public class PathfinderOverlay extends Overlay {
         boolean atSea = startsAtSea;
         int legStart = 0;
         for (int i = 1; i <= path.size(); i++) {
-            com.routeplanner.transport.Transport crossing = i < path.size()
+            Transport crossing = i < path.size()
                 ? sailingDocks.crossing(path.get(i - 1), path.get(i)) : null;
             if (i < path.size() && crossing == null) continue;
             List<WorldPoint> leg = path.subList(legStart, i);
@@ -1245,7 +1298,7 @@ public class PathfinderOverlay extends Overlay {
                 }
             }
         }
-        found.sort(java.util.Comparator.comparingInt(l -> l[1].distanceTo2D(goal)));
+        found.sort(Comparator.comparingInt(l -> l[1].distanceTo2D(goal)));
         return found.size() > MAX_ENTRANCES ? new ArrayList<>(found.subList(0, MAX_ENTRANCES)) : found;
     }
 
@@ -1270,8 +1323,8 @@ public class PathfinderOverlay extends Overlay {
         return WALK_STEP * direct;
     }
 
-    private List<WorldPoint> reconstructPath(Map<WorldPoint, WorldPoint> cameFrom,
-                                              WorldPoint end, WorldPoint start) {
+    /** buildPathExact's path: from end back to start through cameFrom, then reversed. */
+    private List<WorldPoint> walkBack(Map<WorldPoint, WorldPoint> cameFrom, WorldPoint end, WorldPoint start) {
         List<WorldPoint> path = new ArrayList<>();
         WorldPoint cur = end;
         while (cur != null) {

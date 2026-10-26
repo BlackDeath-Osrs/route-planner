@@ -2,6 +2,7 @@ package com.routeplanner.teleport;
 
 import com.routeplanner.RoutePlannerPlugin;
 import com.routeplanner.util.RouteTextValidator;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.swing.*;
 import java.awt.*;
@@ -9,7 +10,8 @@ import java.awt.image.BufferedImage;
 import java.util.HashMap;
 import java.util.Map;
 
-/** The teleport choosers (spell, item, Portal Nexus), shared by both step editors. */
+/** The teleport choosers (spell, item, Portal Nexus), used by the step editor. */
+@Slf4j
 public final class TeleportPickers {
 
     private static final Map<Integer, BufferedImage> SPRITES = new HashMap<>();
@@ -40,6 +42,7 @@ public final class TeleportPickers {
             BufferedImage img = plugin.getItemManager().getImage(it.getIconId());
             return img != null ? new ImageIcon(img.getScaledInstance(20, 20, Image.SCALE_SMOOTH)) : null;
         } catch (Exception ex) {
+            log.debug("No icon for teleport item {}: {}", it.getIconId(), ex.toString());
             return null;
         }
     }

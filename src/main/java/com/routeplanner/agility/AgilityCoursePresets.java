@@ -153,7 +153,7 @@ public class AgilityCoursePresets {
             new AgilityObstacle("Gap 2",        null, 14990),
             new AgilityObstacle("Gap 3",        null, 14991),
             new AgilityObstacle("Tightrope 2",  null, 14992),
-            new AgilityObstacle("Pile of Fish", new net.runelite.api.coords.WorldPoint(2654, 3676, 3), 14994)
+            new AgilityObstacle("Pile of Fish", new WorldPoint(2654, 3676, 3), 14994)
         ));
     }
 

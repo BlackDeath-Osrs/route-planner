@@ -4,17 +4,21 @@ import com.routeplanner.RoutePlannerConfig;
 import com.routeplanner.model.Route;
 import com.routeplanner.model.RouteStep;
 import com.routeplanner.model.StepType;
+import com.routeplanner.sailing.CatchMessages;
+import com.routeplanner.sailing.Sailing;
+import com.routeplanner.sailing.SailingDocks;
+import com.routeplanner.teleport.PortalNexus;
 import com.routeplanner.teleport.TeleportItem;
 import com.routeplanner.teleport.TeleportItems;
 import com.routeplanner.teleport.TeleportSpell;
-import com.routeplanner.teleport.PortalNexus;
 import com.routeplanner.teleport.TeleportSpells;
 import com.routeplanner.util.LocationNames;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.InventoryID;
-import net.runelite.api.ChatMessageType;
+import net.runelite.api.Item;
 import net.runelite.api.MenuAction;
 import net.runelite.api.NPC;
 import net.runelite.api.coords.WorldPoint;
@@ -24,6 +28,7 @@ import net.runelite.api.events.GameTick;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.api.events.StatChanged;
+import net.runelite.api.gameval.VarbitID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
@@ -33,7 +38,9 @@ import net.runelite.client.util.Text;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 
 /**
@@ -152,11 +159,11 @@ public class RouteRecorder {
         }
     }
 
-    private final com.routeplanner.sailing.SailingDocks sailingDocks;
+    private final SailingDocks sailingDocks;
 
     @Inject
     public RouteRecorder(Client client, EventBus eventBus, RoutePlannerConfig config, ItemManager itemManager,
-                         com.routeplanner.sailing.SailingDocks sailingDocks) {
+                         SailingDocks sailingDocks) {
         this.client = client;
         this.eventBus = eventBus;
         this.config = config;
@@ -179,7 +186,7 @@ public class RouteRecorder {
         lastNexusDest = null;
         pendingTransitionTile = null;
         pendingTransitionObjectId = -1;
-        wasAboard = com.routeplanner.sailing.Sailing.isSailing(client);
+        wasAboard = Sailing.isSailing(client);
         lastBoardClick = null;
         boardedAt = null;
         items.start();
@@ -270,7 +277,7 @@ public class RouteRecorder {
         if ("Lower net".equalsIgnoreCase(click.option)) activity.onLowerNet(click.tick);
         // Crewmates on the boat (commanding them, chatting): not part of the route
         NPC clickedNpc = click.isNpc() ? e.getMenuEntry().getNpc() : null;
-        if (clickedNpc != null && com.routeplanner.sailing.Sailing.isSailing(client)
+        if (clickedNpc != null && Sailing.isSailing(client)
                 && clickedNpc.getWorldView() == client.getLocalPlayer().getWorldView()) {
             trace("CREW click on " + click.target + ", not recorded");
             dialog.onCrewClick(click.tick);
@@ -278,7 +285,7 @@ public class RouteRecorder {
         }
         // A facility on the deck (the trawling net's "Collect-from" asks where the fish go): its menu
         // isn't a route step, though using it still counts for activities below
-        if (click.isObject() && com.routeplanner.sailing.Sailing.isSailing(client)
+        if (click.isObject() && Sailing.isSailing(client)
                 && e.getMenuEntry().getWorldViewId() == client.getLocalPlayer().getWorldView().getId()) {
             dialog.onCrewClick(click.tick);
         }
@@ -339,12 +346,12 @@ public class RouteRecorder {
     public void onChatMessage(ChatMessage e) {
         // Trawling catches (Sailing), "You catch three giant krill." (often a spam-filtered message)
         if (e.getType() == ChatMessageType.GAMEMESSAGE || e.getType() == ChatMessageType.SPAM) {
-            com.routeplanner.sailing.CatchMessages.Catch c = com.routeplanner.sailing.CatchMessages.parse(e.getMessage());
+            CatchMessages.Catch c = CatchMessages.parse(e.getMessage());
             if (e.getMessage().toLowerCase().contains("catch")) trace("CHAT '" + e.getMessage() + "' -> " + (c == null ? "not a catch" : c.count + " " + c.fish));
             // Only a trawling net's catch: on the boat with a net down (fishing elsewhere says "You catch" too)
-            boolean netDown = client.getVarbitValue(net.runelite.api.gameval.VarbitID.SAILING_SIDEPANEL_BOAT_TRAWLING_NET_0_DEPTH) > 0
-                || client.getVarbitValue(net.runelite.api.gameval.VarbitID.SAILING_SIDEPANEL_BOAT_TRAWLING_NET_1_DEPTH) > 0;
-            if (c != null && netDown && com.routeplanner.sailing.Sailing.isSailing(client)) {
+            boolean netDown = client.getVarbitValue(VarbitID.SAILING_SIDEPANEL_BOAT_TRAWLING_NET_0_DEPTH) > 0
+                || client.getVarbitValue(VarbitID.SAILING_SIDEPANEL_BOAT_TRAWLING_NET_1_DEPTH) > 0;
+            if (c != null && netDown && Sailing.isSailing(client)) {
                 activity.onCatch(c.fish, c.count, stepTile(), client.getTickCount());
             }
         }
@@ -373,7 +380,7 @@ public class RouteRecorder {
         if (lastPos == null) { lastPos = pos; anchor = pos; return; }
 
         // Getting on or off a boat moves the player between the dock and the deck: the trip, not a jump.
-        boolean aboard = com.routeplanner.sailing.Sailing.isSailing(client);
+        boolean aboard = Sailing.isSailing(client);
         boolean boatChanged = aboard != wasAboard;
         if (boatChanged) {
             if (aboard) onBoard(lastPos);
@@ -505,7 +512,7 @@ public class RouteRecorder {
      * dock (a teleport, say) is left to the jump handling.
      */
     private void onDisembark(WorldPoint landed) {
-        com.routeplanner.sailing.SailingDocks.Dock dock = sailingDocks.nearest(landed, DOCK_RADIUS);
+        SailingDocks.Dock dock = sailingDocks.nearest(landed, DOCK_RADIUS);
         trace("DISEMBARK at " + landed + " dock=" + (dock == null ? "none" : dock.name));
         if (dock == null) return;
         addDraft(newLocationStep(landed, "Sail to " + dock.name), landed);
@@ -684,8 +691,8 @@ public class RouteRecorder {
                 && id <= net.runelite.api.gameval.InventoryID.SAILING_BOAT_5_CARGOHOLD
                 ? "CARGO HOLD " + (id - net.runelite.api.gameval.InventoryID.SAILING_BOAT_1_CARGOHOLD + 1) : null;
         if (which == null || !config.recordTrace()) return;
-        java.util.Map<String, Integer> counts = new java.util.LinkedHashMap<>();
-        for (net.runelite.api.Item item : e.getItemContainer().getItems()) {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        for (Item item : e.getItemContainer().getItems()) {
             if (item.getId() <= 0) continue;
             counts.merge(client.getItemDefinition(item.getId()).getName(), item.getQuantity(), Integer::sum);
         }
@@ -716,7 +723,7 @@ public class RouteRecorder {
     }
 
     /** Items that arrived without a pickup, purchase or withdrawal: gathering, if anything. */
-    void onItemsGained(java.util.Map<String, Long> gains, int tick) {
+    void onItemsGained(Map<String, Long> gains, int tick) {
         trace("GAINED " + gains);
         activity.onItemsGained(gains, tick);
     }
@@ -745,6 +752,6 @@ public class RouteRecorder {
     }
 
     private WorldPoint playerPos() {
-        return com.routeplanner.sailing.Sailing.position(client);
+        return Sailing.position(client);
     }
 }

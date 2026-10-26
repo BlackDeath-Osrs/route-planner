@@ -1,5 +1,6 @@
 package com.routeplanner;
 
+import com.routeplanner.transport.Transport;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.eventbus.EventBus;
@@ -12,6 +13,8 @@ import net.runelite.client.plugins.PluginManager;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Optional bridge to the Shortest Path plugin's cross-plugin API
@@ -45,10 +48,10 @@ public class ShortestPathBridge {
         final boolean reached;
         final boolean cancelled;
         /** Shortest Path's own description of each jump on the path (stairs, teleports...). */
-        final List<com.routeplanner.transport.Transport> jumps;
+        final List<Transport> jumps;
 
         Result(String id, List<WorldPoint> path, boolean reached, boolean cancelled,
-               List<com.routeplanner.transport.Transport> jumps) {
+               List<Transport> jumps) {
             this.id = id;
             this.path = path;
             this.reached = reached;
@@ -143,8 +146,8 @@ public class ShortestPathBridge {
      * Shortest Path's "transports" list: per jump its origin, destination, objectInfo ("Climb-down
      * Ladder 2147", none for a teleport) and displayInfo ("Guardians of the Rift Minigame Teleport").
      */
-    private static List<com.routeplanner.transport.Transport> jumps(Object raw) {
-        List<com.routeplanner.transport.Transport> out = new ArrayList<>();
+    private static List<Transport> jumps(Object raw) {
+        List<Transport> out = new ArrayList<>();
         if (!(raw instanceof List)) return out;
         for (Object o : (List<?>) raw) {
             if (!(o instanceof Map)) continue;
@@ -154,7 +157,7 @@ public class ShortestPathBridge {
             String display = m.get("displayInfo") instanceof String ? ((String) m.get("displayInfo")).trim() : "";
             int objectId = -1;
             String action = object;
-            java.util.regex.Matcher id = java.util.regex.Pattern.compile("^(.*\\S)\\s+(\\d+)$").matcher(object);
+            Matcher id = Pattern.compile("^(.*\\S)\\s+(\\d+)$").matcher(object);
             if (id.matches()) {
                 action = id.group(1);
                 objectId = Integer.parseInt(id.group(2));
@@ -162,7 +165,7 @@ public class ShortestPathBridge {
             boolean teleport = object.isEmpty();
             String text = teleport ? (display.isEmpty() ? "Teleport" : "Teleport: " + display)
                 : (action.isEmpty() ? display : action);
-            out.add(new com.routeplanner.transport.Transport((WorldPoint) m.get("origin"),
+            out.add(new Transport((WorldPoint) m.get("origin"),
                 (WorldPoint) m.get("destination"), text.isEmpty() ? null : text, objectId, teleport));
         }
         return out;

@@ -7,10 +7,13 @@ import net.runelite.api.InventoryID;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
 import net.runelite.client.game.ItemManager;
+import net.runelite.http.api.item.ItemPrice;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Singleton
@@ -31,6 +34,11 @@ public class BankItemManager {
         }
     }
 
+    /** "2.5k Coins": the amount (1), its suffix (2) and the name (3). Compiled once; it runs per frame. */
+    private static final Pattern QUANTITY_PREFIX = Pattern
+        .compile("^([\\d.]+)\\s*(k|m|mil|b)?\\s+(.+)$", Pattern.CASE_INSENSITIVE);
+    private static final Pattern CHARGE_SUFFIX = Pattern.compile("\\(\\d+\\)");
+
     /** Item-list names ending in "(*)" mean any charge: "Amulet of glory(*)" matches glory(1)-(6). */
     public static final String ANY_CHARGE = "(*)";
 
@@ -41,7 +49,7 @@ public class BankItemManager {
         String have = actual.trim().toLowerCase();
         if (!want.endsWith(ANY_CHARGE)) return want.equals(have);
         String base = want.substring(0, want.length() - ANY_CHARGE.length()).trim();
-        return have.startsWith(base) && have.substring(base.length()).trim().matches("\\(\\d+\\)");
+        return have.startsWith(base) && CHARGE_SUFFIX.matcher(have.substring(base.length()).trim()).matches();
     }
 
     /** How many of an item-list name are in a name -> quantity map, summing every charge for "(*)". */
@@ -61,24 +69,22 @@ public class BankItemManager {
 
     public String parseItemName(String input) {
         input = input.trim();
-        java.util.regex.Matcher m = java.util.regex.Pattern
-            .compile("^[\\d.]+\\s*(?:k|m|mil|b)?\\s+(.+)$", java.util.regex.Pattern.CASE_INSENSITIVE)
-            .matcher(input);
-        if (m.matches()) return m.group(1).trim();
+        Matcher m = QUANTITY_PREFIX.matcher(input);
+        if (m.matches()) return m.group(3).trim();
         return input;
     }
 
     public long parseQuantityValue(String input) {
         input = input.trim();
-        java.util.regex.Matcher m = java.util.regex.Pattern
-            .compile("^([\\d.]+)\\s*(k|m|mil|b)?\\s+.+$", java.util.regex.Pattern.CASE_INSENSITIVE)
-            .matcher(input);
+        Matcher m = QUANTITY_PREFIX.matcher(input);
         if (m.matches()) {
             try {
                 double num = Double.parseDouble(m.group(1));
                 String suffix = m.group(2) == null ? "" : m.group(2).toLowerCase();
                 return suffixMultiply(num, suffix);
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                log.debug("Bad item quantity in '{}', counting 1: {}", input, e.toString());
+            }
         }
         return 1;
     }
@@ -169,13 +175,13 @@ public class BankItemManager {
     /** Snapshot current inventory counts for items referenced in itemListStr. */
     public java.util.Map<String, Long> snapshotInventory(String itemListStr) {
         java.util.Map<String, Long> snapshot = new java.util.HashMap<>();
-        net.runelite.api.ItemContainer inv = client.getItemContainer(net.runelite.api.InventoryID.INVENTORY);
+        ItemContainer inv = client.getItemContainer(InventoryID.INVENTORY);
         if (inv == null || itemListStr == null) return snapshot;
         for (java.util.List<String> group : parseItemList(itemListStr)) {
             for (String alt : group) {
                 String name = parseItemName(alt).toLowerCase();
                 long count = 0;
-                for (net.runelite.api.Item item : inv.getItems()) {
+                for (Item item : inv.getItems()) {
                     if (item.getId() <= 0) continue;
                     String n = itemManager.getItemComposition(item.getId()).getName();
                     if (nameMatches(name, n)) count += item.getQuantity();
@@ -189,11 +195,11 @@ public class BankItemManager {
     /** True when enough of each item group has been gained ABOVE the baseline snapshot. */
     public boolean hasAllItemsAboveBaseline(String itemListStr, java.util.Map<String, Long> baseline) {
         if (baseline == null) return hasAllItems(itemListStr);
-        net.runelite.api.ItemContainer inv = client.getItemContainer(net.runelite.api.InventoryID.INVENTORY);
+        ItemContainer inv = client.getItemContainer(InventoryID.INVENTORY);
         if (inv == null) return false;
         // Count current inventory
         java.util.Map<String, Long> current = new java.util.HashMap<>();
-        for (net.runelite.api.Item item : inv.getItems()) {
+        for (Item item : inv.getItems()) {
             if (item.getId() <= 0) continue;
             String n = itemManager.getItemComposition(item.getId()).getName();
             if (n == null) continue;
@@ -409,7 +415,7 @@ public class BankItemManager {
         if (cached != null) return cached;
         int id = -1;
         String search = key.endsWith(ANY_CHARGE) ? key.substring(0, key.length() - ANY_CHARGE.length()).trim() : key;
-        for (net.runelite.http.api.item.ItemPrice p : itemManager.search(search)) {
+        for (ItemPrice p : itemManager.search(search)) {
             if (nameMatches(listName, p.getName()) || p.getName().equalsIgnoreCase(search)) { id = p.getId(); break; }
         }
         idCache.put(key, id);

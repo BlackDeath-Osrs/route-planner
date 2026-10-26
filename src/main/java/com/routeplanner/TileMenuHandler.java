@@ -1,21 +1,29 @@
 package com.routeplanner;
 
+import com.routeplanner.model.ItemMode;
 import com.routeplanner.model.RouteStep;
 import com.routeplanner.model.StepType;
+import com.routeplanner.util.NpcNames;
 import lombok.extern.slf4j.Slf4j;
+import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
+import net.runelite.api.GameObject;
 import net.runelite.api.KeyCode;
 import net.runelite.api.MenuAction;
 import net.runelite.api.MenuEntry;
 import net.runelite.api.NPC;
+import net.runelite.api.Tile;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.MenuEntryAdded;
 import net.runelite.api.events.MenuOpened;
 import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.game.ItemManager;
 
 import javax.inject.Inject;
 import javax.swing.*;
+import java.util.ArrayList;
+import java.util.List;
 
 @Slf4j
 public class TileMenuHandler {
@@ -32,16 +40,16 @@ public class TileMenuHandler {
 
     private final Client client;
     private final RoutePlannerPlugin plugin;
-    private final net.runelite.client.game.ItemManager itemManager;
+    private final ItemManager itemManager;
 
     // Items collected via shift+right-click in shops, pending bundling into one step
-    private final java.util.List<String> pendingShopItems = new java.util.ArrayList<>();
+    private final List<String> pendingShopItems = new ArrayList<>();
     // Item name under the cursor when the menu was opened
     private String lastRightClickedShopItem = null;
 
     @Inject
     public TileMenuHandler(Client client, RoutePlannerPlugin plugin,
-                           net.runelite.client.game.ItemManager itemManager) {
+                           ItemManager itemManager) {
         this.client = client;
         this.plugin = plugin;
         this.itemManager = itemManager;
@@ -56,24 +64,19 @@ public class TileMenuHandler {
     @Subscribe
     public void onMenuEntryAdded(MenuEntryAdded event) {
         if (plugin.getActiveRoute() == null) return;
-        com.routeplanner.model.RouteStep step = plugin.getActiveRoute().getActiveStep();
+        RouteStep step = plugin.getActiveRoute().getActiveStep();
         if (step == null) return;
         if (step.getSkillingTargetNpc() == null) return;
         // Only pickpocketing wants its option on left click; Talk-to and kill steps
         // highlight an NPC too but keep the game's own menu order.
         if (!"THIEVING".equalsIgnoreCase(step.getSkillingSkill())) return;
 
-        net.runelite.api.MenuEntry entry = event.getMenuEntry();
+        MenuEntry entry = event.getMenuEntry();
         if (!(entry.getActor() instanceof NPC)) return;
         NPC npc = (NPC) entry.getActor();
         if (npc.getName() == null) return;
 
-        String npcName = npc.getName();
-        String targetName = step.getSkillingTargetNpc();
-        boolean nameMatch = npcName.equalsIgnoreCase(targetName)
-            || npcName.toLowerCase().startsWith(targetName.toLowerCase() + " ")
-            || npcName.toLowerCase().startsWith(targetName.toLowerCase() + "(");
-        if (!nameMatch) return;
+        if (!NpcNames.matches(step.getSkillingTargetNpc(), npc.getName())) return;
 
         String option = entry.getOption();
         // Deprioritize everything except Pickpocket and Examine
@@ -106,9 +109,9 @@ public class TileMenuHandler {
                     .setType(MenuAction.RUNELITE)
                     .setDeprioritized(false);
                 // Also offer object ID grab if a game object is under the cursor
-                net.runelite.api.Tile tile = client.getTopLevelWorldView().getSelectedSceneTile();
+                Tile tile = client.getTopLevelWorldView().getSelectedSceneTile();
                 if (tile != null) {
-                    for (net.runelite.api.GameObject obj : tile.getGameObjects()) {
+                    for (GameObject obj : tile.getGameObjects()) {
                         if (obj != null) {
                             client.createMenuEntry(-1)
                                 .setOption(SET_TRANSITION_OBJECT + " (ID:" + obj.getId() + ")")
@@ -132,7 +135,7 @@ public class TileMenuHandler {
             if (lastRightClickedShopItem != null
                     && !pendingShopItems.contains(lastRightClickedShopItem)) {
                 pendingShopItems.add(lastRightClickedShopItem);
-                client.addChatMessage(net.runelite.api.ChatMessageType.GAMEMESSAGE, "",
+                client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
                     "<col=00ff00>Route Planner:</col> added " + lastRightClickedShopItem
                     + " (" + pendingShopItems.size() + " selected)", null);
             }
@@ -143,35 +146,35 @@ public class TileMenuHandler {
         if (!event.getMenuTarget().contains(MENU_TARGET)) return;
 
         if (opt.startsWith(SET_TRANSITION_OBJECT)) {
-            com.routeplanner.model.RouteStep activeStep = plugin.getActiveRoute() == null ? null
+            RouteStep activeStep = plugin.getActiveRoute() == null ? null
                 : plugin.getActiveRoute().getActiveStep();
             if (activeStep == null) return;
-            net.runelite.api.Tile tile = client.getTopLevelWorldView().getSelectedSceneTile();
+            Tile tile = client.getTopLevelWorldView().getSelectedSceneTile();
             if (tile == null) return;
-            for (net.runelite.api.GameObject obj : tile.getGameObjects()) {
+            for (GameObject obj : tile.getGameObjects()) {
                 if (obj != null) {
                     activeStep.setTransitionObjectId(obj.getId());
                     plugin.saveRoutes();
-                    client.addChatMessage(net.runelite.api.ChatMessageType.GAMEMESSAGE, "",
+                    client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
                         "<col=00ff00>Route Planner:</col> transition object ID set to " + obj.getId(), null);
                     log.info("Transition object ID set to {}", obj.getId());
                     break;
                 }
             }
         } else if (opt.equals(SET_TRANSITION_POINT)) {
-            net.runelite.api.Tile selectedTile = client.getTopLevelWorldView().getSelectedSceneTile();
+            Tile selectedTile = client.getTopLevelWorldView().getSelectedSceneTile();
             if (selectedTile == null) return;
-            com.routeplanner.model.RouteStep activeStep = plugin.getActiveRoute() == null ? null
+            RouteStep activeStep = plugin.getActiveRoute() == null ? null
                 : plugin.getActiveRoute().getActiveStep();
             if (activeStep == null) return;
-            net.runelite.api.coords.WorldPoint raw = selectedTile.getWorldLocation();
+            WorldPoint raw = selectedTile.getWorldLocation();
             activeStep.setTransitionPoint(raw);
             plugin.saveRoutes();
-            client.addChatMessage(net.runelite.api.ChatMessageType.GAMEMESSAGE, "",
+            client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
                 "<col=00ff00>Route Planner:</col> transition point set to " + raw, null);
             log.info("Transition point set to {}", raw);
         } else if (opt.equals(ADD_LOCATION_STEP)) {
-            net.runelite.api.Tile selectedTile = client.getTopLevelWorldView().getSelectedSceneTile();
+            Tile selectedTile = client.getTopLevelWorldView().getSelectedSceneTile();
             if (selectedTile == null) {
                 log.warn("Route Planner: no selected tile found");
                 return;
@@ -182,7 +185,7 @@ public class TileMenuHandler {
             event.consume();
         } else if (opt.equals(CLEAR_SELECTION)) {
             pendingShopItems.clear();
-            client.addChatMessage(net.runelite.api.ChatMessageType.GAMEMESSAGE, "",
+            client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
                 "<col=ff5555>Route Planner:</col> item selection cleared", null);
             event.consume();
         }
@@ -190,7 +193,7 @@ public class TileMenuHandler {
 
     private void createItemStepFromSelection() {
         if (pendingShopItems.isEmpty() || plugin.getActiveRoute() == null) return;
-        final java.util.List<String> snapshot = new java.util.ArrayList<>(pendingShopItems);
+        final List<String> snapshot = new ArrayList<>(pendingShopItems);
         pendingShopItems.clear();
         SwingUtilities.invokeLater(() -> {
             String itemList = String.join(", ", snapshot);
@@ -199,7 +202,7 @@ public class TileMenuHandler {
                 + (snapshot.size() > 1 ? " +" + (snapshot.size() - 1) + " more" : "");
             RouteStep step = new RouteStep(stepName, StepType.ITEM, null, -1);
             step.setItemList(itemList);
-            step.setItemMode("SHOP");
+            step.setItemMode(ItemMode.SHOP);
             plugin.addStep(plugin.getActiveRoute(), step);
             log.info("Created shop item step with {} items: {}", snapshot.size(), itemList);
         });

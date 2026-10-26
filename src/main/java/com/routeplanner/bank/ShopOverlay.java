@@ -1,12 +1,14 @@
 package com.routeplanner.bank;
 
 import com.routeplanner.RoutePlannerPlugin;
+import com.routeplanner.model.ItemMode;
 import com.routeplanner.model.RouteStep;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
+import net.runelite.api.InventoryID;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
-import net.runelite.api.InventoryID;
+import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.overlay.*;
@@ -19,10 +21,6 @@ import java.util.List;
 @Slf4j
 @Singleton
 public class ShopOverlay extends Overlay {
-
-    // Shop stock container: group 300, child 16
-    private static final int SHOP_GROUP = 300;
-    private static final int SHOP_STOCK_CHILD = 16;
 
     private final Client client;
     private final RoutePlannerPlugin plugin;
@@ -45,15 +43,14 @@ public class ShopOverlay extends Overlay {
         if (plugin.getActiveRoute() == null) return null;
         RouteStep step = plugin.getActiveRoute().getActiveStep();
         if (step == null || !step.hasItems()) return null;
-        String mode = step.getItemMode();
-        boolean isSell = "SELL".equals(mode);
-        boolean isShop = "SHOP".equals(mode);
+        boolean isSell = step.getItemMode() == ItemMode.SELL;
+        boolean isShop = step.getItemMode() == ItemMode.SHOP;
         if (!isShop && !isSell) return null;
 
-        // SHOP highlights the shop stock (300,16); SELL highlights the inventory panel (301,0)
-        Widget container = isSell
-            ? client.getWidget(301, 0)
-            : client.getWidget(SHOP_GROUP, SHOP_STOCK_CHILD);
+        // SHOP highlights the shop stock; SELL highlights the inventory panel beside it
+        Widget container = client.getWidget(isSell
+            ? InterfaceID.Shopside.ITEMS
+            : InterfaceID.Shopmain.ITEMS);
         if (container == null || container.isHidden()) return null;
 
         List<List<String>> groups = bankItemManager.parseItemList(step.getItemList());

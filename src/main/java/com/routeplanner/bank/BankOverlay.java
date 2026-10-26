@@ -2,8 +2,12 @@ package com.routeplanner.bank;
 
 import com.routeplanner.RoutePlannerPlugin;
 import com.routeplanner.model.RouteStep;
+import com.routeplanner.skilling.PotionRecipes;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
+import net.runelite.api.InventoryID;
+import net.runelite.api.Item;
+import net.runelite.api.ItemContainer;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.ComponentID;
 import net.runelite.api.widgets.Widget;
@@ -13,11 +17,20 @@ import net.runelite.client.ui.overlay.*;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.awt.*;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Singleton
 public class BankOverlay extends Overlay {
+
+    private static final Color MISSING_FILL = new Color(255, 140, 0, 120);
+    private static final Color MISSING_BORDER = new Color(255, 140, 0, 220);
+    private static final Color HAVE_FILL = new Color(0, 255, 0, 80);
+    private static final Color HAVE_BORDER = new Color(0, 255, 0, 200);
+    private static final Stroke BORDER_STROKE = new BasicStroke(2);
 
     private final Client client;
     private final RoutePlannerPlugin plugin;
@@ -61,8 +74,8 @@ public class BankOverlay extends Overlay {
         if (isItem) {
             itemListStr = step.getItemList();
         } else if (isHerblore) {
-            com.routeplanner.skilling.PotionRecipes.Potion pot =
-                com.routeplanner.skilling.PotionRecipes.getByName(step.getHerblorePotion());
+            PotionRecipes.Potion pot =
+                PotionRecipes.getByName(step.getHerblorePotion());
             if (pot == null) return null;
             if (inventoryHasItem(pot.unfinished)) {
                 itemListStr = pot.secondary;
@@ -75,67 +88,38 @@ public class BankOverlay extends Overlay {
             itemListStr = step.getBankHighlightItems();
         }
 
+        // Parse the list and count the inventory once per frame, not once per bank item.
         List<List<String>> groups = bankItemManager.parseItemList(itemListStr);
         if (groups.isEmpty()) return null;
+        List<String[]> wanted = new ArrayList<>(); // {name, alt as written} in list order
+        for (List<String> group : groups) {
+            for (String alt : group) wanted.add(new String[]{bankItemManager.parseItemName(alt), alt});
+        }
+        Map<String, Long> carried = inventoryCounts();
 
         // Items scrolled out of view still have canvas positions; keep highlights inside the list.
         Shape savedClip = graphics.getClip();
         graphics.clip(visibleBounds(container));
+        graphics.setStroke(BORDER_STROKE);
         for (Widget item : items) {
             if (item == null || item.isHidden() || item.getItemId() <= 0) continue;
             String itemName = itemManager.getItemComposition(item.getItemId()).getName();
             if (itemName == null) continue;
 
-            boolean isRequired = false;
-            boolean isMissing = false;
-
-            for (List<String> group : groups) {
-                for (String alt : group) {
-                    String altName = bankItemManager.parseItemName(alt);
-                    if (BankItemManager.nameMatches(altName, itemName)) {
-                        isRequired = true;
-                        // Check if INVENTORY has enough, not bank
-                        long required = bankItemManager.parseQuantityValue(alt);
-                        net.runelite.api.ItemContainer inv =
-                            client.getItemContainer(net.runelite.api.InventoryID.INVENTORY);
-                        long inInventory = 0;
-                        if (inv != null) {
-                            for (net.runelite.api.Item invItem : inv.getItems()) {
-                                if (invItem.getId() <= 0) continue;
-                                String invName = itemManager.getItemComposition(invItem.getId()).getName();
-                                if (BankItemManager.nameMatches(altName, invName)) {
-                                    inInventory += invItem.getQuantity();
-                                }
-                            }
-                        }
-                        isMissing = inInventory < required;
-                        break;
-                    }
-                }
-                if (isRequired) break;
+            String[] match = null;
+            for (String[] w : wanted) {
+                if (BankItemManager.nameMatches(w[0], itemName)) { match = w; break; }
             }
+            if (match == null) continue;
 
-            if (isRequired) {
-                Rectangle bounds = new Rectangle(
-                    item.getCanvasLocation().getX(),
-                    item.getCanvasLocation().getY(),
-                    item.getWidth(),
-                    item.getHeight()
-                );
-                // Green if already have it, orange if still need it
-                Color highlight = isMissing
-                    ? new Color(255, 140, 0, 120)
-                    : new Color(0, 255, 0, 80);
-                Color border = isMissing
-                    ? new Color(255, 140, 0, 220)
-                    : new Color(0, 255, 0, 200);
-
-                graphics.setColor(highlight);
-                graphics.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
-                graphics.setColor(border);
-                graphics.setStroke(new BasicStroke(2));
-                graphics.drawRect(bounds.x, bounds.y, bounds.width, bounds.height);
-            }
+            // Orange while the INVENTORY (not the bank) is still short of it, green once it's carried.
+            boolean missing = BankItemManager.countOf(carried, match[0]) < bankItemManager.parseQuantityValue(match[1]);
+            Rectangle bounds = new Rectangle(item.getCanvasLocation().getX(), item.getCanvasLocation().getY(),
+                item.getWidth(), item.getHeight());
+            graphics.setColor(missing ? MISSING_FILL : HAVE_FILL);
+            graphics.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+            graphics.setColor(missing ? MISSING_BORDER : HAVE_BORDER);
+            graphics.drawRect(bounds.x, bounds.y, bounds.width, bounds.height);
         }
         graphics.setClip(savedClip);
 
@@ -169,12 +153,25 @@ public class BankOverlay extends Overlay {
         return false;
     }
 
+    /** Lower-case item name -> how many are in the inventory. */
+    private Map<String, Long> inventoryCounts() {
+        Map<String, Long> counts = new HashMap<>();
+        ItemContainer inv = client.getItemContainer(InventoryID.INVENTORY);
+        if (inv == null) return counts;
+        for (Item invItem : inv.getItems()) {
+            if (invItem.getId() <= 0) continue;
+            String n = itemManager.getItemComposition(invItem.getId()).getName();
+            if (n != null) counts.merge(n.toLowerCase(), (long) invItem.getQuantity(), Long::sum);
+        }
+        return counts;
+    }
+
     private boolean inventoryHasItem(String name) {
         if (name == null) return false;
-        net.runelite.api.ItemContainer inv =
-            client.getItemContainer(net.runelite.api.InventoryID.INVENTORY);
+        ItemContainer inv =
+            client.getItemContainer(InventoryID.INVENTORY);
         if (inv == null) return false;
-        for (net.runelite.api.Item invItem : inv.getItems()) {
+        for (Item invItem : inv.getItems()) {
             if (invItem.getId() <= 0) continue;
             String n = itemManager.getItemComposition(invItem.getId()).getName();
             if (n != null && n.equalsIgnoreCase(name)) return true;

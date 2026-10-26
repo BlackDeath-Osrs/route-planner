@@ -2,6 +2,7 @@ package com.routeplanner.teleport;
 
 import com.routeplanner.RoutePlannerPlugin;
 import com.routeplanner.model.RouteStep;
+import com.routeplanner.util.HighlightColors;
 import net.runelite.api.Client;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.ui.overlay.Overlay;
@@ -64,7 +65,7 @@ public class SpellbookOverlay extends Overlay {
         graphics.setColor(outline);
         graphics.setStroke(new BasicStroke(2));
         graphics.drawRect(b.x - 1, b.y - 1, b.width + 2, b.height + 2);
-        graphics.setColor(com.routeplanner.util.HighlightColors.fill(outline));
+        graphics.setColor(HighlightColors.fill(outline));
         graphics.fillRect(b.x - 1, b.y - 1, b.width + 2, b.height + 2);
         return null;
     }

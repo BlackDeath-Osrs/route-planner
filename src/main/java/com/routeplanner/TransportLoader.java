@@ -1,5 +1,6 @@
 package com.routeplanner;
 
+import com.routeplanner.transport.Transport;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.coords.WorldPoint;
 
@@ -40,13 +41,13 @@ public class TransportLoader {
     }
 
     /** Every loaded edge with its menu text and object id, for highlighting the stairs to use. */
-    private static final Map<WorldPoint, List<com.routeplanner.transport.Transport>> DETAILS = new HashMap<>();
+    private static final Map<WorldPoint, List<Transport>> DETAILS = new HashMap<>();
 
     /** The transport going from {@code origin} to {@code destination}, or null if none is known. */
-    public static com.routeplanner.transport.Transport find(WorldPoint origin, WorldPoint destination) {
-        List<com.routeplanner.transport.Transport> list = DETAILS.get(origin);
+    public static Transport find(WorldPoint origin, WorldPoint destination) {
+        List<Transport> list = DETAILS.get(origin);
         if (list == null) return null;
-        for (com.routeplanner.transport.Transport t : list) if (t.destination.equals(destination)) return t;
+        for (Transport t : list) if (t.destination.equals(destination)) return t;
         return null;
     }
 
@@ -83,7 +84,7 @@ public class TransportLoader {
     }
 
     /** "Climb-up Staircase 16671" -> action "Climb-up Staircase", object 16671. */
-    private static com.routeplanner.transport.Transport detail(WorldPoint origin, WorldPoint dest, String col) {
+    private static Transport detail(WorldPoint origin, WorldPoint dest, String col) {
         String text = col.trim();
         int id = -1;
         int sp = text.lastIndexOf(' ');
@@ -93,7 +94,7 @@ public class TransportLoader {
                 text = text.substring(0, sp);
             } catch (NumberFormatException ignored) {}
         }
-        return new com.routeplanner.transport.Transport(origin, dest, text.isEmpty() ? null : text, id);
+        return new Transport(origin, dest, text.isEmpty() ? null : text, id);
     }
 
     private static WorldPoint parsePoint(String s) {

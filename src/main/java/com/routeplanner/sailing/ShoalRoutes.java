@@ -27,7 +27,7 @@ public final class ShoalRoutes {
             this.path = path;
             this.stops = stops;
             int x0 = Integer.MAX_VALUE, y0 = Integer.MAX_VALUE, x1 = Integer.MIN_VALUE, y1 = Integer.MIN_VALUE;
-            for (List<WorldPoint> points : java.util.Arrays.asList(path, stops)) {
+            for (List<WorldPoint> points : Arrays.asList(path, stops)) {
                 for (WorldPoint p : points) {
                     x0 = Math.min(x0, p.getX()); y0 = Math.min(y0, p.getY());
                     x1 = Math.max(x1, p.getX()); y1 = Math.max(y1, p.getY());
@@ -71,7 +71,7 @@ public final class ShoalRoutes {
     }
 
     /** Every known shoal route. */
-    public static synchronized java.util.Collection<Route> all() {
+    public static synchronized Collection<Route> all() {
         if (routes == null) routes = load();
         return routes.values();
     }

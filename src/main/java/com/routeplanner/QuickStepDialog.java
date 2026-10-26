@@ -1,13 +1,23 @@
 package com.routeplanner;
 
+import com.routeplanner.model.ItemMode;
 import com.routeplanner.model.Route;
 import com.routeplanner.model.RouteStep;
+import com.routeplanner.model.SkillGoalType;
 import com.routeplanner.model.StepType;
+import com.routeplanner.sailing.SailingDocks;
+import com.routeplanner.skilling.RecipeLabels;
+import com.routeplanner.teleport.TeleportItem;
+import com.routeplanner.teleport.TeleportItems;
+import com.routeplanner.teleport.TeleportPickers;
+import com.routeplanner.teleport.TeleportSpell;
+import com.routeplanner.teleport.TeleportSpells;
 import com.routeplanner.ui.StepIcon;
 import com.routeplanner.util.LocationNames;
 import com.routeplanner.util.RouteTextValidator;
 import net.runelite.api.Quest;
 import net.runelite.api.Skill;
+import net.runelite.api.coords.WorldArea;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
@@ -20,12 +30,18 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.*;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -33,11 +49,9 @@ import java.util.regex.Pattern;
  * The step editor: pick what kind of step it is, and only that kind's fields show.
  *
  * Types: Go somewhere, Get items, Talk to, Kill, Train a skill, Quest, Note. "Add more" puts
- * extras (items, a skill goal, a quest, highlights, stairs) on any type. Anything this editor
- * doesn't cover (teleports, odd mixes) opens in the full editor, {@link StepEditorDialog}.
+ * extras (items, a skill goal, a quest, highlights, a teleport, stairs, a boat) on any type.
  *
- * It writes the same step fields as the full editor, and on an existing step it only touches the
- * fields it shows, so recorded, Hub and older steps edit safely.
+ * On an existing step it only touches the fields it shows, so recorded, Hub and older steps edit safely.
  */
 public class QuickStepDialog extends JFrame {
 
@@ -58,16 +72,19 @@ public class QuickStepDialog extends JFrame {
     private static final Color MANUAL_BG = new Color(42, 36, 20), MANUAL_EDGE = new Color(74, 63, 34), MANUAL_FG = new Color(234, 220, 181);
     private static final Color ERROR = new Color(255, 120, 110);
     private static final String[] ITEM_MODES = {"Bring from the bank", "Buy at a shop", "Sell to a shop", "Pick up or gather", "Deposit everything"};
-    private static final String[] ITEM_MODE_KEYS = {"BANK", "SHOP", "SELL", "PICKUP", "DEPOSIT_ALL"};
+    private static final ItemMode[] ITEM_MODE_KEYS = {ItemMode.BANK, ItemMode.SHOP, ItemMode.SELL, ItemMode.PICKUP, ItemMode.DEPOSIT_ALL};
     private static final String[] GOALS = {"Gain XP", "Reach level", "Reach total XP"};
-    private static final String[] GOAL_KEYS = {"XP_GAIN", "LEVEL", "XP_TARGET"};
+    private static final SkillGoalType[] GOAL_KEYS = {SkillGoalType.XP_GAIN, SkillGoalType.LEVEL, SkillGoalType.XP_TARGET};
     private static final Pattern QTY = Pattern.compile("^([\\d.]+\\s*(?:k|m|mil|b)?)\\s+(.+)$", Pattern.CASE_INSENSITIVE);
+    private static final Pattern AREA_SPLIT = Pattern.compile("\\s*(?:\\bto\\b|->|\u2192)\\s*", Pattern.CASE_INSENSITIVE);
     private static final Pattern AUTO_KILL_NOTE = Pattern.compile("^Kill \\d+ .+\\.$");
 
     private final RoutePlannerPlugin plugin;
     private final Route route;
     private final RouteStep editing;
     private final WorldPoint seedTile;
+    /** Drawn areas are a beta feature: off, the Area row is hidden and a step's area is left as it is. */
+    private final boolean areasOn;
     private Runnable onSaved;
 
     private Type type = Type.WALK;
@@ -75,14 +92,15 @@ public class QuickStepDialog extends JFrame {
 
     // Teleport: only written back when changed here, so steps with unusual teleports stay intact
     private String teleMethod = "WALK"; // WALK | SPELL | ITEM | NEXUS
-    private com.routeplanner.teleport.TeleportSpell chosenSpell;
-    private com.routeplanner.teleport.TeleportItem chosenItem;
+    private TeleportSpell chosenSpell;
+    private TeleportItem chosenItem;
     private String chosenNexus;
     private boolean teleTouched;
 
-    private final java.util.Map<Type, JToggleButton> typeButtons = new java.util.EnumMap<>(Type.class);
+    private final Map<Type, JToggleButton> typeButtons = new EnumMap<>(Type.class);
     private final HintField nameField = new HintField();
     private final JTextField tileField = field();
+    private final HintField areaField = new HintField();
     private final JLabel placeLabel = small("");
     private final HintField whoField = new HintField();
     private final JLabel whoLabel = label("Who");
@@ -102,6 +120,7 @@ public class QuickStepDialog extends JFrame {
     private final JCheckBox questComplete = check("Complete this step when the quest is finished", true);
     private final HintField hlNpc = new HintField();
     private final HintField hlObject = new HintField();
+    private final HintField hlInventory = new HintField();
     private final JTextField stairsField = field();
     private final JComboBox<String> boatDock = combo(new String[0]);
     private final JTextArea noteArea = new JTextArea(3, 20);
@@ -114,7 +133,7 @@ public class QuickStepDialog extends JFrame {
     private JPanel addMore;
     private JButton addItemsBtn, addSkillBtn, addQuestBtn, addHighlightBtn, addStairsBtn, addTeleBtn, addBoatBtn;
     private JPanel killRow;
-    private final java.util.Map<JPanel, Component> gaps = new java.util.HashMap<>();
+    private final Map<JPanel, Component> gaps = new HashMap<>();
     private JPanel addMoreRow;
     private boolean loading = true; // listeners stay quiet until the form is built and filled
 
@@ -128,13 +147,14 @@ public class QuickStepDialog extends JFrame {
         this.route = route;
         this.editing = editing;
         this.seedTile = seedTile;
+        this.areasOn = plugin.getConfig().betaFeatures();
 
         setTitle(editing == null ? "Add step" : "Edit step");
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         setAlwaysOnTop(true);
         setSize(plugin.getStepEditorSize());
-        addComponentListener(new java.awt.event.ComponentAdapter() {
-            @Override public void componentResized(java.awt.event.ComponentEvent e) {
+        addComponentListener(new ComponentAdapter() {
+            @Override public void componentResized(ComponentEvent e) {
                 plugin.setStepEditorSize(getWidth(), getHeight());
             }
         });
@@ -224,19 +244,6 @@ public class QuickStepDialog extends JFrame {
             typeButtons.put(t, b);
             grid.add(b);
         }
-        JButton full = new JButton("Full editor", new StepIcon(StepIcon.Kind.SKILL, 20, true));
-        full.setVerticalTextPosition(SwingConstants.BOTTOM);
-        full.setHorizontalTextPosition(SwingConstants.CENTER);
-        full.setIconTextGap(4);
-        full.setFocusPainted(false);
-        full.setFont(FontManager.getRunescapeSmallFont());
-        full.setBackground(SECTION_BG);
-        full.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-        full.setBorder(BorderFactory.createLineBorder(new Color(26, 26, 26)));
-        full.setToolTipText("Every setting at once, including teleports (the original editor)");
-        full.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        full.addActionListener(e -> openFullEditor());
-        grid.add(full);
         return grid;
     }
 
@@ -257,10 +264,42 @@ public class QuickStepDialog extends JFrame {
         row.add(mine, BorderLayout.EAST);
         row.setMaximumSize(new Dimension(Integer.MAX_VALUE, row.getPreferredSize().height));
         p.add(row);
+        p.add(Box.createVerticalStrut(5));
+
+        JPanel areaRow = new JPanel(new BorderLayout(6, 0));
+        areaRow.setOpaque(false);
+        areaRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        areaField.setHint("Area (optional)");
+        areaField.setToolTipText("<html>Arrive anywhere in this rectangle instead of next to the tile.<br>"
+            + "Two corners, like 3200, 3200 to 3245, 3235. Blank = just the tile.</html>");
+        areaRow.add(areaField, BorderLayout.CENTER);
+        JButton draw = button("Draw area");
+        draw.setToolTipText("Drag over the ground in game to mark the area");
+        draw.addActionListener(e -> drawArea());
+        areaRow.add(draw, BorderLayout.EAST);
+        areaRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, areaRow.getPreferredSize().height));
+        areaRow.setVisible(areasOn);
+        p.add(areaRow);
         p.add(Box.createVerticalStrut(3));
         p.add(placeLabel);
         listen(tileField);
+        listen(areaField);
         return p;
+    }
+
+    /** Hide while the area is dragged out in game, then come back with it filled in. */
+    private void drawArea() {
+        setVisible(false);
+        plugin.getAreaDrawer().start(area -> {
+            if (area != null) {
+                areaField.setText(formatArea(area));
+                // The route line heads for the tile, so keep it inside the area
+                WorldPoint wp = parseTile(tileField.getText());
+                if (wp == null || !area.contains(wp)) tileField.setText(formatTile(centreOf(area)));
+            }
+            setVisible(true);
+            toFront();
+        });
     }
 
     private JPanel buildWho() {
@@ -339,7 +378,7 @@ public class QuickStepDialog extends JFrame {
         head.add(label("Items"), BorderLayout.WEST);
         head.add(itemMode, BorderLayout.EAST);
         head.setMaximumSize(new Dimension(Integer.MAX_VALUE, head.getPreferredSize().height));
-        itemMode.addActionListener(e -> { itemRows.setVisible(!"DEPOSIT_ALL".equals(itemModeKey())); refresh(); });
+        itemMode.addActionListener(e -> { itemRows.setVisible(itemModeKey() != ItemMode.DEPOSIT_ALL); refresh(); });
         p.add(head);
         p.add(Box.createVerticalStrut(5));
         itemRows.setOpaque(false);
@@ -385,7 +424,7 @@ public class QuickStepDialog extends JFrame {
 
     private void fillRecipes(String select) {
         String skill = (String) skillBox.getSelectedItem();
-        recipeBox.setModel(new DefaultComboBoxModel<>(StepEditorDialog.recipeLabelsFor(skill)));
+        recipeBox.setModel(new DefaultComboBoxModel<>(RecipeLabels.labelsFor(skill)));
         if (select != null) recipeBox.setSelectedItem(select);
         recipeBox.setEnabled(recipeBox.getItemCount() > 1);
     }
@@ -433,8 +472,11 @@ public class QuickStepDialog extends JFrame {
         row.add(hlObject);
         row.setMaximumSize(new Dimension(Integer.MAX_VALUE, row.getPreferredSize().height));
         p.add(row);
+        hlInventory.setHint("e.g. Cocktail shaker, Lemon");
+        p.add(labeled("Inventory items", hlInventory));
         listen(hlNpc);
         listen(hlObject);
+        listen(hlInventory);
         return p;
     }
 
@@ -469,15 +511,15 @@ public class QuickStepDialog extends JFrame {
         p.add(Box.createVerticalStrut(6));
 
         spellBox.addItem("Choose a spell...");
-        for (com.routeplanner.teleport.TeleportSpell sp : com.routeplanner.teleport.TeleportSpells.ALL) spellBox.addItem(sp);
+        for (TeleportSpell sp : TeleportSpells.ALL) spellBox.addItem(sp);
         spellBox.setMaximumRowCount(14);
         spellBox.setRenderer(new DefaultListCellRenderer() {
             @Override public Component getListCellRendererComponent(JList<?> l, Object v, int i, boolean sel, boolean foc) {
                 super.getListCellRendererComponent(l, v, i, sel, foc);
-                if (v instanceof com.routeplanner.teleport.TeleportSpell) {
-                    com.routeplanner.teleport.TeleportSpell sp = (com.routeplanner.teleport.TeleportSpell) v;
+                if (v instanceof TeleportSpell) {
+                    TeleportSpell sp = (TeleportSpell) v;
                     setText(sp.getName());
-                    setIcon(com.routeplanner.teleport.TeleportPickers.spellIcon(plugin, sp, () -> { spellBox.repaint(); l.repaint(); }));
+                    setIcon(TeleportPickers.spellIcon(plugin, sp, () -> { spellBox.repaint(); l.repaint(); }));
                 } else {
                     setIcon(null);
                 }
@@ -487,21 +529,21 @@ public class QuickStepDialog extends JFrame {
         spellBox.addActionListener(e -> {
             if (loading) return;
             Object v = spellBox.getSelectedItem();
-            chosenSpell = v instanceof com.routeplanner.teleport.TeleportSpell ? (com.routeplanner.teleport.TeleportSpell) v : null;
+            chosenSpell = v instanceof TeleportSpell ? (TeleportSpell) v : null;
             teleMethod = "SPELL";
             teleportChosen(chosenSpell != null ? chosenSpell.getDestination() : null);
         });
 
         itemBox.addItem("Choose an item...");
-        for (com.routeplanner.teleport.TeleportItem it : com.routeplanner.teleport.TeleportItems.ALL) itemBox.addItem(it);
+        for (TeleportItem it : TeleportItems.ALL) itemBox.addItem(it);
         itemBox.setMaximumRowCount(14);
         itemBox.setRenderer(new DefaultListCellRenderer() {
             @Override public Component getListCellRendererComponent(JList<?> l, Object v, int i, boolean sel, boolean foc) {
                 super.getListCellRendererComponent(l, v, i, sel, foc);
-                if (v instanceof com.routeplanner.teleport.TeleportItem) {
-                    com.routeplanner.teleport.TeleportItem it = (com.routeplanner.teleport.TeleportItem) v;
+                if (v instanceof TeleportItem) {
+                    TeleportItem it = (TeleportItem) v;
                     setText(it.getDisplayName());
-                    setIcon(com.routeplanner.teleport.TeleportPickers.itemIcon(plugin, it));
+                    setIcon(TeleportPickers.itemIcon(plugin, it));
                 } else {
                     setIcon(null);
                 }
@@ -511,7 +553,7 @@ public class QuickStepDialog extends JFrame {
         itemBox.addActionListener(e -> {
             if (loading) return;
             Object v = itemBox.getSelectedItem();
-            chosenItem = v instanceof com.routeplanner.teleport.TeleportItem ? (com.routeplanner.teleport.TeleportItem) v : null;
+            chosenItem = v instanceof TeleportItem ? (TeleportItem) v : null;
             teleMethod = "ITEM";
             teleportChosen(chosenItem != null ? chosenItem.getDestination() : null);
         });
@@ -559,7 +601,7 @@ public class QuickStepDialog extends JFrame {
     private void teleportChosen(WorldPoint dest) {
         teleTouched = true;
         if (dest != null) {
-            tileField.setText(com.routeplanner.teleport.TeleportItems.isHouse(dest) ? "" : formatTile(dest));
+            tileField.setText(TeleportItems.isHouse(dest) ? "" : formatTile(dest));
         }
         refresh();
     }
@@ -595,9 +637,9 @@ public class QuickStepDialog extends JFrame {
     private JPanel buildBoat() {
         JPanel p = section();
         p.add(label("Board a boat at"));
-        java.util.List<String> names = new java.util.ArrayList<>();
-        for (com.routeplanner.sailing.SailingDocks.Dock d : plugin.getSailingDocks().getDocks()) names.add(d.name);
-        java.util.Collections.sort(names);
+        List<String> names = new ArrayList<>();
+        for (SailingDocks.Dock d : plugin.getSailingDocks().getDocks()) names.add(d.name);
+        Collections.sort(names);
         for (String n : names) boatDock.addItem(n);
         JPanel row = new JPanel(new BorderLayout(6, 0));
         row.setOpaque(false);
@@ -606,7 +648,7 @@ public class QuickStepDialog extends JFrame {
         JButton nearest = button("Nearest");
         nearest.addActionListener(e -> {
             WorldPoint wp = plugin.getLastPlayerLocation();
-            com.routeplanner.sailing.SailingDocks.Dock d = wp == null ? null : plugin.getSailingDocks().nearest(wp, Integer.MAX_VALUE);
+            SailingDocks.Dock d = wp == null ? null : plugin.getSailingDocks().nearest(wp, Integer.MAX_VALUE);
             if (d != null) boatDock.setSelectedItem(d.name);
         });
         JButton remove = button("Remove");
@@ -626,9 +668,9 @@ public class QuickStepDialog extends JFrame {
     }
 
     /** The dock picked in the Boat section, or null. */
-    private com.routeplanner.sailing.SailingDocks.Dock chosenDock() {
+    private SailingDocks.Dock chosenDock() {
         Object name = boatDock.getSelectedItem();
-        for (com.routeplanner.sailing.SailingDocks.Dock d : plugin.getSailingDocks().getDocks()) {
+        for (SailingDocks.Dock d : plugin.getSailingDocks().getDocks()) {
             if (d.name.equals(name)) return d;
         }
         return null;
@@ -752,7 +794,7 @@ public class QuickStepDialog extends JFrame {
     /** Show the right sections, restyle the type tiles, and update the suggested name and summary. */
     private void refresh() {
         if (loading) return;
-        for (java.util.Map.Entry<Type, JToggleButton> e : typeButtons.entrySet()) {
+        for (Map.Entry<Type, JToggleButton> e : typeButtons.entrySet()) {
             boolean on = e.getKey() == type;
             JToggleButton b = e.getValue();
             b.setBackground(on ? new Color(58, 44, 18) : SECTION_BG);
@@ -773,7 +815,7 @@ public class QuickStepDialog extends JFrame {
         noteAuto.setVisible(type == Type.NOTE || type == Type.WALK || !noteArea.getText().trim().isEmpty());
         highlight.setVisible(type == Type.TALK || type == Type.KILL || extraHighlight || skillOn() || itemsOn());
 
-        for (java.util.Map.Entry<JPanel, Component> g : gaps.entrySet()) g.getValue().setVisible(g.getKey().isVisible());
+        for (Map.Entry<JPanel, Component> g : gaps.entrySet()) g.getValue().setVisible(g.getKey().isVisible());
         // Only the extras not already on the step, packed into a grid (a flow row won't wrap here)
         addMoreRow.removeAll();
         if (!itemsOn()) addMoreRow.add(addItemsBtn);
@@ -787,8 +829,14 @@ public class QuickStepDialog extends JFrame {
 
         WorldPoint wp = parseTile(tileField.getText());
         boolean tileBad = wp == null && !tileField.getText().trim().isEmpty();
-        placeLabel.setText(tileBad ? "Use x, y or x, y, plane" : wp != null ? LocationNames.describe(wp) : "Anywhere");
-        placeLabel.setForeground(tileBad ? ERROR : ColorScheme.LIGHT_GRAY_COLOR);
+        WorldArea area = areasOn ? parseArea(areaField.getText()) : null;
+        boolean areaBad = areasOn && area == null && !areaField.getText().trim().isEmpty();
+        if (wp == null && area != null) wp = centreOf(area);
+        String place = wp != null ? LocationNames.describe(wp) : "Anywhere";
+        if (area != null) place += " (area " + area.getWidth() + " x " + area.getHeight() + " tiles)";
+        placeLabel.setText(tileBad ? "Use x, y or x, y, plane"
+            : areaBad ? "Area: use two corners, like 3200, 3200 to 3245, 3235" : place);
+        placeLabel.setForeground(tileBad || areaBad ? ERROR : ColorScheme.LIGHT_GRAY_COLOR);
         nameField.setHint(autoName(wp));
         updateDone(wp);
         errorLabel.setText(" ");
@@ -800,14 +848,15 @@ public class QuickStepDialog extends JFrame {
     private void updateDone(WorldPoint wp) {
         List<String> parts = new ArrayList<>();
         String place = wp != null ? LocationNames.describe(wp) : null;
-        boolean hasItems = itemsOn() && ("DEPOSIT_ALL".equals(itemModeKey()) || !itemListText().isEmpty());
+        boolean hasItems = itemsOn() && (itemModeKey() == ItemMode.DEPOSIT_ALL || !itemListText().isEmpty());
         boolean hasSkill = skillOn() && parseAmount(goalValue.getText()) > 0;
         int kills = type == Type.KILL ? parseInt(killCount.getText()) : 0;
         boolean hasChat = chatOn() && !chatPicks.isEmpty();
         boolean hasQuest = questOn() && questComplete.isSelected() && questBox.getSelectedItem() != null;
         boolean hasNote = !noteArea.getText().trim().isEmpty();
 
-        if (place != null) parts.add("you're at " + place);
+        boolean hasArea = areasOn && parseArea(areaField.getText()) != null;
+        if (place != null) parts.add(hasArea ? "you're anywhere in the area at " + place : "you're at " + place);
         if (hasItems) parts.add(itemsPhrase());
         if (hasSkill) parts.add(skillPhrase());
         if (kills > 0) parts.add("you've killed " + kills + " " + orDefault(whoField.getText(), "of the NPC"));
@@ -832,25 +881,22 @@ public class QuickStepDialog extends JFrame {
     }
 
     private String itemsPhrase() {
-        String mode = itemModeKey();
-        if ("DEPOSIT_ALL".equals(mode)) return "you've deposited everything in the bank";
+        ItemMode mode = itemModeKey();
+        if (mode == ItemMode.DEPOSIT_ALL) return "you've deposited everything in the bank";
         String list = itemsSummary(3);
-        switch (mode) {
-            case "SHOP": return "you've bought " + list;
-            case "SELL": return "you've sold " + list;
-            case "PICKUP": return "you've picked up " + list;
-            default: return "you have " + list + " in your inventory";
-        }
+        if (mode == ItemMode.SHOP) return "you've bought " + list;
+        if (mode == ItemMode.SELL) return "you've sold " + list;
+        if (mode == ItemMode.PICKUP) return "you've picked up " + list;
+        return "you have " + list + " in your inventory";
     }
 
     private String skillPhrase() {
         String skill = (String) skillBox.getSelectedItem();
         long v = parseAmount(goalValue.getText());
-        switch (GOAL_KEYS[goalBox.getSelectedIndex()]) {
-            case "LEVEL": return "you reach " + skill + " level " + v;
-            case "XP_TARGET": return "you reach " + String.format("%,d", v) + " " + skill + " XP";
-            default: return "you've gained " + String.format("%,d", v) + " " + skill + " XP";
-        }
+        SkillGoalType goal = GOAL_KEYS[goalBox.getSelectedIndex()];
+        if (goal == SkillGoalType.LEVEL) return "you reach " + skill + " level " + v;
+        if (goal == SkillGoalType.XP_TARGET) return "you reach " + String.format("%,d", v) + " " + skill + " XP";
+        return "you've gained " + String.format("%,d", v) + " " + skill + " XP";
     }
 
     private String autoName(WorldPoint wp) {
@@ -858,11 +904,11 @@ public class QuickStepDialog extends JFrame {
         // Plain ifs rather than an enum switch: a switch compiles to a numbered helper class that
         // breaks if the dev client loads a half-old build (NoSuchFieldError on $SwitchMap$).
         if (type == Type.ITEMS) {
-            String mode = itemModeKey();
-            if ("DEPOSIT_ALL".equals(mode)) return "Deposit everything" + at;
+            ItemMode mode = itemModeKey();
+            if (mode == ItemMode.DEPOSIT_ALL) return "Deposit everything" + at;
             String list = itemsSummary(1);
             if (list.isEmpty()) return "Get items" + at;
-            String verb = "SHOP".equals(mode) ? "Buy " : "SELL".equals(mode) ? "Sell " : "PICKUP".equals(mode) ? "Pick up " : "Get ";
+            String verb = mode == ItemMode.SHOP ? "Buy " : mode == ItemMode.SELL ? "Sell " : mode == ItemMode.PICKUP ? "Pick up " : "Get ";
             return verb + list + at;
         }
         if (type == Type.TALK) return "Talk to " + orDefault(whoField.getText(), "someone") + at;
@@ -878,13 +924,14 @@ public class QuickStepDialog extends JFrame {
     private void load(RouteStep s) {
         if (s.getName() != null) nameField.setText(s.getName());
         if (s.getWorldPoint() != null) tileField.setText(formatTile(s.getWorldPoint()));
+        if (s.hasArea()) areaField.setText(formatArea(s.area()));
         if (s.getTeleportMethod() != null) {
             extraTele = true;
             if (s.getTeleportSpell() != null && !s.getTeleportSpell().isEmpty()) {
-                chosenSpell = com.routeplanner.teleport.TeleportSpells.getByName(s.getTeleportSpell());
+                chosenSpell = TeleportSpells.getByName(s.getTeleportSpell());
                 if (chosenSpell != null) teleMethod = "SPELL";
             } else if (s.getTeleportItem() != null && !s.getTeleportItem().isEmpty()) {
-                chosenItem = com.routeplanner.teleport.TeleportItems.getByDisplayName(s.getTeleportItem());
+                chosenItem = TeleportItems.getByDisplayName(s.getTeleportItem());
                 if (chosenItem != null) teleMethod = "ITEM";
             } else if ("NEXUS".equals(s.getTeleportMethod()) && s.getTeleportNexus() != null) {
                 teleMethod = "NEXUS";
@@ -922,9 +969,9 @@ public class QuickStepDialog extends JFrame {
 
         if (s.hasItems()) {
             extraItems = type != Type.ITEMS;
-            String mode = s.getItemMode() != null ? s.getItemMode() : "BANK";
+            ItemMode mode = s.getItemMode() != null ? s.getItemMode() : ItemMode.BANK;
             itemMode.setSelectedIndex(Math.max(0, Arrays.asList(ITEM_MODE_KEYS).indexOf(mode)));
-            itemRows.setVisible(!"DEPOSIT_ALL".equals(mode));
+            itemRows.setVisible(mode != ItemMode.DEPOSIT_ALL);
             if (s.getItemList() != null) {
                 for (String group : s.getItemList().split(",")) {
                     String g = group.trim();
@@ -958,13 +1005,17 @@ public class QuickStepDialog extends JFrame {
             hlNpc.setText(nz(otherNpc));
             hlObject.setText(nz(s.getSkillingTargetObject()));
         }
+        if (s.getInventoryHighlightItems() != null && !s.getInventoryHighlightItems().trim().isEmpty()) {
+            extraHighlight = true;
+            hlInventory.setText(s.getInventoryHighlightItems());
+        }
         if (s.getTransitionPoint() != null) {
             extraStairs = true;
             stairsField.setText(formatTile(s.getTransitionPoint()));
         }
         if (s.hasBoarding()) {
             extraBoat = true;
-            com.routeplanner.sailing.SailingDocks.Dock d = plugin.getSailingDocks().nearest(s.getBoardPoint(), Integer.MAX_VALUE);
+            SailingDocks.Dock d = plugin.getSailingDocks().nearest(s.getBoardPoint(), Integer.MAX_VALUE);
             if (d != null) boatDock.setSelectedItem(d.name);
         }
         String note = s.getNoteText();
@@ -981,29 +1032,38 @@ public class QuickStepDialog extends JFrame {
         if (err == null) err = check("NPC", whoField.getText());
         if (err == null) err = check("Highlight NPC", hlNpc.getText());
         if (err == null) err = check("Highlight object", hlObject.getText());
+        if (err == null) err = check("Inventory items", hlInventory.getText());
         if (err == null && itemsOn()) err = check("Items", itemListText());
         if (err == null && teleOn()) err = check("Nexus destination", nexusField.getText());
         if (err != null) { errorLabel.setText(err); return; }
 
         WorldPoint wp = parseTile(tileField.getText());
         if (wp == null && !tileField.getText().trim().isEmpty()) { fail(tileField, "The tile should look like 3222, 3218 (add , 1 for upstairs)."); return; }
+        WorldArea area = areasOn ? parseArea(areaField.getText()) : null;
+        if (areasOn && area == null && !areaField.getText().trim().isEmpty()) { fail(areaField, "The area should be two corners on one floor, like 3200, 3200 to 3245, 3235."); return; }
+        if (wp == null && area != null) wp = centreOf(area);
         boolean teleports = teleOn() && (hasTeleport() || (!teleTouched && editing != null && editing.getTeleportMethod() != null));
         if (teleOn() && !teleports) { errorLabel.setText("Pick a teleport, or press Remove in the Teleport section."); return; }
         if (type == Type.WALK && wp == null && !teleports && !extraBoat) { fail(tileField, "Where should this step go? Enter a tile or press My tile."); return; }
         if ((type == Type.TALK || type == Type.KILL) && whoField.getText().trim().isEmpty()) { fail(whoField, "Enter the NPC's name."); return; }
         if (type == Type.KILL && parseInt(killCount.getText()) <= 0) { fail(killCount, "Enter how many to kill."); return; }
-        if (itemsOn() && !"DEPOSIT_ALL".equals(itemModeKey()) && itemListText().isEmpty()) { errorLabel.setText("Add at least one item, or remove the items section by switching type."); return; }
+        if (itemsOn() && itemModeKey() != ItemMode.DEPOSIT_ALL && itemListText().isEmpty()) { errorLabel.setText("Add at least one item, or remove the items section by switching type."); return; }
         if (skillOn() && parseAmount(goalValue.getText()) <= 0) { fail(goalValue, "Enter the goal amount, like 50 or 10k."); return; }
         if (questOn() && questBox.getSelectedItem() == null) { fail(questSearch, "Pick a quest from the list."); return; }
         WorldPoint stairs = extraStairs ? parseTile(stairsField.getText()) : null;
         if (extraStairs && stairs == null && !stairsField.getText().trim().isEmpty()) { fail(stairsField, "The stairs tile should look like 3205, 3209."); return; }
-        com.routeplanner.sailing.SailingDocks.Dock dock = extraBoat ? chosenDock() : null;
+        SailingDocks.Dock dock = extraBoat ? chosenDock() : null;
         if (extraBoat && dock == null) { errorLabel.setText("Pick the dock to board at, or press Remove in the Boat section."); return; }
         if (name.isEmpty()) name = wp == null && dock != null ? plugin.getSailingDocks().boardingHint(dock.land) : autoName(wp);
 
         RouteStep step = editing != null ? editing : new RouteStep(name, StepType.LOCATION, wp, -1);
         step.setName(name);
         step.setWorldPoint(wp);
+        if (areasOn) {
+            step.setAreaFrom(area == null ? null : new WorldPoint(area.getX(), area.getY(), area.getPlane()));
+            step.setAreaTo(area == null ? null : new WorldPoint(area.getX() + area.getWidth() - 1,
+                area.getY() + area.getHeight() - 1, area.getPlane()));
+        }
         apply(step, stairs);
         if (editing == null) plugin.addStep(route, step);
         else plugin.saveRoutes();
@@ -1016,24 +1076,24 @@ public class QuickStepDialog extends JFrame {
     private void apply(RouteStep s, WorldPoint stairs) {
         // Items
         if (itemsOn()) {
-            String mode = itemModeKey();
+            ItemMode mode = itemModeKey();
             String list = itemListText();
             s.setItemMode(mode);
-            s.setItemList("DEPOSIT_ALL".equals(mode) || list.isEmpty() ? null : list);
+            s.setItemList(mode == ItemMode.DEPOSIT_ALL || list.isEmpty() ? null : list);
         } else {
             s.setItemList(null);
-            s.setItemMode("BANK");
+            s.setItemMode(ItemMode.BANK);
         }
 
         // Skill goal (its method sets the highlight targets, so it goes before them)
         if (skillOn()) {
             String skill = (String) skillBox.getSelectedItem();
-            String goal = GOAL_KEYS[goalBox.getSelectedIndex()];
+            SkillGoalType goal = GOAL_KEYS[goalBox.getSelectedIndex()];
             s.setSkillingSkill(skill.toUpperCase());
             s.setSkillingGoalType(goal);
             s.setSkillingGoalValue(parseAmount(goalValue.getText()));
             Object recipe = recipeBox.getSelectedItem();
-            StepEditorDialog.applyRecipeLabel(s, skill, recipe == null ? null : recipe.toString());
+            RecipeLabels.apply(s, skill, recipe == null ? null : recipe.toString());
         } else {
             s.setSkillingSkill(null);
             s.setSkillingGoalType(null);
@@ -1064,6 +1124,8 @@ public class QuickStepDialog extends JFrame {
             String npc = hlNpc.getText().trim(), obj = hlObject.getText().trim();
             if (!npc.isEmpty() && type != Type.TALK) s.setSkillingTargetNpc(npc);
             if (!obj.isEmpty()) s.setSkillingTargetObject(obj);
+            String inv = hlInventory.getText().trim();
+            s.setInventoryHighlightItems(inv.isEmpty() ? null : inv);
         }
         s.setHighlightEnabled(highlight.isVisible() && highlight.isSelected() && s.hasHighlight());
 
@@ -1077,7 +1139,7 @@ public class QuickStepDialog extends JFrame {
             s.setQuestComplete(false);
         }
 
-        // Teleport (same fields the full editor writes)
+        // Teleport
         if (teleTouched || (editing == null && hasTeleport())) applyTeleport(s);
 
         // Stairs
@@ -1085,7 +1147,7 @@ public class QuickStepDialog extends JFrame {
         if (stairs == null) s.setTransitionObjectId(-1);
 
         // Boat: the gangplank's object ID is only known from a recording, so keep it while the dock stays
-        com.routeplanner.sailing.SailingDocks.Dock dock = extraBoat ? chosenDock() : null;
+        SailingDocks.Dock dock = extraBoat ? chosenDock() : null;
         boolean sameDock = dock != null && s.getBoardPoint() != null
             && plugin.getSailingDocks().nearest(s.getBoardPoint(), 15) == dock;
         if (!sameDock) {
@@ -1124,16 +1186,9 @@ public class QuickStepDialog extends JFrame {
         }
     }
 
-    private void openFullEditor() {
-        StepEditorDialog full = new StepEditorDialog(plugin, route, editing, editing == null ? parseTile(tileField.getText()) : null);
-        full.setOnSaved(onSaved);
-        dispose();
-        full.setVisible(true);
-    }
-
     // ------------------------------------------------------------------ helpers
 
-    private String itemModeKey() { return ITEM_MODE_KEYS[Math.max(0, itemMode.getSelectedIndex())]; }
+    private ItemMode itemModeKey() { return ITEM_MODE_KEYS[Math.max(0, itemMode.getSelectedIndex())]; }
 
     /** The item list in the saved format: "28 Raw shrimps,Small fishing net". */
     private String itemListText() {
@@ -1218,6 +1273,25 @@ public class QuickStepDialog extends JFrame {
 
     private static String formatTile(WorldPoint wp) {
         return wp.getPlane() == 0 ? wp.getX() + ", " + wp.getY() : wp.getX() + ", " + wp.getY() + ", " + wp.getPlane();
+    }
+
+    private static String formatArea(WorldArea a) {
+        return formatTile(new WorldPoint(a.getX(), a.getY(), a.getPlane())) + " to "
+            + formatTile(new WorldPoint(a.getX() + a.getWidth() - 1, a.getY() + a.getHeight() - 1, a.getPlane()));
+    }
+
+    /** Two corner tiles on one floor, like "3200, 3200 to 3245, 3235"; null when blank or unreadable. */
+    private static WorldArea parseArea(String s) {
+        if (s == null || s.trim().isEmpty()) return null;
+        String[] corners = AREA_SPLIT.split(s.trim());
+        if (corners.length != 2) return null;
+        WorldPoint a = parseTile(corners[0]), b = parseTile(corners[1]);
+        if (a == null || b == null || a.getPlane() != b.getPlane()) return null;
+        return AreaDrawer.between(a, b);
+    }
+
+    private static WorldPoint centreOf(WorldArea a) {
+        return new WorldPoint(a.getX() + a.getWidth() / 2, a.getY() + a.getHeight() / 2, a.getPlane());
     }
 
     private static WorldPoint parseTile(String s) {

@@ -5,7 +5,8 @@ public enum LineStyle {
     SOLID("Solid"),
     DASHED("Dashed"),
     DOTTED("Dotted"),
-    DASH_DOT("Dash-dot");
+    DASH_DOT("Dash-dot"),
+    TRACER("Tracer");
 
     private final String label;
     LineStyle(String label) { this.label = label; }

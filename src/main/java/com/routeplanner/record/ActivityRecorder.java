@@ -1,5 +1,7 @@
 package com.routeplanner.record;
 
+import com.routeplanner.model.SkillGoalType;
+import com.routeplanner.model.ItemMode;
 import com.routeplanner.agility.AgilityCourse;
 import com.routeplanner.agility.AgilityCoursePresets;
 import com.routeplanner.agility.AgilityObstacle;
@@ -319,7 +321,7 @@ class ActivityRecorder {
     }
 
     private static boolean canTakeKills(RouteStep s) {
-        return "PICKUP".equals(s.getItemMode()) && !s.hasSkillGoal()
+        return s.getItemMode() == ItemMode.PICKUP && !s.hasSkillGoal()
             && s.getSkillingTargetNpc() == null && s.getSkillingTargetObject() == null && !s.hasNote();
     }
 
@@ -362,7 +364,7 @@ class ActivityRecorder {
             // Gathering is about what you come away with, so it's an item count.
             List<String> entries = new ArrayList<>();
             gathered.forEach((k, v) -> entries.add(v > 1 ? v + " " + k : k));
-            step.setItemMode("PICKUP");
+            step.setItemMode(ItemMode.PICKUP);
             step.setItemList(String.join(", ", entries));
             step.setSkillingSkill(null);
             step.setSkillingGoalType(null);
@@ -370,7 +372,7 @@ class ActivityRecorder {
             return;
         }
         step.setSkillingSkill(skill.name());
-        step.setSkillingGoalType("XP_GAIN");
+        step.setSkillingGoalType(SkillGoalType.XP_GAIN);
         step.setSkillingGoalValue(stepXp);
         step.setSkillingStartXp(0); // captured when the step becomes active during playback
         if (skill == Skill.AGILITY) {

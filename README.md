@@ -26,8 +26,9 @@ New to the plugin? The **Quick guide** on the welcome screen (also in the route 
 
 ### Building routes
 - Click the pencil to enter edit mode, then use **+ Step** and **+ Section**. Sections group steps into chapters.
-- **+ Step** opens a quick editor: choose what the player does (**Walk, Items, Talk, Kill, Skill, Quest,** or **Note**) and fill in only what you need. **Full editor** has every setting at once, including teleports.
+- **+ Step** opens a quick editor: choose what the player does (**Walk, Items, Talk, Kill, Skill, Quest,** or **Note**) and fill in only what you need. **Add more** puts extras on any step: items, a skill goal, a quest, highlights, a teleport, stairs or a boat.
 - Hold **Shift** and right-click any tile in game, then pick **Add Location Step** to make a step with that tile already filled in.
+- **Beta:** for a big place, turn on **Enable beta features** (under Beta features in the settings), then press **Draw area** in the step editor and drag over the ground in game. The step then counts as reached anywhere inside that rectangle, which is outlined on the ground, the minimap and the world map.
 - Drag steps to reorder them or move them between sections. Double-click to edit; right-click for more.
 - Undo and redo structural edits. Each route keeps its own history.
 - Import and export routes as files to share or back them up.

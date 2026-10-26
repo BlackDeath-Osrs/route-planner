@@ -2,6 +2,7 @@ package com.routeplanner.teleport;
 
 import com.routeplanner.RoutePlannerPlugin;
 import com.routeplanner.model.RouteStep;
+import com.routeplanner.util.HighlightColors;
 import net.runelite.api.Client;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.gameval.InterfaceID;
@@ -18,6 +19,8 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Walks the player through a minigame teleport, one click at a time: the magic tab, the
@@ -66,7 +69,7 @@ public class MinigameTeleportOverlay extends Overlay {
         graphics.setColor(outline);
         graphics.setStroke(new BasicStroke(2));
         graphics.drawRect(b.x - 1, b.y - 1, b.width + 2, b.height + 2);
-        graphics.setColor(com.routeplanner.util.HighlightColors.fill(outline));
+        graphics.setColor(HighlightColors.fill(outline));
         graphics.fillRect(b.x - 1, b.y - 1, b.width + 2, b.height + 2);
         return null;
     }
@@ -137,8 +140,8 @@ public class MinigameTeleportOverlay extends Overlay {
         return false;
     }
 
-    private static java.util.List<Widget> children(Widget w) {
-        java.util.List<Widget> out = new java.util.ArrayList<>();
+    private static List<Widget> children(Widget w) {
+        List<Widget> out = new ArrayList<>();
         for (Widget[] kids : new Widget[][]{w.getStaticChildren(), w.getDynamicChildren(), w.getNestedChildren()}) {
             if (kids == null) continue;
             for (Widget k : kids) if (k != null) out.add(k);

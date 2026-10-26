@@ -16,15 +16,19 @@ import net.runelite.api.widgets.JavaScriptCallback;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetType;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.game.ItemManager;
 import net.runelite.client.plugins.bank.BankSearch;
 import net.runelite.client.util.ImageUtil;
+import net.runelite.client.util.Text;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -62,7 +66,7 @@ public class BankFilterButton {
     @Inject private RoutePlannerPlugin plugin;
     @Inject private BankItemManager bankItemManager;
     @Inject private BankSearch bankSearch;
-    @Inject private net.runelite.client.game.ItemManager itemManager;
+    @Inject private ItemManager itemManager;
 
     private boolean filterActive;
     private RouteStep filteredStep;
@@ -71,7 +75,7 @@ public class BankFilterButton {
     private boolean iconRegistered;
     private BufferedImage iconSource; // the plugin icon the sprite was made from
     /** Each grid widget's x, y and hidden flag before we filtered, to put back exactly. */
-    private final java.util.Map<Integer, int[]> saved = new java.util.HashMap<>();
+    private final Map<Integer, int[]> saved = new HashMap<>();
     private String savedTitle;
 
     @Subscribe
@@ -136,7 +140,7 @@ public class BankFilterButton {
         if (background != null && event.getParam1() == InterfaceID.Bankmain.UNIVERSE
             && event.getParam0() == background.getIndex()) return true;
         String target = event.getMenuTarget();
-        return target != null && net.runelite.client.util.Text.removeTags(target).contains(TAB_NAME);
+        return target != null && Text.removeTags(target).contains(TAB_NAME);
     }
 
     private RouteStep stepWithItems() {

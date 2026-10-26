@@ -1,7 +1,7 @@
 package com.routeplanner.record;
 
-import com.routeplanner.RoutePlannerPlugin;
 import com.routeplanner.QuickStepDialog;
+import com.routeplanner.RoutePlannerPlugin;
 import com.routeplanner.model.Route;
 import com.routeplanner.model.RouteSection;
 import com.routeplanner.model.RouteStep;
@@ -11,6 +11,9 @@ import net.runelite.client.ui.ColorScheme;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
+import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.text.SimpleDateFormat;
@@ -57,8 +60,8 @@ public class RecordReviewDialog extends JDialog {
         list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         list.setCellRenderer(new StepRenderer());
         list.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-        list.addMouseListener(new java.awt.event.MouseAdapter() {
-            @Override public void mouseClicked(java.awt.event.MouseEvent e) {
+        list.addMouseListener(new MouseAdapter() {
+            @Override public void mouseClicked(MouseEvent e) {
                 if (e.getClickCount() == 2) onEdit();
             }
         });
@@ -89,7 +92,7 @@ public class RecordReviewDialog extends JDialog {
         setLocationRelativeTo(null);
     }
 
-    private JButton button(String text, java.awt.event.ActionListener action) {
+    private JButton button(String text, ActionListener action) {
         JButton b = new JButton(text);
         b.setFocusPainted(false);
         b.addActionListener(action);
@@ -145,7 +148,7 @@ public class RecordReviewDialog extends JDialog {
         RouteSection section = new RouteSection(UUID.randomUUID().toString(), name.trim());
         route.getSections().add(section);
         for (int i = 0; i < model.size(); i++) route.addStepToSection(model.get(i), section.getId());
-        plugin.saveRoutesPublic();
+        plugin.saveRoutes();
         plugin.refreshHighlights();
         dispose();
     }

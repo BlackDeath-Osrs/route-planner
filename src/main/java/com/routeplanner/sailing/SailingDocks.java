@@ -1,5 +1,6 @@
 package com.routeplanner.sailing;
 
+import com.routeplanner.RoutePlannerConfig;
 import com.routeplanner.transport.Transport;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
@@ -42,7 +43,6 @@ public class SailingDocks {
     };
     /** Port values that aren't a dock: the boat is lost at sea (253), capsized (254) or bottled (255). */
     private static final int FIRST_NOT_DOCKED = 253;
-    private static final String CONFIG_GROUP = "routeplanner";
     private static final String PORTS_KEY = "sailingPorts";
     /** How close to a dock the player must be for a port change to be credited to it. */
     private static final int LEARN_RADIUS = 12;
@@ -236,7 +236,7 @@ public class SailingDocks {
     /** Reads the learned ports back from the config; call once the config is available. */
     public void loadLearnedPorts() {
         learnedPorts.clear();
-        String saved = configManager.getConfiguration(CONFIG_GROUP, PORTS_KEY);
+        String saved = configManager.getConfiguration(RoutePlannerConfig.GROUP, PORTS_KEY);
         if (saved == null || saved.isEmpty()) return;
         for (String pair : saved.split(";")) {
             int eq = pair.indexOf('=');
@@ -254,7 +254,7 @@ public class SailingDocks {
             if (sb.length() > 0) sb.append(';');
             sb.append(e.getKey()).append('=').append(e.getValue());
         }
-        configManager.setConfiguration(CONFIG_GROUP, PORTS_KEY, sb.toString());
+        configManager.setConfiguration(RoutePlannerConfig.GROUP, PORTS_KEY, sb.toString());
     }
 
     /**

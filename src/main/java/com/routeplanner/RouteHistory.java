@@ -3,6 +3,7 @@ package com.routeplanner;
 import com.google.gson.Gson;
 import com.routeplanner.model.Route;
 import com.routeplanner.util.RouteSerializer;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayDeque;
 import java.util.Collections;
@@ -19,6 +20,7 @@ import java.util.Map;
  * Route is a Lombok {@code @Data} class, so its hashCode shifts whenever its contents change and
  * two routes with identical contents would collide; an IdentityHashMap sidesteps both problems.
  */
+@Slf4j
 public class RouteHistory {
     private static final int MAX_DEPTH = 30;
 
@@ -98,6 +100,7 @@ public class RouteHistory {
         try {
             return RouteSerializer.toJson(Collections.singletonList(route), gson);
         } catch (Exception ex) {
+            log.warn("Route Planner: couldn't snapshot route '{}' for undo", route.getName(), ex);
             return null;
         }
     }
@@ -116,6 +119,7 @@ public class RouteHistory {
             route.setSections(snap.getSections());
             return true;
         } catch (Exception ex) {
+            log.warn("Route Planner: couldn't restore an undo snapshot of route '{}'", route.getName(), ex);
             return false;
         }
     }

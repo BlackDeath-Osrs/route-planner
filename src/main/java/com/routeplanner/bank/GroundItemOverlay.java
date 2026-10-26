@@ -1,10 +1,13 @@
 package com.routeplanner.bank;
 
 import com.routeplanner.RoutePlannerPlugin;
+import com.routeplanner.model.ItemMode;
 import com.routeplanner.model.RouteStep;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
+import net.runelite.api.ItemLayer;
 import net.runelite.api.Perspective;
+import net.runelite.api.Point;
 import net.runelite.api.Scene;
 import net.runelite.api.Tile;
 import net.runelite.api.TileItem;
@@ -47,7 +50,7 @@ public class GroundItemOverlay extends Overlay {
         if (plugin.getActiveRoute() == null) return null;
         RouteStep step = plugin.getActiveRoute().getActiveStep();
         if (step == null || !step.hasItems()) return null;
-        if (!"PICKUP".equals(step.getItemMode())) return null;
+        if (step.getItemMode() != ItemMode.PICKUP) return null;
 
         // Collect target item names (lowercased), supporting "/" alternatives
         List<List<String>> groups = bankItemManager.parseItemList(step.getItemList());
@@ -89,7 +92,7 @@ public class GroundItemOverlay extends Overlay {
                 LocalPoint lp = tile.getLocalLocation();
                 if (lp == null) continue;
 
-                net.runelite.api.ItemLayer itemLayer = tile.getItemLayer();
+                ItemLayer itemLayer = tile.getItemLayer();
                 if (itemLayer != null) {
                     Shape clickbox = itemLayer.getClickbox();
                     if (clickbox != null) {
@@ -101,7 +104,7 @@ public class GroundItemOverlay extends Overlay {
                     }
                 }
 
-                net.runelite.api.Point textLoc =
+                Point textLoc =
                     Perspective.getCanvasTextLocation(client, graphics, lp, matchName, 0);
                 if (textLoc != null) {
                     graphics.setColor(Color.BLACK);

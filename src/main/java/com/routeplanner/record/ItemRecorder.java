@@ -1,5 +1,6 @@
 package com.routeplanner.record;
 
+import com.routeplanner.model.ItemMode;
 import com.routeplanner.bank.BankItemManager;
 import com.routeplanner.model.RouteStep;
 import com.routeplanner.util.LocationNames;
@@ -97,7 +98,7 @@ class ItemRecorder {
             Inventory now = snapshot();
             if (now.isEmpty()) {
                 RouteStep step = host.stepAt(pos, "Deposit all" + LocationNames.at(pos));
-                step.setItemMode("DEPOSIT_ALL");
+                step.setItemMode(ItemMode.DEPOSIT_ALL);
                 sessionStart = now;
             }
         }
@@ -137,7 +138,7 @@ class ItemRecorder {
         }
         if (!entries.isEmpty()) {
             RouteStep step = host.stepAt(pos, "Withdraw from bank" + LocationNames.at(pos));
-            step.setItemMode("BANK");
+            step.setItemMode(ItemMode.BANK);
             step.setItemList(String.join(", ", entries));
         }
         sessionStart = null;
@@ -158,12 +159,12 @@ class ItemRecorder {
         }
         if (!sold.isEmpty()) {
             RouteStep step = host.stepAt(pos, "Sell to shop" + LocationNames.at(pos));
-            step.setItemMode("SELL");
+            step.setItemMode(ItemMode.SELL);
             step.setItemList(String.join(", ", sold));
         }
         if (!bought.isEmpty()) {
             RouteStep step = host.stepAt(pos, "Buy from shop" + LocationNames.at(pos));
-            step.setItemMode("SHOP");
+            step.setItemMode(ItemMode.SHOP);
             step.setItemList(String.join(", ", bought));
         }
         sessionStart = null;
@@ -187,7 +188,7 @@ class ItemRecorder {
             } else {
                 pickupStep = host.stepAt(pos, "Pick up items" + LocationNames.at(pos));
             }
-            pickupStep.setItemMode("PICKUP");
+            pickupStep.setItemMode(ItemMode.PICKUP);
             pickupCounts.clear();
         }
         if (pickupStep.getNpcKillCount() > 0) renamable = false;

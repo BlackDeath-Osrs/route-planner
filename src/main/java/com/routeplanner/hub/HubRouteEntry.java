@@ -1,5 +1,7 @@
 package com.routeplanner.hub;
 
+import com.routeplanner.util.RouteTextValidator;
+
 import java.util.List;
 
 /**
@@ -40,9 +42,9 @@ public class HubRouteEntry {
         if (icon != null && (icon.contains("..") || icon.startsWith("/"))) return "unsafe icon path";
         if (steps < 0 || steps > MAX_STEPS) return "step count out of bounds";
 
-        String linkErr = com.routeplanner.util.RouteTextValidator.checkField("Route name", name);
-        if (linkErr == null) linkErr = com.routeplanner.util.RouteTextValidator.checkField("Description", description);
-        if (linkErr == null && author != null) linkErr = com.routeplanner.util.RouteTextValidator.checkField("Author", author);
+        String linkErr = RouteTextValidator.checkField("Route name", name);
+        if (linkErr == null) linkErr = RouteTextValidator.checkField("Description", description);
+        if (linkErr == null && author != null) linkErr = RouteTextValidator.checkField("Author", author);
         if (linkErr != null) return linkErr;
 
         return null;

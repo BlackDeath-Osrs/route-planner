@@ -8,6 +8,7 @@ import okhttp3.Response;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Read-only GETs against the Route Hub's GitHub-hosted catalog. Every call is a plain HTTP GET to
@@ -70,7 +71,7 @@ public class RouteHubFetcher {
 
     private String fetchText(String relativePath, long maxBytes, String what) throws HubFetchException {
         byte[] bytes = fetchBytes(relativePath, maxBytes, what);
-        return new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+        return new String(bytes, StandardCharsets.UTF_8);
     }
 
     private byte[] fetchBytes(String relativePath, long maxBytes, String what) throws HubFetchException {

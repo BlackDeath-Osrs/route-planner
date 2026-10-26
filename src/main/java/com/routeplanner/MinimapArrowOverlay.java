@@ -1,6 +1,7 @@
 package com.routeplanner;
 
 import com.routeplanner.model.RouteStep;
+import com.routeplanner.sailing.Sailing;
 import net.runelite.api.Client;
 import net.runelite.api.Point;
 import net.runelite.api.coords.WorldPoint;
@@ -41,7 +42,7 @@ public class MinimapArrowOverlay extends Overlay {
         WorldPoint target = plugin.getPathfinderOverlay().isBoardingPending(step) ? step.getBoardPoint() : step.getWorldPoint();
         if (target == null) return null;
 
-        WorldPoint player = com.routeplanner.sailing.Sailing.position(client);
+        WorldPoint player = Sailing.position(client);
         if (player == null) return null;
 
         if (player.equals(target)) return null;

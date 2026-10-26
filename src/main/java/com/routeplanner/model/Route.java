@@ -1,7 +1,10 @@
 package com.routeplanner.model;
 
 import com.google.gson.annotations.SerializedName;
+import com.routeplanner.agility.AgilityCoursePresets;
 import lombok.Data;
+import net.runelite.api.coords.WorldPoint;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -18,6 +21,11 @@ public class Route {
      *  persisted set that could drift out of sync with the real route list. */
     private String hubSourceId;
     private boolean repeatable = false; // if true, resets and restarts when last step completes
+
+    // Developer test: while set, this step stands in as the active step, wherever it is in the
+    // route and whether or not it's ticked. Never saved, so a restart always resumes the route.
+    private transient RouteStep testStep;
+    private transient boolean testPassed;
 
     // Legacy flat-step format; migrated into a default section on load.
     @SerializedName("steps")
@@ -58,10 +66,11 @@ public class Route {
                 if (st.getType() == null && st.getAgilityCourse() != null) {
                     st.setType(StepType.SKILLING);
                     st.setSkillingSkill("AGILITY");
-                    st.setSkillingGoalType(st.getAgilityGoalType() != null ? st.getAgilityGoalType() : "LEVEL");
+                    SkillGoalType goal = SkillGoalType.parse(st.getAgilityGoalType());
+                    st.setSkillingGoalType(goal != null ? goal : SkillGoalType.LEVEL);
                     st.setSkillingGoalValue(st.getAgilityGoalValue());
-                    net.runelite.api.coords.WorldPoint loc =
-                        com.routeplanner.agility.AgilityCoursePresets.startLocation(st.getAgilityCourse());
+                    WorldPoint loc =
+                        AgilityCoursePresets.startLocation(st.getAgilityCourse());
                     if (loc != null && st.getWorldPoint() == null) st.setWorldPoint(loc);
                     if (st.getName() == null || st.getName().isEmpty()) {
                         st.setName("Agility: " + st.getAgilityCourse());
@@ -113,6 +122,7 @@ public class Route {
     }
 
     public RouteStep getActiveStep() {
+        if (testStep != null) return testStep;
         if (sections == null) return null;
         for (RouteSection sec : sections) {
             if (sec.getSteps() == null) continue;
@@ -128,13 +138,7 @@ public class Route {
     public void resetProgress() {
         getAllSteps().forEach(s -> {
             s.setCompleted(false);
-            s.setLocationReached(false);
-            s.setBoarded(false);
-            s.setSellArmed(false);
-            s.setPickupBaseline(null);
-            s.setBaselineAccount(0);
-            s.setCatchProgress(0);
-            s.setNpcKillProgress(0);
+            s.resetProgress();
         });
     }
 }

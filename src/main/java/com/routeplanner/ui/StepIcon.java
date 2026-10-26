@@ -1,6 +1,8 @@
 package com.routeplanner.ui;
 
+import com.routeplanner.model.ItemMode;
 import com.routeplanner.model.RouteStep;
+import net.runelite.client.util.ColorUtil;
 
 import javax.swing.Icon;
 import java.awt.BasicStroke;
@@ -49,10 +51,10 @@ public final class StepIcon implements Icon {
             || (s.getName() != null && s.getName().startsWith("Talk to"));
         if (talk) return Kind.TALK;
         if (s.hasItems()) {
-            String mode = s.getItemMode();
-            if ("SHOP".equals(mode)) return Kind.BUY;
-            if ("SELL".equals(mode)) return Kind.SELL;
-            if ("PICKUP".equals(mode)) {
+            ItemMode mode = s.getItemMode();
+            if (mode == ItemMode.SHOP) return Kind.BUY;
+            if (mode == ItemMode.SELL) return Kind.SELL;
+            if (mode == ItemMode.PICKUP) {
                 return s.getSkillingTargetNpc() != null || s.getSkillingTargetObject() != null ? Kind.GATHER : Kind.PICKUP;
             }
             return Kind.BANK;
@@ -79,7 +81,7 @@ public final class StepIcon implements Icon {
         g2.translate(pad, pad);
         g2.scale(s, s);
         Color col = kind.color;
-        if (dim) col = new Color(col.getRed(), col.getGreen(), col.getBlue(), 110);
+        if (dim) col = ColorUtil.colorWithAlpha(col, 110);
         g2.setColor(col);
         g2.setStroke(new BasicStroke(1.7f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
         draw(g2);

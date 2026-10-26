@@ -3,14 +3,21 @@ package com.routeplanner.skilling;
 import com.routeplanner.RoutePlannerPlugin;
 import com.routeplanner.model.RouteStep;
 import com.routeplanner.model.StepType;
+import com.routeplanner.sailing.Sailing;
 import net.runelite.api.Client;
+import net.runelite.api.DecorativeObject;
 import net.runelite.api.GameObject;
+import net.runelite.api.GroundObject;
 import net.runelite.api.ObjectComposition;
 import net.runelite.api.Scene;
 import net.runelite.api.Tile;
+import net.runelite.api.WallObject;
+import net.runelite.api.WorldView;
+import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
+import net.runelite.client.util.ColorUtil;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -52,20 +59,20 @@ public class StallHighlightOverlay extends Overlay {
         String target = targetName.trim().toLowerCase();
 
         // The boat's tile while sailing (a shipwreck being salvaged), otherwise the player's
-        net.runelite.api.coords.WorldPoint playerLoc = com.routeplanner.sailing.Sailing.position(client);
+        WorldPoint playerLoc = Sailing.position(client);
         if (playerLoc == null) return null;
 
-        net.runelite.api.WorldView top = client.getTopLevelWorldView();
+        WorldView top = client.getTopLevelWorldView();
         if (top == null || top.getScene() == null) return null;
         // Out at sea everything is further apart: show targets as far as the client draws the scene
         int range = HIGHLIGHT_RANGE;
-        boolean sailing = com.routeplanner.sailing.Sailing.isSailing(client);
+        boolean sailing = Sailing.isSailing(client);
         if (sailing) range = Math.max(range, top.getScene().getDrawDistance());
         highlightIn(graphics, top, playerLoc, range, target);
         // The boat is a little world of its own: its facilities (a salvaging station) are in its
         // scene, measured from where the player stands on deck.
         if (sailing) {
-            net.runelite.api.WorldView deck = client.getLocalPlayer().getWorldView();
+            WorldView deck = client.getLocalPlayer().getWorldView();
             if (deck != null && deck.getScene() != null) {
                 highlightIn(graphics, deck, client.getLocalPlayer().getWorldLocation(),
                     HIGHLIGHT_RANGE, target);
@@ -75,7 +82,7 @@ public class StallHighlightOverlay extends Overlay {
     }
 
     /** Highlights the step's target objects in {@code scene} within {@code range} tiles of {@code origin}. */
-    private void highlightIn(Graphics2D graphics, net.runelite.api.WorldView wv, net.runelite.api.coords.WorldPoint origin,
+    private void highlightIn(Graphics2D graphics, WorldView wv, WorldPoint origin,
                              int range, String target) {
         Scene scene = wv.getScene();
         Tile[][][] tiles = scene == null ? null : scene.getTiles();
@@ -103,11 +110,11 @@ public class StallHighlightOverlay extends Overlay {
                     }
                 }
                 // Drains, levers on walls, wall decorations and floor objects are other kinds of object
-                net.runelite.api.WallObject wall = tile.getWallObject();
+                WallObject wall = tile.getWallObject();
                 if (wall != null && matches(wall.getId(), target)) draw(graphics, wall.getConvexHull());
-                net.runelite.api.DecorativeObject deco = tile.getDecorativeObject();
+                DecorativeObject deco = tile.getDecorativeObject();
                 if (deco != null && matches(deco.getId(), target)) draw(graphics, deco.getConvexHull());
-                net.runelite.api.GroundObject ground = tile.getGroundObject();
+                GroundObject ground = tile.getGroundObject();
                 if (ground != null && matches(ground.getId(), target)) draw(graphics, ground.getConvexHull());
             }
         }
@@ -129,9 +136,9 @@ public class StallHighlightOverlay extends Overlay {
         Color base = plugin.getConfig().npcHighlightColor();
         int outA = base.getAlpha();
         int fillA = Math.max(0, Math.min(255, (int) (outA * 0.22)));
-        graphics.setColor(new Color(base.getRed(), base.getGreen(), base.getBlue(), fillA));
+        graphics.setColor(ColorUtil.colorWithAlpha(base, fillA));
         graphics.fill(hull);
-        graphics.setColor(new Color(base.getRed(), base.getGreen(), base.getBlue(), outA));
+        graphics.setColor(ColorUtil.colorWithAlpha(base, outA));
         graphics.setStroke(new BasicStroke(2));
         graphics.draw(hull);
     }

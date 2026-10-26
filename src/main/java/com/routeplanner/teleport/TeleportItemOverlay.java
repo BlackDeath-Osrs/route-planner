@@ -2,6 +2,7 @@ package com.routeplanner.teleport;
 
 import com.routeplanner.RoutePlannerPlugin;
 import com.routeplanner.model.RouteStep;
+import com.routeplanner.util.HighlightColors;
 import net.runelite.api.Client;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
@@ -98,7 +99,7 @@ public class TeleportItemOverlay extends Overlay {
         graphics.setColor(outline);
         graphics.setStroke(new BasicStroke(2));
         graphics.drawRect(b.x, b.y, b.width, b.height);
-        graphics.setColor(com.routeplanner.util.HighlightColors.fill(outline));
+        graphics.setColor(HighlightColors.fill(outline));
         graphics.fillRect(b.x, b.y, b.width, b.height);
     }
 

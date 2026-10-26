@@ -1,20 +1,31 @@
 package com.routeplanner;
 
+import com.routeplanner.bank.BankItemManager;
+import com.routeplanner.model.ItemMode;
 import com.routeplanner.model.Route;
 import com.routeplanner.model.RouteStep;
+import com.routeplanner.model.SkillGoalType;
+import com.routeplanner.sailing.SailingDocks;
+import com.routeplanner.transport.Transport;
 import net.runelite.api.Client;
+import net.runelite.api.Skill;
+import net.runelite.api.gameval.InterfaceID;
+import net.runelite.api.widgets.Widget;
 import net.runelite.client.ui.overlay.*;
 
 import javax.inject.Inject;
 import java.awt.*;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 public class RouteHudOverlay extends Overlay {
 
     private final Client client;
     private final RoutePlannerPlugin plugin;
     private final RoutePlannerConfig config;
-    private final com.routeplanner.bank.BankItemManager bankItemManager;
+    private final BankItemManager bankItemManager;
 
     private static final Color BG_COLOR      = new Color(52, 40, 24, 64);   // OSRS brown @ ~25% opacity
     private static final Color TITLE_COLOR   = new Color(255, 152, 31);     // OSRS orange
@@ -25,7 +36,7 @@ public class RouteHudOverlay extends Overlay {
 
     @Inject
     public RouteHudOverlay(Client client, RoutePlannerPlugin plugin, RoutePlannerConfig config,
-                           com.routeplanner.bank.BankItemManager bankItemManager) {
+                           BankItemManager bankItemManager) {
         this.client = client;
         this.plugin = plugin;
         this.config = config;
@@ -40,8 +51,8 @@ public class RouteHudOverlay extends Overlay {
         setSnappable(true);
     }
 
-    private java.util.List<String> wrapText(String s, int maxChars) {
-        java.util.List<String> out = new java.util.ArrayList<>();
+    private List<String> wrapText(String s, int maxChars) {
+        List<String> out = new ArrayList<>();
         if (s == null) return out;
         StringBuilder cur = new StringBuilder();
         for (String word : s.split(" ")) {
@@ -58,11 +69,11 @@ public class RouteHudOverlay extends Overlay {
 
     /** Bank-like windows the HUD steps aside for (it can't be drawn beneath them in every renderer). */
     private static final int[] COVERING_WINDOWS = {
-        net.runelite.api.gameval.InterfaceID.Bankmain.UNIVERSE,
-        net.runelite.api.gameval.InterfaceID.BankDepositbox.UNIVERSE,
-        net.runelite.api.gameval.InterfaceID.Shopmain.UNIVERSE,
-        net.runelite.api.gameval.InterfaceID.GeOffers.UNIVERSE,
-        net.runelite.api.gameval.InterfaceID.SeedVault.UNIVERSE,
+        InterfaceID.Bankmain.UNIVERSE,
+        InterfaceID.BankDepositbox.UNIVERSE,
+        InterfaceID.Shopmain.UNIVERSE,
+        InterfaceID.GeOffers.UNIVERSE,
+        InterfaceID.SeedVault.UNIVERSE,
     };
     private int lastWidth, lastHeight; // size when last drawn; hidden frames report none
 
@@ -73,7 +84,7 @@ public class RouteHudOverlay extends Overlay {
         Rectangle hud = new Rectangle(at.x, at.y, Math.max(at.width, lastWidth), Math.max(at.height, lastHeight));
         if (hud.width == 0 || hud.height == 0) return false;
         for (int id : COVERING_WINDOWS) {
-            net.runelite.api.widgets.Widget w = client.getWidget(id);
+            Widget w = client.getWidget(id);
             if (w != null && !w.isHidden() && w.getBounds() != null && w.getBounds().intersects(hud)) return true;
         }
         return false;
@@ -93,21 +104,20 @@ public class RouteHudOverlay extends Overlay {
         int padding = 7;
 
         // Build content: [text, color]
-        java.util.List<String[]> lines = new java.util.ArrayList<>();
+        List<String[]> lines = new ArrayList<>();
 
         // Determine if we should show route steps or agility task
         boolean routeHasIncompleteStep = false;
         int routeCurrentIdx = -1;
-        List<RouteStep> steps = activeRoute != null ? activeRoute.getSteps() : new java.util.ArrayList<>();
+        List<RouteStep> steps = activeRoute != null ? activeRoute.getSteps() : new ArrayList<>();
 
         if (activeRoute != null) {
+            // The route's active step: the first unticked one, or a step under test
+            RouteStep active = activeRoute.getActiveStep();
             for (int i = 0; i < steps.size(); i++) {
-                if (!steps.get(i).isCompleted()) {
-                    routeCurrentIdx = i;
-                    routeHasIncompleteStep = true;
-                    break;
-                }
+                if (steps.get(i) == active) { routeCurrentIdx = i; break; }
             }
+            routeHasIncompleteStep = routeCurrentIdx >= 0;
         }
 
         // Route fully complete (or empty): hide the HUD entirely
@@ -124,7 +134,7 @@ public class RouteHudOverlay extends Overlay {
         if (routeHasIncompleteStep) {
             RouteStep current = steps.get(routeCurrentIdx);
             String curPrefix = ">> " + (routeCurrentIdx + 1) + ". ";
-            java.util.List<String> curWrapped = wrapText(curPrefix + current.getName(), 42);
+            List<String> curWrapped = wrapText(curPrefix + current.getName(), 42);
             for (int i = 0; i < curWrapped.size(); i++) {
                 String curLine = i == 0 ? curWrapped.get(i) : "     " + curWrapped.get(i);
                 lines.add(new String[]{curLine, "CURRENT"});
@@ -132,7 +142,7 @@ public class RouteHudOverlay extends Overlay {
             if (routeCurrentIdx + 1 < steps.size()) {
                 RouteStep next = steps.get(routeCurrentIdx + 1);
                 String nxtPrefix = "   " + (routeCurrentIdx + 2) + ". ";
-                java.util.List<String> nxtWrapped = wrapText(nxtPrefix + next.getName(), 42);
+                List<String> nxtWrapped = wrapText(nxtPrefix + next.getName(), 42);
                 for (int i = 0; i < nxtWrapped.size(); i++) {
                     String nxtLine = i == 0 ? nxtWrapped.get(i) : "     " + nxtWrapped.get(i);
                     lines.add(new String[]{nxtLine, "NEXT"});
@@ -144,10 +154,10 @@ public class RouteHudOverlay extends Overlay {
         // stops there and there's nothing in the world to highlight. Likewise "Use rope on Rock":
         // the object lights up, but it takes an item rather than a click.
         if (routeHasIncompleteStep) {
-            com.routeplanner.transport.Transport t = plugin.getPathfinderOverlay().getActiveTransition();
+            Transport t = plugin.getPathfinderOverlay().getActiveTransition();
             if (t != null && t.actionText != null
-                    && (t.teleport || t.actionText.startsWith(com.routeplanner.sailing.SailingDocks.BOARD)
-                        || t.actionText.startsWith(com.routeplanner.sailing.SailingDocks.DISEMBARK)
+                    && (t.teleport || t.actionText.startsWith(SailingDocks.BOARD)
+                        || t.actionText.startsWith(SailingDocks.DISEMBARK)
                         || t.actionText.startsWith("Use "))) {
                 lines.add(new String[]{"---", "DIM"});
                 for (String wrapped : wrapText(t.actionText, 42)) lines.add(new String[]{wrapped, "TITLE"});
@@ -156,7 +166,7 @@ public class RouteHudOverlay extends Overlay {
 
         // Sailing countdowns and the voyage time
         if (routeHasIncompleteStep) {
-            java.util.List<String> sailing = plugin.getSailingTimers().hudLines(
+            List<String> sailing = plugin.getSailingTimers().hudLines(
                 plugin.getPathfinderOverlay().getCachedPath(), plugin.getSailingDocks());
             if (!sailing.isEmpty()) {
                 lines.add(new String[]{"---", "DIM"});
@@ -169,8 +179,8 @@ public class RouteHudOverlay extends Overlay {
             RouteStep curStep = steps.get(routeCurrentIdx);
             if (curStep.hasItems()) {
                 lines.add(new String[]{"---", "DIM"});
-                String mode = curStep.getItemMode();
-                if ("SELL".equals(mode)) {
+                ItemMode mode = curStep.getItemMode();
+                if (mode == ItemMode.SELL) {
                     lines.add(new String[]{"Sell:", "TITLE"});
                     for (String[] st : bankItemManager.getSellStatusList(curStep.getItemList())) {
                         boolean sold = st[1].equals("SOLD");
@@ -179,10 +189,10 @@ public class RouteHudOverlay extends Overlay {
                     }
                 } else {
                     boolean gathering = curStep.getSkillingTargetNpc() != null || curStep.getSkillingTargetObject() != null;
-                    String header = "SHOP".equals(mode) ? "Buy:"
-                        : ("PICKUP".equals(mode) && !gathering ? "Pick up:" : "Gather:");
+                    String header = mode == ItemMode.SHOP ? "Buy:"
+                        : (mode == ItemMode.PICKUP && !gathering ? "Pick up:" : "Gather:");
                     lines.add(new String[]{header, "TITLE"});
-                    java.util.Map<String, Long> baseline = curStep.countsGainedItems()
+                    Map<String, Long> baseline = curStep.countsGainedItems()
                         ? curStep.getPickupBaseline() : null;
                     for (String[] st : bankItemManager.getItemStatusList(curStep.getItemList(), baseline)) {
                         boolean have = st[1].equals("HAVE");
@@ -235,29 +245,27 @@ public class RouteHudOverlay extends Overlay {
 
         // XP tracker for the current step only; a later step's goal shouldn't show early
         if (routeHasIncompleteStep) {
-            for (com.routeplanner.model.RouteStep s : java.util.Collections.singletonList(steps.get(routeCurrentIdx))) {
-                if (!s.isCompleted() && s.hasSkillGoal()
+            for (RouteStep s : Collections.singletonList(steps.get(routeCurrentIdx))) {
+                if (s.hasSkillGoal()
                         && s.getSkillingGoalType() != null) {
                     String sk = s.getSkillingSkill() != null
                         ? s.getSkillingSkill().substring(0,1).toUpperCase()
                           + s.getSkillingSkill().substring(1).toLowerCase() : "?";
-                    net.runelite.api.Skill apiSk = null;
-                    try { apiSk = net.runelite.api.Skill.valueOf(
-                        s.getSkillingSkill().toUpperCase()); } catch (Exception ignored) {}
+                    Skill apiSk = s.skill();
                     int curLvl = apiSk != null ? client.getRealSkillLevel(apiSk) : 0;
                     long curXp = apiSk != null ? client.getSkillExperience(apiSk) : 0;
 
                     lines.add(new String[]{"---", "DIM"});
-                    String gt = s.getSkillingGoalType();
-                    if (gt.equals("XP_GAIN")) {
+                    SkillGoalType gt = s.getSkillingGoalType();
+                    if (gt == SkillGoalType.XP_GAIN) {
                         lines.add(new String[]{sk + " XP Gained:", "TITLE"});
                         lines.add(new String[]{"  +" + String.format("%,d", s.getSkillingProgress())
                             + " / +" + String.format("%,d", s.getSkillingGoalValue()), "CURRENT"});
-                    } else if (gt.equals("XP_TARGET")) {
+                    } else if (gt == SkillGoalType.XP_TARGET) {
                         lines.add(new String[]{sk + " Total XP:", "TITLE"});
                         lines.add(new String[]{"  " + String.format("%,d", curXp)
                             + " / " + String.format("%,d", s.getSkillingGoalValue()), "CURRENT"});
-                    } else if (gt.equals("LEVEL")) {
+                    } else if (gt == SkillGoalType.LEVEL) {
                         lines.add(new String[]{sk + " Level:", "TITLE"});
                         lines.add(new String[]{"  " + curLvl + " / " + s.getSkillingGoalValue(), "CURRENT"});
                     }
@@ -277,9 +285,9 @@ public class RouteHudOverlay extends Overlay {
         int totalHeight = padding * 2 + lines.size() * lineHeight;
 
         // Theme palette
-        com.routeplanner.HudTheme theme = config.hudTheme();
+        HudTheme theme = config.hudTheme();
         Color bgC, borderC, titleC, currentC, nextC, haveC, dimC, dividerC;
-        if (theme == com.routeplanner.HudTheme.QUEST_HELPER) {
+        if (theme == HudTheme.QUEST_HELPER) {
             bgC      = new Color(70, 61, 50, 156);   // RuneLite standard overlay background
             borderC  = new Color(60, 60, 60, 140);
             titleC   = new Color(255, 255, 255);
@@ -288,7 +296,7 @@ public class RouteHudOverlay extends Overlay {
             haveC    = new Color(0, 255, 0);
             dimC     = new Color(170, 170, 170);
             dividerC = new Color(255, 255, 255, 40);
-        } else if (theme == com.routeplanner.HudTheme.CUSTOM) {
+        } else if (theme == HudTheme.CUSTOM) {
             bgC      = config.hudBgColor();
             borderC  = config.hudBorderColor();
             titleC   = config.hudTitleColor();
@@ -311,9 +319,9 @@ public class RouteHudOverlay extends Overlay {
         // Background
         graphics.setColor(bgC);
         graphics.fillRoundRect(0, 0, width, totalHeight, 6, 6);
-        boolean drawOutline = theme != com.routeplanner.HudTheme.CUSTOM || config.hudOutline();
+        boolean drawOutline = theme != HudTheme.CUSTOM || config.hudOutline();
         if (drawOutline) {
-            int thickness = theme == com.routeplanner.HudTheme.CUSTOM ? Math.max(1, config.hudBorderThickness()) : 1;
+            int thickness = theme == HudTheme.CUSTOM ? Math.max(1, config.hudBorderThickness()) : 1;
             graphics.setColor(borderC);
             graphics.setStroke(new BasicStroke(thickness));
             graphics.drawRoundRect(0, 0, width - 1, totalHeight - 1, 6, 6);

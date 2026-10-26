@@ -2,6 +2,7 @@ package com.routeplanner.ui;
 
 import net.runelite.client.game.SpriteManager;
 
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.util.HashMap;
 import java.util.Map;
@@ -34,7 +35,7 @@ public final class RouteIcon {
     /** The ring, the globe centred in it, and the pin at the top right. */
     static BufferedImage compose(BufferedImage ring, BufferedImage globe) {
         BufferedImage out = new BufferedImage(ring.getWidth(), ring.getHeight(), BufferedImage.TYPE_INT_ARGB);
-        java.awt.Graphics2D g = out.createGraphics();
+        Graphics2D g = out.createGraphics();
         g.drawImage(ring, 0, 0, null);
         g.drawImage(globe, (ring.getWidth() - globe.getWidth()) / 2, (ring.getHeight() - globe.getHeight()) / 2, null);
         g.dispose();

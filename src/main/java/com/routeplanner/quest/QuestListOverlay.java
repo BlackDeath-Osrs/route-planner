@@ -2,6 +2,7 @@ package com.routeplanner.quest;
 
 import com.routeplanner.RoutePlannerPlugin;
 import com.routeplanner.model.RouteStep;
+import com.routeplanner.util.HighlightColors;
 import net.runelite.api.Client;
 import net.runelite.api.Quest;
 import net.runelite.api.gameval.InterfaceID;
@@ -55,7 +56,7 @@ public class QuestListOverlay extends Overlay {
         graphics.setColor(outline);
         graphics.setStroke(new BasicStroke(2));
         graphics.drawRect(b.x - 1, b.y - 1, b.width + 2, b.height + 2);
-        graphics.setColor(com.routeplanner.util.HighlightColors.fill(outline));
+        graphics.setColor(HighlightColors.fill(outline));
         graphics.fillRect(b.x - 1, b.y - 1, b.width + 2, b.height + 2);
         return null;
     }

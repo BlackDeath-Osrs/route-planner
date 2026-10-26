@@ -1,8 +1,12 @@
 package com.routeplanner.sailing;
 
+import com.routeplanner.LineStyle;
+import com.routeplanner.PathfinderOverlay;
 import com.routeplanner.RoutePlannerConfig;
+import com.routeplanner.util.Strokes;
 import net.runelite.api.Client;
 import net.runelite.api.GameObject;
+import net.runelite.api.ObjectComposition;
 import net.runelite.api.Perspective;
 import net.runelite.api.Point;
 import net.runelite.api.Tile;
@@ -13,6 +17,7 @@ import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
+import net.runelite.client.util.ColorUtil;
 
 import javax.inject.Inject;
 import java.awt.*;
@@ -27,6 +32,7 @@ import java.util.List;
 @lombok.extern.slf4j.Slf4j
 public class ShoalRouteOverlay extends Overlay {
 
+    private static final BasicStroke OUTLINE_STROKE = new BasicStroke(2);
     /** Keep showing the route this long after the nets come up (between stops, changing depth). */
     private static final int AFTER_NETS_TICKS = 100;
     /** A dot in the dotted and dash-dot patterns, in tiles (drawn as a round-capped point). */
@@ -115,32 +121,37 @@ public class ShoalRouteOverlay extends Overlay {
             drawing = true;
         }
         if (config.lineGlow()) {
-            g.setColor(new Color(c.getRed(), c.getGreen(), c.getBlue(), Math.min(120, c.getAlpha()) / 2));
-            g.setStroke(new BasicStroke(thick + 3, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.setColor(ColorUtil.colorWithAlpha(c, Math.min(120, c.getAlpha()) / 2));
+            g.setStroke(Strokes.round(thick + 3));
             g.draw(line);
         }
-        com.routeplanner.LineStyle style = config.lineStyle();
-        if (style == com.routeplanner.LineStyle.SOLID) {
+        LineStyle style = config.lineStyle();
+        if (style == LineStyle.TRACER) {
+            g.setColor(PathfinderOverlay.tracerBaseColor(config));
+            g.setStroke(Strokes.round(thick));
+            g.draw(line);
+            drawWaterPulses(g, top, path, loop, thick);
+        } else if (style == LineStyle.SOLID) {
             g.setColor(c);
-            g.setStroke(new BasicStroke(thick, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.setStroke(Strokes.round(thick));
             g.draw(line);
         } else {
             if (config.lineUseDashColor()) {
                 // Faint line under the dashes when they have their own color, as on the waypoint line
-                g.setColor(new Color(c.getRed(), c.getGreen(), c.getBlue(), (int) (c.getAlpha() * 0.45)));
-                g.setStroke(new BasicStroke(thick, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g.setColor(ColorUtil.colorWithAlpha(c, (int) (c.getAlpha() * 0.45)));
+                g.setStroke(Strokes.round(thick));
                 g.draw(line);
             }
             drawWaterDashes(g, top, path, loop, style, config.lineUseDashColor() ? config.lineDashColor() : c, thick);
         }
 
         // Where it stops (and the nets catch most): a square on the water
-        g.setStroke(new BasicStroke(2));
+        g.setStroke(OUTLINE_STROKE);
         for (WorldPoint stop : route.stops) {
             LocalPoint lp = LocalPoint.fromWorld(top, stop);
             Polygon poly = lp == null ? null : Perspective.getCanvasTileAreaPoly(client, lp, 3);
             if (poly == null) continue;
-            g.setColor(new Color(c.getRed(), c.getGreen(), c.getBlue(), 40));
+            g.setColor(ColorUtil.colorWithAlpha(c, 40));
             g.fillPolygon(poly);
             g.setColor(c);
             g.drawPolygon(poly);
@@ -153,21 +164,19 @@ public class ShoalRouteOverlay extends Overlay {
      * boat follows the shoal and the camera moves.
      */
     private void drawWaterDashes(Graphics2D g, WorldView top, List<WorldPoint> path, boolean loop,
-                                 com.routeplanner.LineStyle style, Color color, int thick) {
+                                 LineStyle style, Color color, int thick) {
         // dash, gap (and a dot and gap after it for dash-dot), in tiles
         double[] pattern;
-        switch (style) {
-            case DOTTED:   pattern = new double[]{DOT_TILES, 0.6}; break;
-            case DASH_DOT: pattern = new double[]{1.2, 0.5, DOT_TILES, 0.5}; break;
-            default:       pattern = new double[]{1.2, 0.8}; break;
-        }
+        if (style == LineStyle.DOTTED)        pattern = new double[]{DOT_TILES, 0.6};
+        else if (style == LineStyle.DASH_DOT) pattern = new double[]{1.2, 0.5, DOT_TILES, 0.5};
+        else                                  pattern = new double[]{1.2, 0.8};
         double period = 0;
         for (double d : pattern) period += d;
         double shift = 0;
         if (config.lineAnimate()) shift = (System.currentTimeMillis() % DASH_CYCLE_MS) / (double) DASH_CYCLE_MS * period;
 
         g.setColor(color);
-        g.setStroke(new BasicStroke(thick, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.setStroke(Strokes.round(thick));
         int plane = top.getPlane();
         double along = 0;  // distance along the route at the start of this segment, in tiles
         int n = path.size() + (loop ? 1 : 0);
@@ -186,6 +195,27 @@ public class ShoalRouteOverlay extends Overlay {
                     }
                     at += pattern[k] + pattern[k + 1];
                 }
+            }
+            along += len;
+        }
+    }
+
+    /** The tracer's pulses on the water: a tile-long bright stretch every few dozen tiles, moving the way the shoal swims. */
+    private void drawWaterPulses(Graphics2D g, WorldView top, List<WorldPoint> path, boolean loop, int thick) {
+        double spacing = PathfinderOverlay.TRACER_SPACING;
+        double shift = PathfinderOverlay.tracerShift(config);
+        g.setColor(PathfinderOverlay.tracerPulseColor(config));
+        g.setStroke(Strokes.round(thick));
+        int plane = top.getPlane();
+        double along = 0;
+        int n = path.size() + (loop ? 1 : 0);
+        for (int i = 0; i + 1 < n; i++) {
+            WorldPoint a = path.get(i % path.size()), b = path.get((i + 1) % path.size());
+            double len = Math.hypot(b.getX() - a.getX(), b.getY() - a.getY());
+            if (len == 0 || len > MAX_SEGMENT_TILES) { along += len; continue; }
+            double first = Math.ceil((along - shift) / spacing) * spacing + shift;
+            for (double at = first; at < along + len; at += spacing) {
+                drawWaterLine(g, top, plane, a, b, (at - along) / len, Math.min(1, (at + 1 - along) / len));
             }
             along += len;
         }
@@ -230,7 +260,7 @@ public class ShoalRouteOverlay extends Overlay {
                     if (t == null) continue;
                     for (GameObject obj : t.getGameObjects()) {
                         if (obj == null) continue;
-                        net.runelite.api.ObjectComposition def = client.getObjectDefinition(obj.getId());
+                        ObjectComposition def = client.getObjectDefinition(obj.getId());
                         if (def == null) continue;
                         int area = def.getSizeX() * def.getSizeY();
                         if (area > best && obj.getLocalLocation() != null) {
@@ -245,8 +275,8 @@ public class ShoalRouteOverlay extends Overlay {
         Polygon poly = at == null ? null : Perspective.getCanvasTileAreaPoly(client, at, size);
         if (poly == null) return;
         Color base = config.npcHighlightColor();
-        g.setStroke(new BasicStroke(2));
-        g.setColor(new Color(base.getRed(), base.getGreen(), base.getBlue(), Math.max(0, Math.min(255, base.getAlpha() / 4))));
+        g.setStroke(OUTLINE_STROKE);
+        g.setColor(ColorUtil.colorWithAlpha(base, Math.max(0, Math.min(255, base.getAlpha() / 4))));
         g.fillPolygon(poly);
         g.setColor(base);
         g.drawPolygon(poly);

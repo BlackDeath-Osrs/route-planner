@@ -8,6 +8,7 @@ import net.runelite.api.widgets.Widget;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
+import net.runelite.client.util.ColorUtil;
 
 import javax.inject.Inject;
 import java.awt.*;
@@ -70,9 +71,9 @@ public class NetDepthOverlay extends Overlay {
         // Scrolled out of the panel's view: nothing to point at
         if (b == null || b.width <= 0 || b.height <= 0 || !canvas.getBounds().intersects(b)) return;
         Color c = config.npcHighlightColor();
-        g.setColor(new Color(c.getRed(), c.getGreen(), c.getBlue(), 110));
+        g.setColor(ColorUtil.colorWithAlpha(c, 110));
         g.fillRoundRect(b.x, b.y, b.width, b.height, 8, 8);
-        g.setColor(new Color(c.getRed(), c.getGreen(), c.getBlue(), 230));
+        g.setColor(ColorUtil.colorWithAlpha(c, 230));
         g.setStroke(new BasicStroke(2));
         g.drawRoundRect(b.x, b.y, b.width, b.height, 8, 8);
     }
