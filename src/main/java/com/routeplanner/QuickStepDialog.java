@@ -5,6 +5,7 @@ import com.routeplanner.model.Route;
 import com.routeplanner.model.RouteStep;
 import com.routeplanner.model.SkillGoalType;
 import com.routeplanner.model.StepType;
+import com.routeplanner.model.TileArea;
 import com.routeplanner.sailing.SailingDocks;
 import com.routeplanner.skilling.RecipeLabels;
 import com.routeplanner.teleport.TeleportItem;
@@ -91,7 +92,7 @@ public class QuickStepDialog extends JFrame {
     private boolean extraItems, extraSkill, extraQuest, extraHighlight, extraStairs, extraChat, extraTele, extraBoat;
 
     // Teleport: only written back when changed here, so steps with unusual teleports stay intact
-    private String teleMethod = "WALK"; // WALK | SPELL | ITEM | NEXUS
+    private String teleMethod = "WALK"; // WALK | SPELL | ITEM | NEXUS | PORTAL
     private TeleportSpell chosenSpell;
     private TeleportItem chosenItem;
     private String chosenNexus;
@@ -101,6 +102,8 @@ public class QuickStepDialog extends JFrame {
     private final HintField nameField = new HintField();
     private final JTextField tileField = field();
     private final HintField areaField = new HintField();
+    /** A painted (not rectangular) area, shown in areaField by its formatArea text. */
+    private TileArea paintedArea;
     private final JLabel placeLabel = small("");
     private final HintField whoField = new HintField();
     private final JLabel whoLabel = label("Who");
@@ -125,6 +128,8 @@ public class QuickStepDialog extends JFrame {
     private final JComboBox<String> boatDock = combo(new String[0]);
     private final JTextArea noteArea = new JTextArea(3, 20);
     private final JCheckBox noteAuto = check("Complete on arrival", true);
+    // On for a new area; a step that already has one keeps what it had
+    private final JCheckBox areaHighlightOnly = check("Only highlight things inside the area", true);
     private final JTextArea doneLabel = new JTextArea();
     private final JPanel doneBox = new JPanel(new BorderLayout(7, 0));
     private final JLabel errorLabel = new JLabel(" ");
@@ -270,16 +275,19 @@ public class QuickStepDialog extends JFrame {
         areaRow.setOpaque(false);
         areaRow.setAlignmentX(Component.LEFT_ALIGNMENT);
         areaField.setHint("Area (optional)");
-        areaField.setToolTipText("<html>Arrive anywhere in this rectangle instead of next to the tile.<br>"
-            + "Two corners, like 3200, 3200 to 3245, 3235. Blank = just the tile.</html>");
+        areaField.setToolTipText("<html>Arrive anywhere in this area instead of next to the tile.<br>"
+            + "Paint it with Draw area, or type two corners, like 3200, 3200 to 3245, 3235. Blank = just the tile.</html>");
         areaRow.add(areaField, BorderLayout.CENTER);
         JButton draw = button("Draw area");
-        draw.setToolTipText("Drag over the ground in game to mark the area");
+        draw.setToolTipText("Mark the area in game: drag to add boxes of tiles, hold Shift to paint or erase single tiles");
         draw.addActionListener(e -> drawArea());
         areaRow.add(draw, BorderLayout.EAST);
         areaRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, areaRow.getPreferredSize().height));
         areaRow.setVisible(areasOn);
         p.add(areaRow);
+        areaHighlightOnly.setToolTipText("<html>NPCs, objects and ground items light up only inside the area.<br>"
+            + "Off: anything in range lights up, as without an area.</html>");
+        p.add(areaHighlightOnly);
         p.add(Box.createVerticalStrut(3));
         p.add(placeLabel);
         listen(tileField);
@@ -287,15 +295,16 @@ public class QuickStepDialog extends JFrame {
         return p;
     }
 
-    /** Hide while the area is dragged out in game, then come back with it filled in. */
+    /** Hide while the area is painted in game (starting from the one in the field), then come back with it. */
     private void drawArea() {
         setVisible(false);
-        plugin.getAreaDrawer().start(area -> {
+        plugin.getAreaDrawer().start(parseArea(areaField.getText()), result -> {
+            if (result != null) setArea(result.area);
+            TileArea area = result != null ? result.area : null;
             if (area != null) {
-                areaField.setText(formatArea(area));
                 // The route line heads for the tile, so keep it inside the area
                 WorldPoint wp = parseTile(tileField.getText());
-                if (wp == null || !area.contains(wp)) tileField.setText(formatTile(centreOf(area)));
+                if (wp == null || !area.contains(wp)) tileField.setText(formatTile(area.centre()));
             }
             setVisible(true);
             toFront();
@@ -480,8 +489,10 @@ public class QuickStepDialog extends JFrame {
         return p;
     }
 
-    private static final String[] TELE_HOW = {"Spell", "Item", "Portal Nexus"};
-    private static final String[] TELE_HOW_KEYS = {"SPELL", "ITEM", "NEXUS"};
+    private static final String[] TELE_HOW = {"Spell", "Item", "Portal Nexus", "House portal"};
+    private static final String[] TELE_HOW_KEYS = {"SPELL", "ITEM", "NEXUS", "PORTAL"};
+    private static final String NEXUS_HINT = "Destination as named in your nexus, e.g. Varrock";
+    private static final String PORTAL_HINT = "Portal's destination, e.g. Varrock for Varrock Portal";
     private final JComboBox<String> teleHow = combo(TELE_HOW);
     private final JComboBox<Object> spellBox = new JComboBox<>();
     private final JComboBox<Object> itemBox = new JComboBox<>();
@@ -558,12 +569,13 @@ public class QuickStepDialog extends JFrame {
             teleportChosen(chosenItem != null ? chosenItem.getDestination() : null);
         });
 
-        nexusField.setHint("Destination as named in your nexus, e.g. Varrock");
+        // The nexus and the house portals share this field: both are named by destination.
+        nexusField.setHint(NEXUS_HINT);
         nexusField.getDocument().addDocumentListener(new Doc(() -> {
             if (loading) return;
             String t = nexusField.getText().trim();
             chosenNexus = t.isEmpty() ? null : t;
-            teleMethod = "NEXUS";
+            teleMethod = TELE_HOW_KEYS[Math.max(0, teleHow.getSelectedIndex())];
             teleportChosen(null);
         }));
 
@@ -578,7 +590,7 @@ public class QuickStepDialog extends JFrame {
 
         teleHow.addActionListener(e -> {
             String key = TELE_HOW_KEYS[Math.max(0, teleHow.getSelectedIndex())];
-            ((CardLayout) teleChoice.getLayout()).show(teleChoice, key);
+            showTeleCard(key);
             if (loading) return;
             teleMethod = key;
             teleTouched = true;
@@ -591,10 +603,16 @@ public class QuickStepDialog extends JFrame {
     private void syncTeleControls() {
         int how = Math.max(0, Arrays.asList(TELE_HOW_KEYS).indexOf(teleMethod));
         teleHow.setSelectedIndex(how);
-        ((CardLayout) teleChoice.getLayout()).show(teleChoice, TELE_HOW_KEYS[how]);
+        showTeleCard(TELE_HOW_KEYS[how]);
         if (chosenSpell != null) spellBox.setSelectedItem(chosenSpell);
         if (chosenItem != null) itemBox.setSelectedItem(chosenItem);
         if (chosenNexus != null) nexusField.setText(chosenNexus);
+    }
+
+    private void showTeleCard(String key) {
+        boolean portal = "PORTAL".equals(key);
+        nexusField.setHint(portal ? PORTAL_HINT : NEXUS_HINT);
+        ((CardLayout) teleChoice.getLayout()).show(teleChoice, portal ? "NEXUS" : key);
     }
 
     /** A teleport was picked: aim the step at where it lands (the house has no tile to aim at). */
@@ -610,7 +628,7 @@ public class QuickStepDialog extends JFrame {
 
     private boolean hasTeleport() {
         return ("SPELL".equals(teleMethod) && chosenSpell != null) || ("ITEM".equals(teleMethod) && chosenItem != null)
-            || ("NEXUS".equals(teleMethod) && chosenNexus != null);
+            || (("NEXUS".equals(teleMethod) || "PORTAL".equals(teleMethod)) && chosenNexus != null);
     }
 
     private JPanel buildStairs() {
@@ -730,7 +748,7 @@ public class QuickStepDialog extends JFrame {
         addBoatBtn.setToolTipText("Board a boat at a dock first");
         addBoatBtn.addActionListener(e -> { extraBoat = true; refresh(); });
         addTeleBtn = button("+ Teleport");
-        addTeleBtn.setToolTipText("Get there with a spell, an item or the Portal Nexus");
+        addTeleBtn.setToolTipText("Get there with a spell, an item, the Portal Nexus or a house portal");
         addTeleBtn.addActionListener(e -> { extraTele = true; refresh(); });
         p.add(addMoreRow);
         p.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -829,11 +847,14 @@ public class QuickStepDialog extends JFrame {
 
         WorldPoint wp = parseTile(tileField.getText());
         boolean tileBad = wp == null && !tileField.getText().trim().isEmpty();
-        WorldArea area = areasOn ? parseArea(areaField.getText()) : null;
+        TileArea area = areasOn ? parseArea(areaField.getText()) : null;
         boolean areaBad = areasOn && area == null && !areaField.getText().trim().isEmpty();
-        if (wp == null && area != null) wp = centreOf(area);
+        if (wp == null && area != null) wp = area.centre();
+        areaHighlightOnly.setVisible(area != null);
         String place = wp != null ? LocationNames.describe(wp) : "Anywhere";
-        if (area != null) place += " (area " + area.getWidth() + " x " + area.getHeight() + " tiles)";
+        if (area != null) place += area.isRectangle()
+            ? " (area " + area.bounds().getWidth() + " x " + area.bounds().getHeight() + " tiles)"
+            : " (area of " + area.size() + " tiles)";
         placeLabel.setText(tileBad ? "Use x, y or x, y, plane"
             : areaBad ? "Area: use two corners, like 3200, 3200 to 3245, 3235" : place);
         placeLabel.setForeground(tileBad || areaBad ? ERROR : ColorScheme.LIGHT_GRAY_COLOR);
@@ -924,7 +945,10 @@ public class QuickStepDialog extends JFrame {
     private void load(RouteStep s) {
         if (s.getName() != null) nameField.setText(s.getName());
         if (s.getWorldPoint() != null) tileField.setText(formatTile(s.getWorldPoint()));
-        if (s.hasArea()) areaField.setText(formatArea(s.area()));
+        if (s.hasArea()) {
+            setArea(s.area());
+            areaHighlightOnly.setSelected(s.isHighlightInAreaOnly());
+        }
         if (s.getTeleportMethod() != null) {
             extraTele = true;
             if (s.getTeleportSpell() != null && !s.getTeleportSpell().isEmpty()) {
@@ -933,8 +957,9 @@ public class QuickStepDialog extends JFrame {
             } else if (s.getTeleportItem() != null && !s.getTeleportItem().isEmpty()) {
                 chosenItem = TeleportItems.getByDisplayName(s.getTeleportItem());
                 if (chosenItem != null) teleMethod = "ITEM";
-            } else if ("NEXUS".equals(s.getTeleportMethod()) && s.getTeleportNexus() != null) {
-                teleMethod = "NEXUS";
+            } else if (("NEXUS".equals(s.getTeleportMethod()) || "PORTAL".equals(s.getTeleportMethod()))
+                    && s.getTeleportNexus() != null) {
+                teleMethod = s.getTeleportMethod();
                 chosenNexus = s.getTeleportNexus();
             }
         }
@@ -1034,14 +1059,14 @@ public class QuickStepDialog extends JFrame {
         if (err == null) err = check("Highlight object", hlObject.getText());
         if (err == null) err = check("Inventory items", hlInventory.getText());
         if (err == null && itemsOn()) err = check("Items", itemListText());
-        if (err == null && teleOn()) err = check("Nexus destination", nexusField.getText());
+        if (err == null && teleOn()) err = check("Teleport destination", nexusField.getText());
         if (err != null) { errorLabel.setText(err); return; }
 
         WorldPoint wp = parseTile(tileField.getText());
         if (wp == null && !tileField.getText().trim().isEmpty()) { fail(tileField, "The tile should look like 3222, 3218 (add , 1 for upstairs)."); return; }
-        WorldArea area = areasOn ? parseArea(areaField.getText()) : null;
-        if (areasOn && area == null && !areaField.getText().trim().isEmpty()) { fail(areaField, "The area should be two corners on one floor, like 3200, 3200 to 3245, 3235."); return; }
-        if (wp == null && area != null) wp = centreOf(area);
+        TileArea area = areasOn ? parseArea(areaField.getText()) : null;
+        if (areasOn && area == null && !areaField.getText().trim().isEmpty()) { fail(areaField, "Paint the area with Draw area, or type two corners on one floor, like 3200, 3200 to 3245, 3235."); return; }
+        if (wp == null && area != null) wp = area.centre();
         boolean teleports = teleOn() && (hasTeleport() || (!teleTouched && editing != null && editing.getTeleportMethod() != null));
         if (teleOn() && !teleports) { errorLabel.setText("Pick a teleport, or press Remove in the Teleport section."); return; }
         if (type == Type.WALK && wp == null && !teleports && !extraBoat) { fail(tileField, "Where should this step go? Enter a tile or press My tile."); return; }
@@ -1060,9 +1085,8 @@ public class QuickStepDialog extends JFrame {
         step.setName(name);
         step.setWorldPoint(wp);
         if (areasOn) {
-            step.setAreaFrom(area == null ? null : new WorldPoint(area.getX(), area.getY(), area.getPlane()));
-            step.setAreaTo(area == null ? null : new WorldPoint(area.getX() + area.getWidth() - 1,
-                area.getY() + area.getHeight() - 1, area.getPlane()));
+            step.setArea(area);
+            step.setHighlightInAreaOnly(area != null && areaHighlightOnly.isSelected());
         }
         apply(step, stairs);
         if (editing == null) plugin.addStep(route, step);
@@ -1164,7 +1188,7 @@ public class QuickStepDialog extends JFrame {
 
     private void applyTeleport(RouteStep step) {
         boolean on = teleOn() && hasTeleport();
-        boolean wasNexus = "NEXUS".equals(step.getTeleportMethod());
+        boolean sameNamed = teleMethod.equals(step.getTeleportMethod());
         step.setTeleportMethod(null);
         step.setTeleportSpell(null);
         step.setTeleportItem(null);
@@ -1179,10 +1203,10 @@ public class QuickStepDialog extends JFrame {
             step.setTeleportItem(chosenItem.getDisplayName());
             step.setTeleportDestination(chosenItem.getDestination());
         } else {
-            step.setTeleportMethod("NEXUS");
+            step.setTeleportMethod(teleMethod); // NEXUS or PORTAL
             step.setTeleportNexus(chosenNexus);
-            // Recorded nexus steps carry the real landing tile; hand-made ones use the step's tile.
-            if (!wasNexus || step.getTeleportDestination() == null) step.setTeleportDestination(step.getWorldPoint());
+            // Recorded nexus/portal steps carry the real landing tile; hand-made ones use the step's tile.
+            if (!sameNamed || step.getTeleportDestination() == null) step.setTeleportDestination(step.getWorldPoint());
         }
     }
 
@@ -1275,23 +1299,34 @@ public class QuickStepDialog extends JFrame {
         return wp.getPlane() == 0 ? wp.getX() + ", " + wp.getY() : wp.getX() + ", " + wp.getY() + ", " + wp.getPlane();
     }
 
-    private static String formatArea(WorldArea a) {
+    /** Put an area in the field: a rectangle as its corners, a painted shape as a short summary. */
+    private void setArea(TileArea a) {
+        paintedArea = a != null && !a.isRectangle() ? a : null;
+        areaField.setText(a == null ? "" : formatArea(a));
+    }
+
+    private static String formatArea(TileArea t) {
+        WorldArea a = t.bounds();
+        if (!t.isRectangle()) {
+            String floor = a.getPlane() == 0 ? "" : ", floor " + a.getPlane();
+            return "Painted: " + t.size() + " tiles near " + (a.getX() + a.getWidth() / 2) + ", " + (a.getY() + a.getHeight() / 2) + floor;
+        }
         return formatTile(new WorldPoint(a.getX(), a.getY(), a.getPlane())) + " to "
             + formatTile(new WorldPoint(a.getX() + a.getWidth() - 1, a.getY() + a.getHeight() - 1, a.getPlane()));
     }
 
-    /** Two corner tiles on one floor, like "3200, 3200 to 3245, 3235"; null when blank or unreadable. */
-    private static WorldArea parseArea(String s) {
+    /**
+     * The field's area: the painted shape while its summary is untouched, else two corner tiles on
+     * one floor, like "3200, 3200 to 3245, 3235". Null when blank or unreadable.
+     */
+    private TileArea parseArea(String s) {
         if (s == null || s.trim().isEmpty()) return null;
+        if (paintedArea != null && s.trim().equals(formatArea(paintedArea))) return paintedArea;
         String[] corners = AREA_SPLIT.split(s.trim());
         if (corners.length != 2) return null;
         WorldPoint a = parseTile(corners[0]), b = parseTile(corners[1]);
         if (a == null || b == null || a.getPlane() != b.getPlane()) return null;
-        return AreaDrawer.between(a, b);
-    }
-
-    private static WorldPoint centreOf(WorldArea a) {
-        return new WorldPoint(a.getX() + a.getWidth() / 2, a.getY() + a.getHeight() / 2, a.getPlane());
+        return TileArea.of(AreaDrawer.between(a, b));
     }
 
     private static WorldPoint parseTile(String s) {

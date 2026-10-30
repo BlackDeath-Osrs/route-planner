@@ -12,7 +12,7 @@ import java.nio.charset.StandardCharsets;
 
 /**
  * Read-only GETs against the Route Hub's GitHub-hosted catalog. Every call is a plain HTTP GET to
- * raw.githubusercontent.com -- nothing is ever uploaded or posted. Bounds (payload size caps) are
+ * raw.githubusercontent.com; nothing is ever uploaded or posted. Bounds (payload size caps) are
  * enforced here so a malformed or oversized response can never wedge the panel; callers get a
  * {@link HubFetchException} instead of a crash, with a message safe to show the user directly.
  */
@@ -24,7 +24,7 @@ public class RouteHubFetcher {
     private static final String BASE_URL =
         "https://raw.githubusercontent.com/BlackDeath-Osrs/route-planner-routes/main/";
 
-    // Sanity caps mirroring the v1.4 plan bounds. A response over these is rejected outright.
+    // Size caps: a response bigger than these is rejected.
     private static final long MAX_INDEX_BYTES = 1_500_000;   // ~1 MB catalog, some headroom
     private static final long MAX_ROUTE_BYTES = 2_500_000;   // ~2 MB per-route cap, some headroom
     private static final long MAX_ICON_BYTES = 25_000;       // 20 KB icon cap, some headroom
@@ -58,7 +58,7 @@ public class RouteHubFetcher {
     /**
      * index.json and route "file"/"icon" entries are relative paths we build a URL from. Reject
      * anything that looks like it is trying to escape the repo (".." segments) or specify a whole
-     * new host (a scheme or a leading "//") -- the catalog must only ever point within itself.
+     * new host (a scheme or a leading "//"): the catalog must only ever point within itself.
      */
     private void requireSafeRelativePath(String relativePath) throws HubFetchException {
         if (relativePath == null || relativePath.isEmpty()

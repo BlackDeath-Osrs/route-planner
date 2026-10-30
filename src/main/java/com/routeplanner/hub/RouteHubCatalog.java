@@ -11,7 +11,7 @@ import java.util.List;
 
 /**
  * Fetches and parses the Route Hub catalog. Entries that fail {@link HubRouteEntry#validate()} are
- * dropped rather than shown or installed -- a bad entry should never reach the browse panel or the
+ * dropped rather than shown or installed: a bad entry should never reach the browse panel or the
  * install path, even if it somehow got past PR review.
  */
 @Slf4j
@@ -30,7 +30,7 @@ public class RouteHubCatalog {
     /** Fetches, parses, and validates the catalog. Never returns null; returns an empty list on
      *  total failure so the panel can show "couldn't load" rather than crash. */
     /** Passthrough to the fetcher for icon bytes, keeping RouteHubPanel from needing to know about
-     *  RouteHubFetcher directly -- it only ever talks to the catalog. */
+     *  RouteHubFetcher directly; it only ever talks to the catalog. */
     public byte[] fetchIconBytes(String relativeIconPath) throws HubFetchException {
         return fetcher.fetchIcon(relativeIconPath);
     }

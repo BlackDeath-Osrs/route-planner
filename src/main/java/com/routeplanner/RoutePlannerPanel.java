@@ -10,6 +10,7 @@ import com.routeplanner.record.RouteRecorder;
 import com.routeplanner.ui.StepIcon;
 import com.routeplanner.ui.StepLive;
 import com.routeplanner.ui.ThinBar;
+import com.routeplanner.ui.WrapLabel;
 import com.routeplanner.util.RouteTextValidator;
 import net.runelite.api.Quest;
 import net.runelite.client.ui.ColorScheme;
@@ -34,6 +35,7 @@ import java.awt.event.MouseEvent;
 import java.awt.geom.Arc2D;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Path2D;
+import java.awt.geom.RoundRectangle2D;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -82,7 +84,9 @@ public class RoutePlannerPanel extends PluginPanel {
     // Route tab
     private JLabel routeNameLabel, routeSubLabel;
     private ThinBar routeBar;
-    private JButton undoButton, redoButton, pencilButton;
+    private JButton undoButton, redoButton, pencilButton, pauseButton;
+    /** The route last paused from this panel, so the pause button can resume it. */
+    private Route pausedRoute;
     private JPanel editTools;
     private JPanel recBanner;
     private JLabel recStats, recLast;
@@ -105,25 +109,10 @@ public class RoutePlannerPanel extends PluginPanel {
 
     // Full step list (drag to reorder in edit mode)
     private int dropLineY = -1;
-    private final JPanel stepListPanel = new JPanel() {
-        @Override protected void paintComponent(Graphics g) {
-            super.paintComponent(g);
-            if (dropLineY >= 0) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setColor(new Color(255, 160, 40));
-                g2.setStroke(new BasicStroke(2.5f));
-                g2.drawLine(6, dropLineY, getWidth() - 6, dropLineY);
-                g2.fillOval(2, dropLineY - 3, 6, 6);
-                g2.fillOval(getWidth() - 8, dropLineY - 3, 6, 6);
-                g2.dispose();
-            }
-        }
-    };
+    private final StepListView stepList = new StepListView();
     private String selectedSectionId = null;
     private RouteStep draggedStep = null;
     private RouteSection draggedSection = null;
-    private final Map<Component, RouteStep> rowStepMap = new HashMap<>();
-    private final Map<Component, RouteSection> rowSectionMap = new HashMap<>();
 
     @Inject
     public RoutePlannerPanel() {
@@ -468,11 +457,20 @@ public class RoutePlannerPanel extends PluginPanel {
         icons.add(undoButton);
         icons.add(redoButton);
         icons.add(pencilButton);
+        icons.setAlignmentX(Component.RIGHT_ALIGNMENT);
+        pauseButton = iconButton(new Glyph(Glyph.PAUSE, 14, null), "Pause this route");
+        pauseButton.setAlignmentX(Component.RIGHT_ALIGNMENT);
+        pauseButton.setMaximumSize(new Dimension(24, 22));
+        pauseButton.addActionListener(e -> togglePause());
+        JPanel iconCol = vbox();
+        iconCol.setOpaque(false);
+        iconCol.add(icons);
+        iconCol.add(pauseButton);
 
         JPanel barRow = new JPanel(new BorderLayout(3, 0));
         barRow.setOpaque(false);
         barRow.add(combo, BorderLayout.CENTER);
-        barRow.add(icons, BorderLayout.EAST);
+        barRow.add(iconCol, BorderLayout.EAST);
         barRow.setAlignmentX(Component.LEFT_ALIGNMENT);
         header.add(barRow);
         header.add(Box.createVerticalStrut(5));
@@ -516,9 +514,6 @@ public class RoutePlannerPanel extends PluginPanel {
         routeContent.setLayout(new BoxLayout(routeContent, BoxLayout.Y_AXIS));
         routeContent.setBackground(ColorScheme.DARK_GRAY_COLOR);
         routeContent.setBorder(new EmptyBorder(2, 8, 8, 8));
-        stepListPanel.setLayout(new BoxLayout(stepListPanel, BoxLayout.Y_AXIS));
-        stepListPanel.setBackground(ColorScheme.DARK_GRAY_COLOR);
-        stepListPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         JPanel top = new WidthTracking();
         top.add(routeContent, BorderLayout.NORTH);
@@ -586,6 +581,20 @@ public class RoutePlannerPanel extends PluginPanel {
             : "Last: " + htmlEscape(last)) + "</div></html>");
     }
 
+    /** Deselect the active route, remembering it so the pause button can bring it back. */
+    private void pauseRoute() {
+        Route active = plugin.getActiveRoute();
+        if (active == null) return;
+        plugin.setActiveRoute(null);
+        pausedRoute = active;
+        refresh();
+    }
+
+    private void togglePause() {
+        if (plugin.getActiveRoute() != null) pauseRoute();
+        else if (pausedRoute != null && plugin.getRoutes().contains(pausedRoute)) plugin.setActiveRoute(pausedRoute);
+    }
+
     private void showRouteMenu(Component anchor) {
         JPopupMenu menu = new JPopupMenu();
         Route active = plugin.getActiveRoute();
@@ -598,7 +607,7 @@ public class RoutePlannerPanel extends PluginPanel {
         if (active != null) {
             JMenuItem pause = new JMenuItem("Pause this route");
             pause.setToolTipText("Hide the route's path and HUD until you pick it again");
-            pause.addActionListener(e -> plugin.setActiveRoute(null));
+            pause.addActionListener(e -> pauseRoute());
             menu.add(pause);
         }
         JMenuItem manage = new JMenuItem("Manage routes...");
@@ -643,6 +652,11 @@ public class RoutePlannerPanel extends PluginPanel {
             routeSubLabel.setText(plugin.getRoutes().isEmpty() ? "Make one in My routes" : "Click to choose one");
             routeBar.setProgress(0, 1);
         }
+        if (active != null || !plugin.getRoutes().contains(pausedRoute)) pausedRoute = null;
+        pauseButton.setVisible(active != null || pausedRoute != null);
+        pauseButton.setIcon(new Glyph(active != null ? Glyph.PAUSE : Glyph.PLAY, 14, null));
+        pauseButton.setToolTipText(active != null ? "Pause this route (hides its path and HUD)"
+            : "Resume " + (pausedRoute != null ? pausedRoute.getName() : "the route"));
         pencilButton.setForeground(dev ? ORANGE : ColorScheme.LIGHT_GRAY_COLOR);
         pencilButton.setToolTipText(dev ? "Edit mode is on (click to just follow the route)" : "Edit mode: add, edit and reorder steps");
         updateHistoryButtons(dev);
@@ -666,7 +680,6 @@ public class RoutePlannerPanel extends PluginPanel {
                 : "No route selected. Pick one from the menu above or in My routes."));
         } else if (dev) {
             buildStepList(active, true);
-            routeContent.add(stepListPanel);
         } else {
             buildFollowView(active);
         }
@@ -710,7 +723,7 @@ public class RoutePlannerPanel extends PluginPanel {
                 routeContent.add(up);
                 routeContent.add(Box.createVerticalStrut(3));
                 for (RouteStep s : next) {
-                    routeContent.add(stepRow(s, -1, false, null, null, false));
+                    routeContent.add(previewRow(s));
                     routeContent.add(Box.createVerticalStrut(2));
                 }
             }
@@ -725,7 +738,6 @@ public class RoutePlannerPanel extends PluginPanel {
         if (showAllSteps) {
             routeContent.add(Box.createVerticalStrut(6));
             buildStepList(route, false);
-            routeContent.add(stepListPanel);
         }
     }
 
@@ -987,164 +999,30 @@ public class RoutePlannerPanel extends PluginPanel {
 
     /** The whole route as collapsible sections. Edit mode adds drag-to-reorder and section selection. */
     private void buildStepList(Route active, boolean dev) {
-        stepListPanel.removeAll();
-        rowStepMap.clear();
-        rowSectionMap.clear();
         if (selectedSectionId != null && active.findSection(selectedSectionId) == null) selectedSectionId = null;
-        RouteStep current = active.getActiveStep();
-
         if (active.getSections().isEmpty()) {
-            stepListPanel.add(emptyNote(dev ? "No steps yet. Add a step, or press Record and play."
+            routeContent.add(emptyNote(dev ? "No steps yet. Add a step, or press Record and play."
                 : "This route has no steps yet. Turn on edit mode (the pencil) to add some."));
+            return;
         }
-
-        for (RouteSection section : active.getSections()) {
-            JPanel secRow = new JPanel(new BorderLayout(6, 0));
-            boolean isSelected = dev && section.getId().equals(selectedSectionId);
-            secRow.setBackground(isSelected ? new Color(70, 55, 25) : SECTION_BG);
-            secRow.setBorder(new EmptyBorder(5, 6, 5, 6));
-            secRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 28));
-            secRow.setAlignmentX(Component.LEFT_ALIGNMENT);
-            secRow.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-
-            int total = section.getSteps().size();
-            long done = section.getSteps().stream().filter(RouteStep::isCompleted).count();
-            boolean allDone = total > 0 && done == total;
-            JLabel secLabel = new JLabel(clip(section.getName(), 20),
-                new Glyph(section.isCollapsed() ? Glyph.CHEV_RIGHT : Glyph.CHEV_DOWN, 12, ColorScheme.LIGHT_GRAY_COLOR), SwingConstants.LEFT);
-            secLabel.setForeground(isSelected ? new Color(255, 180, 80) : Color.WHITE);
-            secLabel.setFont(FontManager.getRunescapeBoldFont());
-            JLabel count = new JLabel(done + "/" + total, allDone ? new Glyph(Glyph.CHECK, 11, GREEN) : null, SwingConstants.RIGHT);
-            count.setHorizontalTextPosition(SwingConstants.LEFT);
-            count.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-            count.setFont(FontManager.getRunescapeSmallFont());
-            secRow.add(secLabel, BorderLayout.CENTER);
-            secRow.add(count, BorderLayout.EAST);
-
-            JPopupMenu secMenu = sectionMenu(active, section, dev, allDone);
-            MouseAdapter secMa = new MouseAdapter() {
-                @Override public void mousePressed(MouseEvent e) {
-                    if (e.isPopupTrigger()) { popup(secMenu, secRow, e); return; }
-                    if (SwingUtilities.isLeftMouseButton(e)) {
-                        if (dev) selectedSectionId = section.getId();
-                        section.setCollapsed(!section.isCollapsed());
-                        plugin.saveRoutes();
-                        rebuild();
-                    }
-                }
-                @Override public void mouseReleased(MouseEvent e) { if (e.isPopupTrigger()) popup(secMenu, secRow, e); }
-            };
-            secRow.addMouseListener(secMa);
-            secLabel.addMouseListener(secMa);
-            rowSectionMap.put(secRow, section);
-            stepListPanel.add(secRow);
-            stepListPanel.add(Box.createVerticalStrut(2));
-
-            if (section.isCollapsed()) continue;
-            int num = 0;
-            for (RouteStep step : section.getSteps()) {
-                num++;
-                JPanel row = stepRow(step, num, step == current, active, section, dev);
-                rowStepMap.put(row, step);
-                rowSectionMap.put(row, section);
-                stepListPanel.add(row);
-                stepListPanel.add(Box.createVerticalStrut(2));
-            }
-        }
-        stepListPanel.revalidate();
-        stepListPanel.repaint();
+        stepList.show(active, dev);
+        routeContent.add(stepList);
     }
 
-    /**
-     * One step line: number, type icon, name, NOW tag on the current step. With a route given
-     * it also gets the right-click menu (and drag-to-reorder in edit mode); without one it's
-     * the plain "up next" preview.
-     */
-    private JPanel stepRow(RouteStep step, int num, boolean now, Route route, RouteSection section, boolean dev) {
+    /** A plain "up next" line: number-less, with the step's icon and name. */
+    private JPanel previewRow(RouteStep step) {
         JPanel row = new JPanel(new BorderLayout(6, 0));
-        Color bg = now ? NOW_BG : ColorScheme.DARKER_GRAY_COLOR;
-        row.setBackground(bg);
-        row.setBorder(now ? new CompoundBorder(new MatteBorder(0, 3, 0, 0, ORANGE), new EmptyBorder(4, 5, 4, 6))
-            : new EmptyBorder(4, 8, 4, 6));
+        row.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+        row.setBorder(new EmptyBorder(4, 8, 4, 6));
         row.setAlignmentX(Component.LEFT_ALIGNMENT);
-
         JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
         left.setOpaque(false);
-        if (num > 0) {
-            JLabel n = new JLabel(String.valueOf(num));
-            n.setForeground(DIM_FG);
-            n.setFont(FontManager.getRunescapeSmallFont());
-            n.setPreferredSize(new Dimension(14, 18));
-            n.setHorizontalAlignment(SwingConstants.RIGHT);
-            left.add(n);
-        }
         left.add(new JLabel(new StepIcon(StepIcon.kindOf(step), 18, step.isCompleted())));
         row.add(left, BorderLayout.WEST);
-
-        int width = now ? 88 : num > 0 ? 118 : 138;
-        JLabel name = new JLabel("<html><div style='width:" + width + "px'>" + htmlEscape(step.getName()) + "</div></html>");
+        WrapLabel name = new WrapLabel(step.getName(), 138);
         name.setForeground(step.isCompleted() ? DONE_FG : Color.WHITE);
         row.add(name, BorderLayout.CENTER);
-        if (now) {
-            boolean testing = route != null && step == route.getTestStep();
-            JLabel pill = new JLabel(!testing ? " NOW " : route.isTestPassed() ? " PASS " : " TEST ");
-            pill.setOpaque(true);
-            pill.setBackground(testing && route.isTestPassed() ? GREEN : ORANGE);
-            pill.setForeground(new Color(27, 18, 0));
-            pill.setFont(FontManager.getRunescapeSmallFont());
-            JPanel east = new JPanel(new GridBagLayout());
-            east.setOpaque(false);
-            east.add(pill);
-            row.add(east, BorderLayout.EAST);
-        }
         row.setMaximumSize(new Dimension(Integer.MAX_VALUE, row.getPreferredSize().height));
-        if (route == null) return row;
-
-        JPopupMenu menu = stepMenu(route, section, step, dev);
-        MouseAdapter ma = new MouseAdapter() {
-            @Override public void mousePressed(MouseEvent e) {
-                if (e.isPopupTrigger()) { popup(menu, row, e); return; }
-                if (dev && SwingUtilities.isLeftMouseButton(e)) {
-                    if (e.getClickCount() == 2) {
-                        new QuickStepDialog(plugin, plugin.getActiveRoute(), step).setVisible(true);
-                        return;
-                    }
-                    draggedStep = step;
-                    draggedSection = section;
-                    row.setBackground(new Color(95, 95, 95));
-                }
-            }
-            @Override public void mouseDragged(MouseEvent e) {
-                if (!dev || draggedStep == null) return;
-                Point p = SwingUtilities.convertPoint((Component) e.getSource(), e.getPoint(), stepListPanel);
-                Component target = nearestDropRow(p.y);
-                int newLineY = -1;
-                if (target != null && rowStepMap.get(target) != draggedStep) {
-                    Rectangle b = target.getBounds();
-                    newLineY = (p.y < b.y + b.height / 2) ? b.y : b.y + b.height;
-                }
-                if (newLineY != dropLineY) { dropLineY = newLineY; stepListPanel.repaint(); }
-            }
-            @Override public void mouseReleased(MouseEvent e) {
-                if (e.isPopupTrigger()) { popup(menu, row, e); return; }
-                if (dev && draggedStep != null) {
-                    Point p = SwingUtilities.convertPoint((Component) e.getSource(), e.getPoint(), stepListPanel);
-                    dropLineY = -1;
-                    stepListPanel.repaint();
-                    handleStepDrop(p);
-                    draggedStep = null;
-                    draggedSection = null;
-                    rebuild();
-                }
-            }
-            @Override public void mouseEntered(MouseEvent e) { if (draggedStep == null) row.setBackground(now ? NOW_BG : ColorScheme.DARKER_GRAY_HOVER_COLOR); }
-            @Override public void mouseExited(MouseEvent e) { if (draggedStep == null) row.setBackground(bg); }
-        };
-        for (Component c : new Component[]{row, name}) {
-            c.addMouseListener(ma);
-            c.addMouseMotionListener(ma);
-        }
-        if (dev) row.setToolTipText("Drag to reorder, double-click to edit, right-click for more");
         return row;
     }
 
@@ -1254,14 +1132,11 @@ public class RoutePlannerPanel extends PluginPanel {
         return menu;
     }
 
-    private void handleStepDrop(Point pInList) {
-        if (draggedStep == null || draggedSection == null) return;
-        Component targetRow = nearestDropRow(pInList.y);
-        if (targetRow == null) return;
-        RouteSection targetSection = rowSectionMap.get(targetRow);
-        if (targetSection == null) return;
-        // A row with a section but no step is a section header: dropping there means "append".
-        RouteStep targetStep = rowStepMap.get(targetRow);
+    private void handleStepDrop(ListLine target) {
+        if (draggedStep == null || draggedSection == null || target == null) return;
+        RouteSection targetSection = target.section;
+        // A section header has no step: dropping there means "append".
+        RouteStep targetStep = target.step;
         if (targetStep == draggedStep) return;
 
         List<RouteStep> src = draggedSection.getSteps();
@@ -1283,17 +1158,268 @@ public class RoutePlannerPanel extends PluginPanel {
         refresh();
     }
 
-    private Component nearestDropRow(int y) {
-        Component best = null;
-        int bestDist = Integer.MAX_VALUE;
-        for (Component comp : stepListPanel.getComponents()) {
-            // Step rows and section headers are targets; struts have no section mapping.
-            if (rowSectionMap.get(comp) == null) continue;
-            Rectangle b = comp.getBounds();
-            int dist = Math.abs(b.y + b.height / 2 - y);
-            if (dist < bestDist) { bestDist = dist; best = comp; }
+    // ------------------------------------------------------------------ step list view
+
+    /** One line of the step list: a section header (no step) or a step. */
+    private static final class ListLine {
+        final RouteSection section;
+        final RouteStep step;
+        final int num;
+        final boolean now;
+        final List<String> name;
+        final int y;
+        final int h;
+
+        ListLine(RouteSection section, RouteStep step, int num, boolean now, List<String> name, int y, int h) {
+            this.section = section;
+            this.step = step;
+            this.num = num;
+            this.now = now;
+            this.name = name;
+            this.y = y;
+            this.h = h;
         }
-        return best;
+
+        boolean contains(int py) { return py >= y && py < y + h; }
+    }
+
+    /**
+     * The whole step list drawn as one component. Next to the game's native canvas, AWT reworks the
+     * canvas's shape for every Swing component added or removed, so hundreds of row components made
+     * big routes crawl; one painted component keeps a rebuild cheap.
+     */
+    private final class StepListView extends JComponent {
+        private static final int GAP = 2;
+        private static final int NAME_X = 58;
+        private static final String DRAG_TIP = "Drag to reorder, double-click to edit, right-click for more";
+
+        private final List<ListLine> lines = new ArrayList<>();
+        private Route route;
+        private boolean dev;
+        private ListLine hover;
+        private int height;
+
+        StepListView() {
+            setOpaque(false);
+            setAlignmentX(Component.LEFT_ALIGNMENT);
+            ToolTipManager.sharedInstance().registerComponent(this);
+            MouseAdapter ma = new MouseAdapter() {
+                @Override public void mousePressed(MouseEvent e) {
+                    ListLine l = lineAt(e.getY());
+                    if (l == null) return;
+                    if (e.isPopupTrigger()) { showMenu(l, e); return; }
+                    if (!SwingUtilities.isLeftMouseButton(e)) return;
+                    if (l.step == null) {
+                        if (dev) selectedSectionId = l.section.getId();
+                        l.section.setCollapsed(!l.section.isCollapsed());
+                        plugin.saveRoutes();
+                        rebuild();
+                    } else if (dev) {
+                        if (e.getClickCount() == 2) {
+                            new QuickStepDialog(plugin, plugin.getActiveRoute(), l.step).setVisible(true);
+                            return;
+                        }
+                        draggedStep = l.step;
+                        draggedSection = l.section;
+                        repaint(0, l.y, getWidth(), l.h);
+                    }
+                }
+                @Override public void mouseDragged(MouseEvent e) {
+                    if (!dev || draggedStep == null) return;
+                    ListLine target = nearestLine(e.getY());
+                    int newLineY = -1;
+                    if (target != null && target.step != draggedStep) {
+                        newLineY = e.getY() < target.y + target.h / 2 ? target.y : target.y + target.h;
+                    }
+                    if (newLineY != dropLineY) { dropLineY = newLineY; repaint(); }
+                }
+                @Override public void mouseReleased(MouseEvent e) {
+                    if (e.isPopupTrigger()) {
+                        ListLine l = lineAt(e.getY());
+                        if (l != null) showMenu(l, e);
+                        return;
+                    }
+                    if (dev && draggedStep != null) {
+                        dropLineY = -1;
+                        handleStepDrop(nearestLine(e.getY()));
+                        draggedStep = null;
+                        draggedSection = null;
+                        rebuild();
+                    }
+                }
+                @Override public void mouseMoved(MouseEvent e) { setHover(lineAt(e.getY())); }
+                @Override public void mouseExited(MouseEvent e) { setHover(null); }
+            };
+            addMouseListener(ma);
+            addMouseMotionListener(ma);
+        }
+
+        /** Lay the route out as lines; heights are fixed by the wrap widths, so no panel width is needed. */
+        void show(Route route, boolean dev) {
+            this.route = route;
+            this.dev = dev;
+            hover = null;
+            lines.clear();
+            RouteStep current = route.getActiveStep();
+            FontMetrics fm = getFontMetrics(UIManager.getFont("Label.font"));
+            FontMetrics bold = getFontMetrics(FontManager.getRunescapeBoldFont());
+            int sectionH = Math.max(12, bold.getHeight()) + 10;
+            int y = 0;
+            for (RouteSection section : route.getSections()) {
+                lines.add(new ListLine(section, null, 0, false, null, y, sectionH));
+                y += sectionH + GAP;
+                if (section.isCollapsed()) continue;
+                int num = 0;
+                for (RouteStep step : section.getSteps()) {
+                    boolean now = step == current;
+                    List<String> name = WrapLabel.wrap(step.getName(), fm, now ? 88 : 118);
+                    int h = Math.max(18, name.size() * fm.getHeight()) + 8;
+                    lines.add(new ListLine(section, step, ++num, now, name, y, h));
+                    y += h + GAP;
+                }
+            }
+            height = y;
+            revalidate();
+            repaint();
+        }
+
+        @Override public Dimension getPreferredSize() { return new Dimension(10, height); }
+        @Override public Dimension getMaximumSize() { return new Dimension(Integer.MAX_VALUE, height); }
+
+        @Override public String getToolTipText(MouseEvent e) {
+            ListLine l = lineAt(e.getY());
+            return dev && l != null && l.step != null ? DRAG_TIP : null;
+        }
+
+        private ListLine lineAt(int y) {
+            for (ListLine l : lines) if (l.contains(y)) return l;
+            return null;
+        }
+
+        private ListLine nearestLine(int y) {
+            ListLine best = null;
+            int bestDist = Integer.MAX_VALUE;
+            for (ListLine l : lines) {
+                int dist = Math.abs(l.y + l.h / 2 - y);
+                if (dist < bestDist) { bestDist = dist; best = l; }
+            }
+            return best;
+        }
+
+        private void setHover(ListLine l) {
+            if (l == hover) return;
+            if (hover != null) repaint(0, hover.y, getWidth(), hover.h);
+            hover = l;
+            if (l != null) repaint(0, l.y, getWidth(), l.h);
+            setCursor(Cursor.getPredefinedCursor(l != null && l.step == null ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
+        }
+
+        private void showMenu(ListLine l, MouseEvent e) {
+            JPopupMenu menu = l.step == null
+                ? sectionMenu(route, l.section, dev, allDone(l.section))
+                : stepMenu(route, l.section, l.step, dev);
+            SwingUtilities.invokeLater(() -> menu.show(this, e.getX(), e.getY()));
+        }
+
+        private boolean allDone(RouteSection s) {
+            return !s.getSteps().isEmpty() && s.getSteps().stream().allMatch(RouteStep::isCompleted);
+        }
+
+        @Override protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            // Same text smoothing as a JLabel gets.
+            Object hints = Toolkit.getDefaultToolkit().getDesktopProperty("awt.font.desktophints");
+            if (hints instanceof Map) g2.addRenderingHints((Map<?, ?>) hints);
+            Rectangle clip = g2.getClipBounds();
+            for (ListLine l : lines) {
+                if (clip != null && (l.y + l.h < clip.y || l.y > clip.y + clip.height)) continue;
+                if (l.step == null) paintSection(g2, l);
+                else paintStep(g2, l);
+            }
+            if (dropLineY >= 0) {
+                g2.setColor(new Color(255, 160, 40));
+                g2.setStroke(new BasicStroke(2.5f));
+                g2.drawLine(6, dropLineY, getWidth() - 6, dropLineY);
+                g2.fillOval(2, dropLineY - 3, 6, 6);
+                g2.fillOval(getWidth() - 8, dropLineY - 3, 6, 6);
+            }
+            g2.dispose();
+        }
+
+        private void paintSection(Graphics2D g, ListLine l) {
+            RouteSection section = l.section;
+            boolean selected = dev && section.getId().equals(selectedSectionId);
+            g.setColor(selected ? new Color(70, 55, 25) : SECTION_BG);
+            g.fillRect(0, l.y, getWidth(), l.h);
+            int cy = l.y + l.h / 2;
+            new Glyph(section.isCollapsed() ? Glyph.CHEV_RIGHT : Glyph.CHEV_DOWN, 12, ColorScheme.LIGHT_GRAY_COLOR)
+                .paintIcon(this, g, 6, cy - 6);
+            g.setFont(FontManager.getRunescapeBoldFont());
+            g.setColor(selected ? new Color(255, 180, 80) : Color.WHITE);
+            g.drawString(clip(section.getName(), 20), 22, baseline(g.getFontMetrics(), cy));
+
+            int total = section.getSteps().size();
+            long done = section.getSteps().stream().filter(RouteStep::isCompleted).count();
+            int x = getWidth() - 6;
+            if (total > 0 && done == total) {
+                x -= 11;
+                new Glyph(Glyph.CHECK, 11, GREEN).paintIcon(this, g, x, cy - 5);
+                x -= 4;
+            }
+            g.setFont(FontManager.getRunescapeSmallFont());
+            FontMetrics fm = g.getFontMetrics();
+            String count = done + "/" + total;
+            g.setColor(ColorScheme.LIGHT_GRAY_COLOR);
+            g.drawString(count, x - fm.stringWidth(count), baseline(fm, cy));
+        }
+
+        private void paintStep(Graphics2D g, ListLine l) {
+            RouteStep step = l.step;
+            Color bg = l.now ? NOW_BG : ColorScheme.DARKER_GRAY_COLOR;
+            if (step == draggedStep) bg = new Color(95, 95, 95);
+            else if (l == hover && draggedStep == null && !l.now) bg = ColorScheme.DARKER_GRAY_HOVER_COLOR;
+            g.setColor(bg);
+            g.fillRect(0, l.y, getWidth(), l.h);
+            if (l.now) {
+                g.setColor(ORANGE);
+                g.fillRect(0, l.y, 3, l.h);
+            }
+            int top = l.y + 4;
+
+            g.setFont(FontManager.getRunescapeSmallFont());
+            FontMetrics small = g.getFontMetrics();
+            String num = String.valueOf(l.num);
+            g.setColor(DIM_FG);
+            g.drawString(num, 26 - small.stringWidth(num), baseline(small, top + 9));
+            new StepIcon(StepIcon.kindOf(step), 18, step.isCompleted()).paintIcon(this, g, 30, top);
+
+            g.setFont(UIManager.getFont("Label.font"));
+            FontMetrics fm = g.getFontMetrics();
+            g.setColor(step.isCompleted() ? DONE_FG : Color.WHITE);
+            int ty = l.y + (l.h - l.name.size() * fm.getHeight()) / 2 + fm.getAscent();
+            for (String line : l.name) {
+                g.drawString(line, NAME_X, ty);
+                ty += fm.getHeight();
+            }
+
+            if (l.now) {
+                boolean testing = step == route.getTestStep();
+                boolean passed = testing && route.isTestPassed();
+                String pill = !testing ? " NOW " : passed ? " PASS " : " TEST ";
+                int w = small.stringWidth(pill), h = small.getHeight();
+                int px = getWidth() - 6 - w, py = l.y + (l.h - h) / 2;
+                g.setColor(passed ? GREEN : ORANGE);
+                g.fillRect(px, py, w, h);
+                g.setFont(FontManager.getRunescapeSmallFont());
+                g.setColor(new Color(27, 18, 0));
+                g.drawString(pill, px, py + small.getAscent());
+            }
+        }
+
+        /** Baseline that centers a line of this font on {@code cy}. */
+        private int baseline(FontMetrics fm, int cy) {
+            return cy - fm.getHeight() / 2 + fm.getAscent();
+        }
     }
 
     // ------------------------------------------------------------------ my routes tab
@@ -1432,6 +1558,18 @@ public class RoutePlannerPanel extends PluginPanel {
 
     private JPopupMenu routeMenu(Route route) {
         JPopupMenu menu = new JPopupMenu();
+        if (route == plugin.getActiveRoute()) {
+            JMenuItem pause = new JMenuItem("Pause this route");
+            pause.setToolTipText("Hide the route's path and HUD until you pick it again");
+            pause.addActionListener(e -> pauseRoute());
+            menu.add(pause);
+            menu.addSeparator();
+        } else if (route == pausedRoute) {
+            JMenuItem resume = new JMenuItem("Resume this route");
+            resume.addActionListener(e -> plugin.setActiveRoute(route));
+            menu.add(resume);
+            menu.addSeparator();
+        }
         JMenuItem rename = new JMenuItem("Rename");
         rename.addActionListener(e -> {
             String newName = JOptionPane.showInputDialog(this, "Route name:", route.getName());
@@ -1698,7 +1836,8 @@ public class RoutePlannerPanel extends PluginPanel {
      */
     private static final class Glyph implements Icon {
         static final int PLUS = 0, REC = 1, STOP = 2, NOTE = 3, PENCIL = 4, BACK = 5, CHECK = 6, LIST = 7,
-            GLOBE = 8, FILE = 9, MAP = 10, CHEV_DOWN = 11, CHEV_RIGHT = 12, DOTS = 13, PIN = 14;
+            GLOBE = 8, FILE = 9, MAP = 10, CHEV_DOWN = 11, CHEV_RIGHT = 12, DOTS = 13, PIN = 14,
+            PAUSE = 15, PLAY = 16;
 
         private final int type;
         private final int size;
@@ -1763,6 +1902,14 @@ public class RoutePlannerPanel extends PluginPanel {
                 case CHEV_RIGHT: p.moveTo(6, 4); p.lineTo(10, 8); p.lineTo(6, 12); break;
                 case DOTS:
                     for (int i = 0; i < 3; i++) g2.fill(new Ellipse2D.Double(2.2 + i * 4.6, 6.8, 2.4, 2.4));
+                    break;
+                case PAUSE:
+                    g2.fill(new RoundRectangle2D.Double(3.5, 3, 3, 10, 1, 1));
+                    g2.fill(new RoundRectangle2D.Double(9.5, 3, 3, 10, 1, 1));
+                    break;
+                case PLAY:
+                    p.moveTo(5, 3); p.lineTo(13, 8); p.lineTo(5, 13); p.closePath();
+                    g2.fill(p);
                     break;
                 case PIN:
                 default:

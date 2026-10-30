@@ -1,12 +1,20 @@
 package com.routeplanner.teleport;
 
+import com.routeplanner.model.RouteStep;
 import net.runelite.api.Client;
+import net.runelite.api.GameObject;
+import net.runelite.api.ObjectComposition;
+import net.runelite.api.Scene;
+import net.runelite.api.Tile;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.util.Text;
 
 import java.awt.Rectangle;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 /**
  * Reading the Portal Nexus teleport menu. Each row is a clickable background with its text
@@ -18,6 +26,56 @@ public final class PortalNexus {
     private PortalNexus() {}
 
     public static final int MENU_GROUP = InterfaceID.TelenexusTeleport.UNIVERSE >>> 16;
+
+    private static final String NEXUS_NAME = "portal nexus";
+
+    /**
+     * For a step that leaves the house by the nexus or a portal-chamber portal, a test for that
+     * object's (lowercase) name; null for any other step.
+     */
+    public static Predicate<String> houseObjectName(RouteStep step) {
+        if (step == null) return null;
+        String dest = step.getTeleportNexus();
+        if ("NEXUS".equals(step.getTeleportMethod())) return name -> name.startsWith(NEXUS_NAME);
+        if ("PORTAL".equals(step.getTeleportMethod()) && dest != null && !dest.trim().isEmpty()) {
+            String portal = dest.trim().toLowerCase() + " portal";
+            return portal::equals;
+        }
+        return null;
+    }
+
+    /** Game objects on the player's floor whose (lowercase) name matches; built furniture by its impostor. */
+    public static List<GameObject> findObjects(Client client, Predicate<String> nameMatches) {
+        List<GameObject> found = new ArrayList<>();
+        Scene scene = client.getScene();
+        if (scene == null) return found;
+        Tile[][][] tiles = scene.getTiles();
+        int z = client.getPlane();
+        if (z < 0 || z >= tiles.length) return found;
+        for (Tile[] row : tiles[z]) {
+            if (row == null) continue;
+            for (Tile tile : row) {
+                if (tile == null) continue;
+                GameObject[] objects = tile.getGameObjects();
+                if (objects == null) continue;
+                for (GameObject obj : objects) {
+                    if (obj == null) continue;
+                    // GameObjects span multiple tiles; only count them from the anchor tile
+                    if (!obj.getSceneMinLocation().equals(tile.getSceneLocation())) continue;
+                    ObjectComposition comp = client.getObjectDefinition(obj.getId());
+                    if (comp == null) continue;
+                    // Built furniture often uses an impostor (varbit-driven) definition.
+                    if (comp.getImpostorIds() != null) {
+                        ObjectComposition imp = comp.getImpostor();
+                        if (imp != null) comp = imp;
+                    }
+                    String name = comp.getName();
+                    if (name != null && nameMatches.test(name.toLowerCase())) found.add(obj);
+                }
+            }
+        }
+        return found;
+    }
 
     /** Menu text looks like "<col=..>1</col> : Varrock"; keep just the destination name. */
     public static String cleanText(String raw) {

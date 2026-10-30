@@ -18,8 +18,10 @@ import net.runelite.client.ui.overlay.*;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.awt.*;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -45,6 +47,25 @@ public class GroundItemOverlay extends Overlay {
         setLayer(OverlayLayer.ABOVE_SCENE);
     }
 
+    // The step's item list, parsed once rather than every frame
+    private String targetsFor;
+    private Set<String> targets = Collections.emptySet();
+
+    /** Target item names (lowercased) from the step's item list, "/" alternatives included. */
+    private Set<String> targets(String itemList) {
+        if (Objects.equals(itemList, targetsFor)) return targets;
+        Set<String> names = new HashSet<>();
+        for (List<String> group : bankItemManager.parseItemList(itemList)) {
+            for (String alt : group) {
+                String n = bankItemManager.parseItemName(alt);
+                if (n != null) names.add(n.toLowerCase());
+            }
+        }
+        targetsFor = itemList;
+        targets = names;
+        return names;
+    }
+
     @Override
     public Dimension render(Graphics2D graphics) {
         if (plugin.getActiveRoute() == null) return null;
@@ -52,16 +73,7 @@ public class GroundItemOverlay extends Overlay {
         if (step == null || !step.hasItems()) return null;
         if (step.getItemMode() != ItemMode.PICKUP) return null;
 
-        // Collect target item names (lowercased), supporting "/" alternatives
-        List<List<String>> groups = bankItemManager.parseItemList(step.getItemList());
-        if (groups.isEmpty()) return null;
-        Set<String> targets = new HashSet<>();
-        for (List<String> group : groups) {
-            for (String alt : group) {
-                String n = bankItemManager.parseItemName(alt);
-                if (n != null) targets.add(n.toLowerCase());
-            }
-        }
+        Set<String> targets = targets(step.getItemList());
         if (targets.isEmpty()) return null;
 
         Scene scene = client.getScene();
@@ -91,6 +103,7 @@ public class GroundItemOverlay extends Overlay {
 
                 LocalPoint lp = tile.getLocalLocation();
                 if (lp == null) continue;
+                if (!plugin.highlightAllowed(step, tile.getWorldLocation())) continue;
 
                 ItemLayer itemLayer = tile.getItemLayer();
                 if (itemLayer != null) {

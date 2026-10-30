@@ -98,7 +98,7 @@ public class RouteSaveTest {
         String json = RouteSerializer.toJson(Collections.singletonList(route), gson);
         RouteStep back = RouteSerializer.fromJson(json, gson).get(0).getSteps().get(0);
         assertTrue(back.hasArea());
-        assertEquals(step.area().getWidth(), back.area().getWidth());
+        assertEquals(step.area().size(), back.area().size());
         assertEquals(new WorldPoint(3200, 3200, 0), back.getAreaFrom());
 
         // Older saves have no area: they keep the usual arrival around the tile

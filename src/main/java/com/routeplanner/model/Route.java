@@ -58,8 +58,8 @@ public class Route {
             sections.add(def);
         }
         legacySteps = null;
-        // v1.2: old agility steps (StepType.AGILITY, now removed) deserialize with type==null.
-        // Convert them to the new skilling form (skill=AGILITY) + course start location.
+        // Agility steps saved with the old StepType.AGILITY load with type==null: turn them into
+        // skilling steps (skill=AGILITY) at the course's start.
         for (RouteSection sec : sections) {
             if (sec.getSteps() == null) continue;
             for (RouteStep st : sec.getSteps()) {

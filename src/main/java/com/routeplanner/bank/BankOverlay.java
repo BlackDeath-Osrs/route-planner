@@ -60,7 +60,7 @@ public class BankOverlay extends Overlay {
             && !step.getBankHighlightItems().trim().isEmpty();
         if (!isItem && !isHerblore && !isBankSkill) return null;
 
-        // Check if the bank is open -- or the Farming Guild seed vault, which lists its items
+        // Check if the bank is open, or the Farming Guild seed vault, which lists its items
         // the same way, so the same highlighting works there for tree/farm runs. The seed vault
         // uses the generated gameval id: ComponentID.SEED_VAULT_ITEM_CONTAINER points at an
         // empty sibling (631:17) since the interface was reworked; the items are in 631:18.

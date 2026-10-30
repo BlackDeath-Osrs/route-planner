@@ -2,6 +2,7 @@ package com.routeplanner;
 
 import com.routeplanner.model.RouteStep;
 import com.routeplanner.model.StepType;
+import com.routeplanner.model.TileArea;
 import com.routeplanner.sailing.Sailing;
 import com.routeplanner.sailing.SailingDocks;
 import com.routeplanner.transport.Transport;
@@ -15,7 +16,6 @@ import net.runelite.api.Tile;
 import net.runelite.api.TileObject;
 import net.runelite.api.WorldView;
 import net.runelite.api.coords.LocalPoint;
-import net.runelite.api.coords.WorldArea;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.ui.overlay.*;
 import net.runelite.client.ui.overlay.outline.ModelOutlineRenderer;
@@ -53,8 +53,11 @@ public class RouteOverlay extends Overlay {
         if (step == null) return null;
         // A step that only has you board a boat has no tile of its own, just the gangplank.
         if (step.getWorldPoint() == null && !plugin.getPathfinderOverlay().isBoardingPending(step)) return null;
+        // While an area is being painted only the brush's tiles show, so the step's own tile or
+        // area can't be mistaken for painted ones.
+        if (plugin.getAreaDrawer().isActive()) return null;
         // An area stays up until the whole step is done (the step stops being active)
-        WorldArea area = plugin.areaOf(step);
+        TileArea area = plugin.areaOf(step);
         if (area != null) {
             AreaGraphics.drawGround(graphics, client, area, config.tileHighlightColor());
         }
@@ -99,13 +102,15 @@ public class RouteOverlay extends Overlay {
                     drewHull = highlightNamedNear(graphics, transOrigin, "Gangplank", 6, pulse);
                 }
                 if (objId > 0) {
-                    // Highlight all tiles occupied by the transition object by scanning the scene
-                    // and drawing filled polygons on matching tiles. Works with HD plugin unlike
-                    // ModelOutlineRenderer which requires the standard renderer.
-                    Tile[][][] tiles = client.getTopLevelWorldView().getScene().getTiles();
-                    int plane = client.getTopLevelWorldView().getPlane();
-                    for (Tile[] row : tiles[plane]) {
-                        for (Tile t : row) {
+                    // Highlight the transition object by drawing its clickbox. Works with HD plugin
+                    // unlike ModelOutlineRenderer which requires the standard renderer. Only the
+                    // tiles around the climb are searched: this runs every frame.
+                    WorldView wv = client.getTopLevelWorldView();
+                    Tile[][] tiles = wv.getScene().getTiles()[wv.getPlane()];
+                    int cx = transOrigin.getX() - wv.getBaseX(), cy = transOrigin.getY() - wv.getBaseY();
+                    for (int x = Math.max(0, cx - OBJECT_RADIUS); x <= Math.min(tiles.length - 1, cx + OBJECT_RADIUS); x++) {
+                        for (int y = Math.max(0, cy - OBJECT_RADIUS); y <= Math.min(tiles[x].length - 1, cy + OBJECT_RADIUS); y++) {
+                            Tile t = tiles[x][y];
                             if (t == null) continue;
                             // Build a list of all renderable objects on this tile
                             List<TileObject> candidates = new ArrayList<>();
@@ -152,6 +157,9 @@ public class RouteOverlay extends Overlay {
 
         return null;
     }
+
+    /** How far from the climb tile its stairs or ladder can stand (big staircases span 3x3). */
+    private static final int OBJECT_RADIUS = 4;
 
     /** Highlights every object called {@code name} within {@code radius} tiles of {@code center}. */
     private boolean highlightNamedNear(Graphics2D graphics, WorldPoint center, String name, int radius, Color pulse) {

@@ -14,7 +14,7 @@ import java.util.Map;
 
 /**
  * Snapshot-based undo/redo for structural edits to a route (delete step, reorder step).
- * Step contents are not tracked -- the step editor already handles those.
+ * Step contents are not tracked; the step editor already handles those.
  *
  * <p>Each route keeps its own stacks, keyed by object <em>identity</em> rather than equals().
  * Route is a Lombok {@code @Data} class, so its hashCode shifts whenever its contents change and

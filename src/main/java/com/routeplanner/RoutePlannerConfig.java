@@ -78,7 +78,7 @@ public interface RoutePlannerConfig extends Config {
         description = "The Route Hub (Import -> Browse Route Hub) fetches route data from a "
             + "GitHub-hosted repository over plain, read-only HTTP GET requests. No player "
             + "information or account data is ever sent. Sharing a route the other way is a "
-            + "manual GitHub pull request you open yourself -- the plugin never uploads anything.",
+            + "manual GitHub pull request you open yourself; the plugin never uploads anything.",
         position = 1
     )
     default boolean hubNetworkDisclosure() { return true; }

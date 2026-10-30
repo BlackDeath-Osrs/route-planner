@@ -90,6 +90,7 @@ public class SkillingNpcHighlighter {
             range = Math.max(range, client.getTopLevelWorldView().getScene().getDrawDistance());
         }
         if (npc.getWorldLocation().distanceTo(at) > range) return null;
+        if (!plugin.highlightAllowed(step, npc.getWorldLocation())) return null;
 
         return HighlightedNpc.builder()
             .npc(npc)

@@ -159,9 +159,9 @@ public class BankItemManager {
 
     // PICKUP: true once enough of each group's item has been gained since the baseline
 
-    // PICKUP: how many gained so far (summed across groups, best alternative each) -- for HUD
+    // PICKUP: how many gained so far (summed across groups, best alternative each), for the HUD
 
-    // PICKUP: total required across groups (largest alternative each) -- for HUD
+    // PICKUP: total required across groups (largest alternative each), for the HUD
     public long pickupRequired(String itemListStr) {
         long total = 0;
         for (List<String> group : parseItemList(itemListStr)) {

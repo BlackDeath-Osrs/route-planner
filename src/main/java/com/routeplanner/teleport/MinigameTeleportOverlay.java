@@ -97,18 +97,28 @@ public class MinigameTeleportOverlay extends Overlay {
     }
 
     /**
-     * Whether the teleport has been taken, or isn't needed: the player is already nearer the step's
-     * tile than the teleport would put them (e.g. walking from Nightmare Zone to the Dragon Inn).
+     * Whether the teleport has been taken, or isn't needed: the player is by the landing spot, or
+     * already nearer the step's tile than the teleport would put them (e.g. walking from Nightmare
+     * Zone to the Dragon Inn).
      */
     private boolean alreadyThere(RouteStep step, TeleportSpell spell) {
-        WorldPoint goal = step.getWorldPoint() != null ? step.getWorldPoint() : spell.getDestination();
+        WorldPoint dest = spell.getDestination();
+        WorldPoint goal = step.getWorldPoint() != null ? step.getWorldPoint() : dest;
         if (client.getLocalPlayer() == null || goal == null) return false;
         WorldPoint at = client.getLocalPlayer().getWorldLocation();
-        return at.getPlane() == goal.getPlane() && at.distanceTo2D(goal) <= spell.getDestination().distanceTo2D(goal) + NEAR;
+        if (at.getPlane() == dest.getPlane() && at.distanceTo2D(dest) <= LANDING) return true;
+        // A goal through a door or stairs (inside the Blast Furnace) sits thousands of tiles off on
+        // the map, which would make anywhere "nearer" than the landing; so only count it close by.
+        int fromGoal = at.distanceTo2D(goal);
+        return at.getPlane() == goal.getPlane() && fromGoal <= dest.distanceTo2D(goal) + NEAR && fromGoal <= MAX_WALK;
     }
 
     /** Tiles of slack around the teleport's landing spot. */
     private static final int NEAR = 15;
+    /** Around the landing spot, the teleport counts as taken (walking on to the stairs, say). */
+    private static final int LANDING = 30;
+    /** Further from the step's tile than this, it's never "already there". */
+    private static final int MAX_WALK = 300;
 
     private Widget visible(int componentId) {
         Widget w = client.getWidget(componentId);

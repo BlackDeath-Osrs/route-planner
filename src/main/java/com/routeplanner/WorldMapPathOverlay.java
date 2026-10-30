@@ -1,10 +1,10 @@
 package com.routeplanner;
 
 import com.routeplanner.model.RouteStep;
+import com.routeplanner.model.TileArea;
 import com.routeplanner.sailing.Sailing;
 import net.runelite.api.Client;
 import net.runelite.api.Point;
-import net.runelite.api.coords.WorldArea;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.ui.overlay.Overlay;
@@ -65,7 +65,7 @@ public class WorldMapPathOverlay extends Overlay {
         if (player == null) return null;
 
         // The area first, under the line
-        WorldArea area = plugin.areaOf(step);
+        TileArea area = plugin.areaOf(step);
         if (area != null) {
             Shape clip = graphics.getClip();
             graphics.clip(mapBounds);
@@ -128,21 +128,33 @@ public class WorldMapPathOverlay extends Overlay {
         return null;
     }
 
-    /** The step's area as a box on the map, in the tile highlight colour. */
-    private void drawArea(Graphics2D graphics, WorldArea area) {
-        // Opposite outer corners: one past the far tile, so a small area still covers its tiles
-        Point a = worldMapOverlay.mapWorldPointToGraphicsPoint(new WorldPoint(area.getX(), area.getY(), area.getPlane()));
-        Point b = worldMapOverlay.mapWorldPointToGraphicsPoint(
-            new WorldPoint(area.getX() + area.getWidth(), area.getY() + area.getHeight(), area.getPlane()));
-        if (a == null || b == null) return;
-        Rectangle box = new Rectangle(Math.min(a.getX(), b.getX()), Math.min(a.getY(), b.getY()),
-            Math.max(2, Math.abs(b.getX() - a.getX())), Math.max(2, Math.abs(b.getY() - a.getY())));
+    /** The step's area on the map, in the tile highlight colour. */
+    private void drawArea(Graphics2D graphics, TileArea area) {
+        Path2D.Float fill = new Path2D.Float();
+        for (int[] r : area.rects()) {
+            // Outer corners: one past the far tile, so a small area still covers its tiles
+            Point a = mapPoint(r[0], r[1], area.getPlane()), b = mapPoint(r[0] + r[2], r[1] + r[3], area.getPlane());
+            if (a == null || b == null) return;
+            fill.append(new Rectangle(Math.min(a.getX(), b.getX()), Math.min(a.getY(), b.getY()),
+                Math.max(1, Math.abs(b.getX() - a.getX())), Math.max(1, Math.abs(b.getY() - a.getY()))), false);
+        }
+        Path2D.Float outline = new Path2D.Float();
+        for (int[] e : area.edges()) {
+            Point a = mapPoint(e[0], e[1], area.getPlane()), b = mapPoint(e[2], e[3], area.getPlane());
+            if (a == null || b == null) return;
+            outline.moveTo(a.getX(), a.getY());
+            outline.lineTo(b.getX(), b.getY());
+        }
         Color c = config.tileHighlightColor();
         graphics.setColor(AreaGraphics.fill(c));
-        graphics.fill(box);
+        graphics.fill(fill);
         graphics.setColor(AreaGraphics.outline(c));
         graphics.setStroke(new BasicStroke(2));
-        graphics.draw(box);
+        graphics.draw(outline);
+    }
+
+    private Point mapPoint(int x, int y, int plane) {
+        return worldMapOverlay.mapWorldPointToGraphicsPoint(new WorldPoint(x, y, plane));
     }
 
     /**

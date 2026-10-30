@@ -88,7 +88,7 @@ public class RouteImportExport {
      * A JFileChooser using the platform's native look and feel (GTK on Linux, etc.) instead of
      * Swing's default cross-platform "Metal" theme, which several users found looked out of place
      * and confusing to navigate. Falls back silently to the default chooser if the system L&F
-     * can't be set for any reason -- this is cosmetic, never worth failing an import/export over.
+     * can't be set for any reason: it's cosmetic, never worth failing an import/export over.
      */
     private JFileChooser newSystemFileChooser(String title) {
         // Use cross-platform look and feel for the file chooser so it works

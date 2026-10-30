@@ -1,12 +1,12 @@
 package com.routeplanner;
 
+import com.routeplanner.model.TileArea;
 import com.routeplanner.util.Strokes;
 import net.runelite.api.Client;
 import net.runelite.api.Perspective;
 import net.runelite.api.Point;
 import net.runelite.api.WorldView;
 import net.runelite.api.coords.LocalPoint;
-import net.runelite.api.coords.WorldArea;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.util.ColorUtil;
@@ -38,33 +38,42 @@ final class AreaGraphics {
     }
 
     /** The area on the ground, where it's in the loaded scene and on the floor being shown. */
-    static void drawGround(Graphics2D g, Client client, WorldArea area, Color color) {
+    static void drawGround(Graphics2D g, Client client, TileArea area, Color color) {
         WorldView wv = client.getTopLevelWorldView();
         if (wv == null || area.getPlane() != wv.getPlane()) return;
         int plane = wv.getPlane();
         // Only the part inside the scene: an area can be bigger than what's loaded
-        int x0 = Math.max(area.getX(), wv.getBaseX()), x1 = Math.min(area.getX() + area.getWidth(), wv.getBaseX() + wv.getSizeX());
-        int y0 = Math.max(area.getY(), wv.getBaseY()), y1 = Math.min(area.getY() + area.getHeight(), wv.getBaseY() + wv.getSizeY());
-        if (x0 >= x1 || y0 >= y1) return;
+        int sx0 = wv.getBaseX(), sx1 = wv.getBaseX() + wv.getSizeX();
+        int sy0 = wv.getBaseY(), sy1 = wv.getBaseY() + wv.getSizeY();
 
         g.setColor(fill(color));
-        for (int x = x0; x < x1; x++) {
-            for (int y = y0; y < y1; y++) {
-                LocalPoint lp = LocalPoint.fromWorld(wv, x, y);
-                Polygon poly = lp == null ? null : Perspective.getCanvasTilePoly(client, lp);
-                if (poly != null) g.fillPolygon(poly);
+        for (int[] r : area.rects()) {
+            int x0 = Math.max(r[0], sx0), x1 = Math.min(r[0] + r[2], sx1);
+            int y0 = Math.max(r[1], sy0), y1 = Math.min(r[1] + r[3], sy1);
+            for (int x = x0; x < x1; x++) {
+                for (int y = y0; y < y1; y++) {
+                    LocalPoint lp = LocalPoint.fromWorld(wv, x, y);
+                    Polygon poly = lp == null ? null : Perspective.getCanvasTilePoly(client, lp);
+                    if (poly != null) g.fillPolygon(poly);
+                }
             }
         }
 
-        // The edge, a point per tile corner so it follows the ground over hills
+        // The outline, a point per tile corner so it follows the ground over hills
         g.setColor(outline(color));
         g.setStroke(Strokes.round(2));
-        int ax0 = area.getX(), ax1 = area.getX() + area.getWidth();
-        int ay0 = area.getY(), ay1 = area.getY() + area.getHeight();
-        if (ay0 >= y0) edge(g, client, wv, plane, x0, ay0, x1, ay0);
-        if (ay1 <= y1) edge(g, client, wv, plane, x0, ay1, x1, ay1);
-        if (ax0 >= x0) edge(g, client, wv, plane, ax0, y0, ax0, y1);
-        if (ax1 <= x1) edge(g, client, wv, plane, ax1, y0, ax1, y1);
+        for (int[] e : area.edges()) {
+            int x0 = clamp(e[0], sx0, sx1), x1 = clamp(e[2], sx0, sx1);
+            int y0 = clamp(e[1], sy0, sy1), y1 = clamp(e[3], sy0, sy1);
+            // A side wholly outside the scene squashes to its border: skip it
+            boolean horizontal = e[1] == e[3];
+            if (horizontal ? (e[1] < sy0 || e[1] > sy1 || x0 == x1) : (e[0] < sx0 || e[0] > sx1 || y0 == y1)) continue;
+            edge(g, client, wv, plane, x0, y0, x1, y1);
+        }
+    }
+
+    private static int clamp(int v, int lo, int hi) {
+        return Math.max(lo, Math.min(hi, v));
     }
 
     /** One straight side, from tile corner (x0, y0) to (x1, y1) in world coordinates. */
@@ -86,31 +95,51 @@ final class AreaGraphics {
     }
 
     /** The area on the minimap, clipped to its circle. */
-    static void drawMinimap(Graphics2D g, Client client, WorldArea area, Color color) {
+    static void drawMinimap(Graphics2D g, Client client, TileArea area, Color color) {
         WorldView wv = client.getTopLevelWorldView();
         Widget map = minimap(client);
         if (wv == null || map == null || area.getPlane() != wv.getPlane()) return;
 
-        int[] xs = {area.getX(), area.getX() + area.getWidth(), area.getX() + area.getWidth(), area.getX()};
-        int[] ys = {area.getY(), area.getY(), area.getY() + area.getHeight(), area.getY() + area.getHeight()};
-        Polygon poly = new Polygon();
-        for (int i = 0; i < 4; i++) {
-            LocalPoint lp = new LocalPoint((xs[i] - wv.getBaseX()) * Perspective.LOCAL_TILE_SIZE,
-                (ys[i] - wv.getBaseY()) * Perspective.LOCAL_TILE_SIZE, wv);
-            Point p = Perspective.localToMinimap(client, lp, Integer.MAX_VALUE);
-            if (p == null) return;
-            poly.addPoint(p.getX(), p.getY());
+        Path2D.Float fill = new Path2D.Float();
+        for (int[] r : area.rects()) {
+            if (!addCorners(fill, client, wv, new int[]{r[0], r[0] + r[2], r[0] + r[2], r[0]},
+                new int[]{r[1], r[1], r[1] + r[3], r[1] + r[3]})) return;
+        }
+        Path2D.Float outline = new Path2D.Float();
+        for (int[] e : area.edges()) {
+            Point a = minimapPoint(client, wv, e[0], e[1]), b = minimapPoint(client, wv, e[2], e[3]);
+            if (a == null || b == null) return;
+            outline.moveTo(a.getX(), a.getY());
+            outline.lineTo(b.getX(), b.getY());
         }
 
         Rectangle b = map.getBounds();
         Shape oldClip = g.getClip();
         g.clip(new Ellipse2D.Double(b.x, b.y, b.width, b.height));
         g.setColor(fill(color));
-        g.fill(poly);
+        g.fill(fill);
         g.setColor(outline(color));
         g.setStroke(Strokes.round(1));
-        g.draw(poly);
+        g.draw(outline);
         g.setClip(oldClip);
+    }
+
+    /** Adds one closed shape through these tile corners; false if any is off the minimap's reach. */
+    private static boolean addCorners(Path2D.Float path, Client client, WorldView wv, int[] xs, int[] ys) {
+        for (int i = 0; i < xs.length; i++) {
+            Point p = minimapPoint(client, wv, xs[i], ys[i]);
+            if (p == null) return false;
+            if (i == 0) path.moveTo(p.getX(), p.getY());
+            else path.lineTo(p.getX(), p.getY());
+        }
+        path.closePath();
+        return true;
+    }
+
+    private static Point minimapPoint(Client client, WorldView wv, int x, int y) {
+        LocalPoint lp = new LocalPoint((x - wv.getBaseX()) * Perspective.LOCAL_TILE_SIZE,
+            (y - wv.getBaseY()) * Perspective.LOCAL_TILE_SIZE, wv);
+        return Perspective.localToMinimap(client, lp, Integer.MAX_VALUE);
     }
 
     private static Widget minimap(Client client) {

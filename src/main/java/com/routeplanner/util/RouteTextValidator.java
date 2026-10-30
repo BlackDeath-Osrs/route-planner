@@ -4,7 +4,7 @@ import java.util.regex.Pattern;
 
 /**
  * Validates user-entered route text. Its main job is to keep links out of any free-text field --
- * route names, section names, step names, and note text -- so shared routes cannot be used to point
+ * route names, section names, step names, and note text, so shared routes cannot be used to point
  * players at external sites. Enforced at creation time (the step editor) and again at import time
  * (the Route Hub), because imported JSON cannot be assumed to have passed through the editor.
  *

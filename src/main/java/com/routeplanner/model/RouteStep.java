@@ -50,9 +50,9 @@ public class RouteStep {
     private WorldPoint teleportDestination; // destination WorldPoint
     private int teleportSpellId;      // widget child ID for highlighting  // matches net.runelite.api.Quest enum name
 
-    private String teleportMethod;    // Phase 2: "SPELL", "ITEM" or "NEXUS" (null = walk only)
-    private String teleportItem;      // Phase 2: item name for ITEM teleports (e.g. "Amulet of glory")
-    private String teleportNexus;     // NEXUS teleports: Portal Nexus destination as shown in its menu
+    private String teleportMethod;    // "SPELL", "ITEM", "NEXUS" or "PORTAL" (null = walk only)
+    private String teleportItem;      // item name for ITEM teleports (e.g. "Amulet of glory")
+    private String teleportNexus;     // NEXUS: destination as shown in the nexus menu; PORTAL: house portal's destination ("Varrock" for Varrock Portal)
 
     // Skilling step fields
     private String skillingSkill;      // e.g. "THIEVING"
@@ -71,28 +71,56 @@ public class RouteStep {
     // counts, instead of only the few tiles around worldPoint (e.g. the grounds Hans walks around).
     private WorldPoint areaFrom;
     private WorldPoint areaTo;
+    // A painted area's exact tiles (TileArea.encode). areaFrom/areaTo then hold its bounding box,
+    // which is what older versions of the plugin read.
+    private String areaTiles;
+    // Highlights (NPCs, objects, ground items) only inside the area, not everywhere in range
+    private boolean highlightInAreaOnly;
+    private transient TileArea areaCache;
+    private transient String areaCacheKey;
 
     public boolean hasArea() {
         return areaFrom != null && areaTo != null;
     }
 
-    /** The area as a rectangle on areaFrom's floor, or null when there's none. */
-    public WorldArea area() {
+    /** The area: its painted tiles, else the rectangle on areaFrom's floor; null when there's none. */
+    public TileArea area() {
         if (!hasArea()) return null;
-        int x = Math.min(areaFrom.getX(), areaTo.getX()), y = Math.min(areaFrom.getY(), areaTo.getY());
-        return new WorldArea(x, y, Math.abs(areaFrom.getX() - areaTo.getX()) + 1,
-            Math.abs(areaFrom.getY() - areaTo.getY()) + 1, areaFrom.getPlane());
+        String key = areaTiles != null ? areaTiles : areaFrom + "/" + areaTo;
+        if (key.equals(areaCacheKey)) return areaCache;
+        TileArea a = areaTiles != null ? TileArea.decode(areaTiles) : null;
+        if (a == null) {
+            int x = Math.min(areaFrom.getX(), areaTo.getX()), y = Math.min(areaFrom.getY(), areaTo.getY());
+            a = TileArea.of(new WorldArea(x, y, Math.abs(areaFrom.getX() - areaTo.getX()) + 1,
+                Math.abs(areaFrom.getY() - areaTo.getY()) + 1, areaFrom.getPlane()));
+        }
+        areaCache = a;
+        areaCacheKey = key;
+        return a;
     }
 
-    // Transition point: when set, this step has two phases.
-    // Phase 1: path to transitionPoint (the staircase/ladder tile).
-    // Phase 2: once player plane matches worldPoint plane, path to worldPoint.
+    /** Set the area (null clears it). A rectangle is kept as just its corners. */
+    public void setArea(TileArea a) {
+        if (a == null) {
+            areaFrom = null;
+            areaTo = null;
+            areaTiles = null;
+            return;
+        }
+        WorldArea b = a.bounds();
+        areaFrom = new WorldPoint(b.getX(), b.getY(), b.getPlane());
+        areaTo = new WorldPoint(b.getX() + b.getWidth() - 1, b.getY() + b.getHeight() - 1, b.getPlane());
+        areaTiles = a.isRectangle() ? null : a.encode();
+    }
+
+    // Transition point: when set, the step first paths to transitionPoint (the staircase/ladder
+    // tile), then, once the player is on worldPoint's floor, on to worldPoint.
     private WorldPoint transitionPoint;
     private int transitionObjectId = -1; // game object ID to highlight as the transition object (-1 = none)
 
-    // Boarding point (Sailing): when set, the step starts by getting on a boat.
-    // Phase 1: path to boardPoint (the dock by the gangplank) and highlight the gangplank.
-    // Phase 2: once on the boat, path over the sea to worldPoint. With no worldPoint, boarding is the step.
+    // Boarding point (Sailing): when set, the step starts by getting on a boat: path to boardPoint
+    // (the dock by the gangplank) and highlight the gangplank, then once aboard, sail to worldPoint.
+    // With no worldPoint, boarding is the step.
     private WorldPoint boardPoint;
     private int boardObjectId = -1;      // the gangplank's object ID, if known (-1 = find it by name)
     private transient boolean boarded;   // true once the player got on a boat during this step
@@ -159,7 +187,7 @@ public class RouteStep {
         if (skillingGoalType == SkillGoalType.XP_GAIN) skillingStartXp = 0; // re-captured on the next StatChanged
     }
 
-    // --- Component presence helpers (Phase 2) ---
+    // --- Component presence helpers ---
     // A component is a view over fields the step already carries.
     // Descriptive only; nothing branches on these yet.
 

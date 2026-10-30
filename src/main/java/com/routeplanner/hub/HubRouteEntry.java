@@ -5,11 +5,9 @@ import com.routeplanner.util.RouteTextValidator;
 import java.util.List;
 
 /**
- * One catalog entry from index.json. All fields are read-only data from the network -- nothing
- * here is trusted until it has passed {@link HubRouteEntry#validate()}, which enforces the v1.4
- * plan's bounds (name/description length, step count) and re-runs the link scanner over every
- * free-text field, independently of whatever checks the submitter's editor may or may not have
- * applied.
+ * One catalog entry from index.json. It comes from the network, so nothing in it is trusted until
+ * {@link HubRouteEntry#validate()} has checked the name/description length and step count and
+ * scanned every free-text field for links.
  */
 public class HubRouteEntry {
     public String id;
@@ -28,7 +26,7 @@ public class HubRouteEntry {
 
     /**
      * @return null if the entry is safe to display/install, or a short reason if it should be
-     * rejected. Never throws -- a malformed catalog entry should be skipped, not crash the panel.
+     * rejected. Never throws: a malformed catalog entry should be skipped, not crash the panel.
      */
     public String validate() {
         if (id == null || id.isEmpty()) return "missing id";

@@ -91,6 +91,9 @@ public class RouteRecorder {
     /** The last Portal Nexus destination picked (menu row or right-click option), and when. */
     private String lastNexusDest;
     private int lastNexusTick;
+    /** The last house portal entered ("Varrock" for Varrock Portal), and when. */
+    private String lastPortalDest;
+    private int lastPortalTick;
     /** A stair/ladder climb waiting to be attached to the next location step on the new floor. */
     private WorldPoint pendingTransitionTile;
     private int pendingTransitionObjectId = -1;
@@ -184,6 +187,7 @@ public class RouteRecorder {
         lastClick = null;
         lastTeleportClick = null;
         lastNexusDest = null;
+        lastPortalDest = null;
         pendingTransitionTile = null;
         pendingTransitionObjectId = -1;
         wasAboard = Sailing.isSailing(client);
@@ -304,6 +308,23 @@ public class RouteRecorder {
             lastNexusDest = nexus;
             lastNexusTick = click.tick;
         }
+        String portal = housePortalDestination(click);
+        if (portal != null) {
+            lastPortalDest = portal;
+            lastPortalTick = click.tick;
+        }
+    }
+
+    /**
+     * The destination of a portal-chamber portal entered inside the house ("Varrock Portal" ->
+     * "Varrock"). The house's own exit is just "Portal", so it never matches.
+     */
+    private String housePortalDestination(Click click) {
+        if (!click.isObject() || !inInstance() || !"Enter".equalsIgnoreCase(click.option)) return null;
+        String t = click.target.trim();
+        if (!t.toLowerCase().endsWith(" portal")) return null;
+        String dest = t.substring(0, t.length() - " portal".length()).trim();
+        return dest.isEmpty() ? null : dest;
     }
 
     /**
@@ -432,6 +453,18 @@ public class RouteRecorder {
             if (dest.equals(NEXUS_UNREAD)) dest = LocationNames.describe(to);
             RouteStep step = newLocationStep(to, "Teleport: Portal Nexus to " + dest);
             step.setTeleportMethod("NEXUS");
+            step.setTeleportNexus(dest);
+            step.setTeleportDestination(to);
+            addDraft(step, to);
+            return;
+        }
+
+        // House portal chamber: an object click too, so also before the object handling.
+        if (lastPortalDest != null && now - lastPortalTick <= TELEPORT_WINDOW_TICKS && !landedInInstance) {
+            String dest = lastPortalDest;
+            lastPortalDest = null;
+            RouteStep step = newLocationStep(to, "Teleport: " + dest + " Portal in house");
+            step.setTeleportMethod("PORTAL");
             step.setTeleportNexus(dest);
             step.setTeleportDestination(to);
             addDraft(step, to);

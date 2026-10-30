@@ -25,10 +25,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The Route Hub browse view. Skeleton for now (v1.4 step 4b): fetches the catalog and lists
- * routes as plain rows. No icons, search, tabs, or the warning banner yet -- those come once this
- * fetch-parse-render path is proven against the live repo. Network work runs off the EDT via
- * SwingWorker; nothing here ever blocks the UI thread.
+ * The Route Hub browse view: fetches the catalog of shared routes and lists them with their icons,
+ * a search box and install/remove buttons. Network work runs off the EDT via SwingWorker.
  */
 @Slf4j
 public class RouteHubPanel extends JPanel {
@@ -128,23 +126,19 @@ public class RouteHubPanel extends JPanel {
         add(bottomStack, BorderLayout.SOUTH);
     }
 
-    /** Called each time the Hub view is switched to. Loads once per panel lifetime for now --
-     *  a manual refresh / re-check-on-open comes with the Installed tab in a later step. */
+    /** Called each time the Hub view is switched to; the catalog is loaded on the first visit only. */
     public void onShown() {
         if (loadedOnce) return;
         loadedOnce = true;
         load();
     }
 
-    // Decoded icons keyed by entry id, so re-rendering the list (e.g. after a tab switch) does not
-    // re-fetch or re-decode icons that already loaded successfully this session. Cleared never --
-    // the panel's lifetime is one Hub-view visit, and 12-48px icons are cheap to hold in memory.
+    // Decoded icons by entry id, so redrawing the list doesn't fetch them again. Small enough to keep.
     private final Map<String, ImageIcon> iconCache = new HashMap<>();
     private List<HubRouteEntry> allEntries = Collections.emptyList();
 
-    /** Fetches and decodes one entry's icon off the EDT, then swaps it into the given label. Never
-     *  throws back to the caller and never leaves the label in a broken state -- on any failure the
-     *  grey-blue placeholder simply stays as-is. */
+    /** Fetches and decodes one entry's icon off the EDT, then swaps it into the label. On any
+     *  failure the placeholder stays. */
     private void loadIconInto(JLabel target, HubRouteEntry entry) {
         ImageIcon cached = iconCache.get(entry.id);
         if (cached != null) {
@@ -177,7 +171,7 @@ public class RouteHubPanel extends JPanel {
                     iconCache.put(entry.id, icon);
                     target.setIcon(icon);
                 } catch (Exception e) {
-                    // failed or cancelled -- placeholder remains, nothing to show the user for this
+                    // failed or cancelled: the placeholder stays
                 }
             }
         }.execute();
@@ -188,11 +182,9 @@ public class RouteHubPanel extends JPanel {
     private static final int MAX_NAME_LEN = 100;
 
     /**
-     * Re-validates every free-text field of every step in a fetched route, independently of
-     * whatever the catalog entry or PR review already checked. A route JSON fetched over the
-     * network must never be trusted just because it appeared in the curated index -- this is the
-     * import-time re-validation layer from the security model. Returns null if the route is safe
-     * to install, or a short user-facing reason if it should be refused.
+     * Checks every free-text field of every step in a fetched route, whatever the catalog already
+     * checked: a route from the network is never trusted as is. Returns null if it's safe to
+     * install, or a short reason to show the user if not.
      */
     private String validateFetchedRoute(Route route) {
         if (route == null || route.getName() == null) return "The route file is empty or malformed.";
@@ -275,10 +267,8 @@ public class RouteHubPanel extends JPanel {
         }.execute();
     }
 
-    /** Re-renders the list from allEntries, keeping only rows whose name, description, author, or
-     *  tags contain the query (case-insensitive). Rebuilding rows from scratch each time is simpler
-     *  and less error-prone than trying to show/hide already-built components, and with a catalog
-     *  this small the cost is negligible. */
+    /** Rebuilds the list from allEntries, keeping rows whose name, description, author or tags
+     *  contain the query (ignoring case). */
     private void applyFilter(String query) {
         listPanel.removeAll();
         String q = query == null ? "" : query.trim().toLowerCase();
@@ -312,8 +302,7 @@ public class RouteHubPanel extends JPanel {
         return false;
     }
 
-    /** Shows the most recent "updated" date across the catalog, in a small footer. A single line
-     *  for the whole Hub, not per-row, since the ask was catalog freshness at a glance. */
+    /** A small footer with the catalog's most recent "updated" date. */
     private void updateFooter(List<HubRouteEntry> entries) {
         String latest = null;
         for (HubRouteEntry entry : entries) {
@@ -332,14 +321,8 @@ public class RouteHubPanel extends JPanel {
         listPanel.repaint();
     }
 
-    /** A route row: a 48x48 icon placeholder on the left, name/description/author line in the
-     *  middle, and a small green "+" install control anchored to the bottom-right of the sub-line.
-     *  Real icon bytes and real install behaviour arrive with the install step (4e/4f); this gets
-     *  the layout and sizing right first, since that is what is actually visible right now. */
-    /** The persistent "Community content" disclosure: expanded by default, collapsible to a single
-     *  line via the chevron, with the choice remembered across sessions. This replaces a per-install
-     *  confirmation dialog -- the caution is visible the whole time the Hub is being browsed, rather
-     *  than a click-through box shown once per install. */
+    /** The "Community content" notice: open by default, folds to one line with the chevron, and
+     *  remembers which. Shown the whole time the Hub is browsed, so installs need no confirm box. */
     private JPanel buildWarningBanner() {
         JPanel banner = new JPanel(new BorderLayout());
         banner.setBackground(new Color(42, 36, 22));
@@ -374,8 +357,7 @@ public class RouteHubPanel extends JPanel {
         body.setFont(body.getFont().deriveFont(10.5f));
         body.setBorder(new EmptyBorder(0, 10, 10, 10));
 
-        // The panel text is small to fit the row width; the tooltip shows the same words at normal
-        // system tooltip size/font, which is easier to read on request.
+        // Small text to fit the width; the tooltip repeats it at a readable size.
         String tooltipHtml = "<html><div style=\'width:220px;\'>" + warningText + "</div></html>";
         body.setToolTipText(tooltipHtml);
         label.setToolTipText(tooltipHtml);
@@ -408,8 +390,7 @@ public class RouteHubPanel extends JPanel {
     private JPanel buildRow(HubRouteEntry entry) {
         JPanel row = new JPanel(new BorderLayout(10, 0));
         row.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-        // Right padding trimmed (9 -> -6, i.e. 15px less) so the install "+" sits further right,
-        // per direct feedback. Left/top/bottom padding are untouched.
+        // Little right padding, so the install "+" sits near the edge.
         row.setBorder(new EmptyBorder(9, 9, 9, -6));
 
         // Fixed-size icon, wrapped in a panel so BorderLayout cannot stretch it to the row's height.
@@ -428,8 +409,7 @@ public class RouteHubPanel extends JPanel {
         iconLabel.setMinimumSize(new Dimension(48, 48));
         iconBox.add(iconLabel);
         iconBox.add(Box.createVerticalStrut(6));
-        // installBtn is built below and added here, under the icon, per direct feedback --
-        // it no longer competes with the description for horizontal room on the text side.
+        // The install button goes under the icon (added below), leaving the text side its full width.
 
         JLabel name = new JLabel(escape(entry.name));
         name.setForeground(Color.WHITE);
@@ -446,15 +426,10 @@ public class RouteHubPanel extends JPanel {
 
         JLabel installBtn = buildInstallControl(entry);
         installBtn.setAlignmentX(Component.LEFT_ALIGNMENT);
-        // "by X · N steps" no longer takes row width -- it's a tooltip on the name/description
-        // instead, since the row is too narrow to fit that text alongside anything else without
-        // clipping. The tooltip text is plain (not HTML), so no escaping is needed here beyond
-        // what Swing already does for tooltip content.
+        // "by X · N steps" is the name's tooltip: the row is too narrow to show it. Plain text, no escaping.
         String subInfo = "by " + entry.author + " \u00b7 " + entry.steps + " steps";
         name.setToolTipText(subInfo);
-        // Description's tooltip shows the description itself, not author/steps -- the div above it
-        // wraps and can visually truncate, so hovering should reveal the full text rather than
-        // duplicate what the name's tooltip already says.
+        // The description can be cut off, so its tooltip shows all of it.
         desc.setToolTipText("<html><div style=\'width:220px;\'>" + escape(entry.description) + "</div></html>");
         installBtn.setToolTipText("Install this route (" + subInfo + ")");
         iconBox.add(installBtn);
@@ -472,10 +447,8 @@ public class RouteHubPanel extends JPanel {
         return row;
     }
 
-    /** Finds the installed route (if any) whose hubSourceId matches this catalog entry. Reading
-     *  the real route list as the source of truth means there is no separate persisted "installed"
-     *  set to drift out of sync -- e.g. if the user deletes the route manually from their list, the
-     *  button correctly reverts to Install with no extra bookkeeping. */
+    /** The installed route (if any) whose hubSourceId matches this catalog entry. Read from the
+     *  route list itself, so deleting the route by hand turns the button back to Install. */
     private Route findInstalled(HubRouteEntry entry) {
         for (Route r : plugin.getRoutes()) {
             if (entry.id.equals(r.getHubSourceId())) return r;
@@ -483,8 +456,7 @@ public class RouteHubPanel extends JPanel {
         return null;
     }
 
-    /** Install/Remove control. Green "+" when not installed; red "-" when it is, matching the
-     *  route's real presence in plugin.getRoutes() rather than separately tracked state. */
+    /** Install/Remove control: green "+" when the route isn't in plugin.getRoutes(), red "-" when it is. */
     private JLabel buildInstallControl(HubRouteEntry entry) {
         JLabel btn = new JLabel();
         btn.setOpaque(true);
@@ -528,9 +500,8 @@ public class RouteHubPanel extends JPanel {
         }
     }
 
-    /** Fetches the route file, independently re-validates it, and on success installs it via the
-     *  exact same add/save/activate sequence file-import uses -- so a hub-installed route behaves
-     *  identically to a manually imported one from that point on. Runs off the EDT. */
+    /** Fetches the route file, checks it, and installs it the same way a file import does (add,
+     *  save, activate). Runs off the EDT. */
     private void installEntry(HubRouteEntry entry, JLabel btn) {
         btn.setEnabled(false);
         new SwingWorker<Void, Void>() {
@@ -582,11 +553,8 @@ public class RouteHubPanel extends JPanel {
         }.execute();
     }
 
-    /** Removes a hub-installed route. Delegates to plugin.deleteRoute(), the same path the normal
-     *  route-list "Delete Route" menu item uses -- that method also clears the active route if it
-     *  matched, forgets its undo/redo history, and refreshes the main panel. A bare
-     *  routes.remove(route) skips all of that, which is what originally left stale step data
-     *  visible after a hub removal: the main panel was never told to refresh. */
+    /** Removes a hub-installed route through plugin.deleteRoute(), like "Delete Route" in the
+     *  route list: it also clears the active route, its undo history, and refreshes the panel. */
     private void removeInstalled(HubRouteEntry entry, Route route, JLabel btn) {
         int confirm = JOptionPane.showConfirmDialog(this,
             "Remove \"" + route.getName() + "\" from your routes?",
@@ -597,9 +565,7 @@ public class RouteHubPanel extends JPanel {
         refreshInstallControl(btn, entry);
     }
 
-    /** Entry text is already link-scanned by HubRouteEntry.validate(), but it is still rendered
-     *  inside an HTML-interpreting JLabel, so escape markup characters to prevent malformed or
-     *  unexpected HTML from a catalog entry affecting the label\'s rendering. */
+    /** Escapes markup in catalog text, which is shown in HTML-rendering JLabels. */
     private static String escape(String s) {
         if (s == null) return "";
         return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");

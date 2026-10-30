@@ -2,19 +2,23 @@ package com.routeplanner;
 
 import com.routeplanner.model.RouteStep;
 import com.routeplanner.model.StepType;
+import com.routeplanner.model.TileArea;
 import com.routeplanner.sailing.Sailing;
 import com.routeplanner.sailing.SailingDocks;
+import com.routeplanner.teleport.PortalNexus;
+import com.routeplanner.util.ScenePath;
 import com.routeplanner.util.Strokes;
 import com.routeplanner.transport.Transport;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
+import net.runelite.api.GameObject;
+import net.runelite.api.Player;
 import net.runelite.api.Perspective;
 import net.runelite.api.Point;
 import net.runelite.api.Scene;
 import net.runelite.api.WorldEntity;
 import net.runelite.api.coords.LocalPoint;
-import net.runelite.api.coords.WorldArea;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.ui.overlay.*;
 import net.runelite.client.util.ColorUtil;
@@ -30,6 +34,7 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.function.Predicate;
 
 @Slf4j
 @Singleton   // one route for everything that shows it (the scene, the world map, the HUD)
@@ -308,6 +313,15 @@ public class PathfinderOverlay extends Overlay {
             return;
         }
 
+        // In the house on a nexus or house portal step, the way on is that object, a short walk
+        // inside the instance. Shortest Path would route around it (a construction cape teleport)
+        // and the built-in map has no instances, so walk the loaded scene to it instead.
+        Predicate<String> houseObject = PortalNexus.houseObjectName(step);
+        if (houseObject != null && client.getTopLevelWorldView().isInstance()) {
+            updateHousePath(houseObject);
+            return;
+        }
+
         WorldPoint target = step.getWorldPoint();
         // A boarding step goes to the dock first, even when getting on the boat is all it asks.
         boolean boarding = isBoardingPending(step);
@@ -393,6 +407,19 @@ public class PathfinderOverlay extends Overlay {
         }
     }
 
+    private void updateHousePath(Predicate<String> objectName) {
+        cancelSearch();
+        lastTarget = null;   // stepping out of the house plans the rest from scratch
+        activeTransition = null;
+        cachedJumps = Collections.emptyList();
+        Player me = client.getLocalPlayer();
+        if (me == null) return;
+        LocalPoint at = me.getLocalLocation();
+        List<GameObject> objects = PortalNexus.findObjects(client, objectName);
+        cachedPath = objects.isEmpty() ? new ArrayList<>()
+            : new ArrayList<>(ScenePath.toObjects(client.getTopLevelWorldView(), at.getSceneX(), at.getSceneY(), objects));
+    }
+
     /**
      * Installs a Shortest Path answer for this target once it has arrived. Falls back to the
      * built-in search when Shortest Path couldn't get there (e.g. its own settings exclude a
@@ -405,7 +432,7 @@ public class PathfinderOverlay extends Overlay {
 
         List<WorldPoint> path = result.path;
         // Like buildPath, a path ending next to the target is good enough unless the step needs
-        // the exact tile -- the target is often an NPC or object tile that can't be stood on.
+        // the exact tile: the target is often an NPC or object tile that can't be stood on.
         boolean usable = result.reached || (!exact && !path.isEmpty()
             && path.get(path.size() - 1).distanceTo(target) <= 1);
         if (config.recordTrace()) log.info("[RP-TRACE] SP {} for {}", usable ? "USED" : "NOT USED, built-in instead", target);
@@ -471,7 +498,7 @@ public class PathfinderOverlay extends Overlay {
             // it ends at the stairs to the next floor, or at the dock where the boat is boarded or left.
             path = new ArrayList<>();
             // A step with an area is reached at its edge: the line stops where it goes in.
-            WorldArea area = isBoardingPending(step) ? null : plugin.areaOf(step);
+            TileArea area = isBoardingPending(step) ? null : plugin.areaOf(step);
             for (WorldPoint wp : cachedPath) {
                 if (otherFloor(wp, player)) break;
                 if (!path.isEmpty() && floorChange(path.get(path.size() - 1), wp)) break;
@@ -625,7 +652,7 @@ public class PathfinderOverlay extends Overlay {
 
     /**
      * A short zig-zag of tiles leading away from the player, used only by the preview toggle.
-     * No pathfinding or collision is involved -- it exists purely to show off the current
+     * No pathfinding or collision is involved; it exists purely to show off the current
      * line/tile settings when there is no active route to draw.
      */
     private List<WorldPoint> buildDemoPath(WorldPoint player) {
@@ -730,7 +757,7 @@ public class PathfinderOverlay extends Overlay {
         float offset = 0f;
         if (config.lineAnimate()) {
             // Continuous flow: advance the dash phase over time (render runs per-frame).
-            // BasicStroke requires dash_phase >= 0 -- a negative phase throws and the line
+            // BasicStroke requires dash_phase >= 0: a negative phase throws and the line
             // silently stops drawing, so keep this positive and cycle it over the pattern
             // period for a seamless loop. An increasing phase makes the dashes appear to
             // travel forward along the line toward the destination.

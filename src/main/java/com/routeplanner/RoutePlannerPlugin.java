@@ -19,6 +19,7 @@ import com.routeplanner.model.RouteSection;
 import com.routeplanner.model.RouteStep;
 import com.routeplanner.model.SkillGoalType;
 import com.routeplanner.model.StepType;
+import com.routeplanner.model.TileArea;
 import com.routeplanner.quest.QuestListOverlay;
 import com.routeplanner.record.RecordingOverlay;
 import com.routeplanner.record.RouteRecorder;
@@ -41,7 +42,6 @@ import com.routeplanner.util.RouteSerializer;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.*;
-import net.runelite.api.coords.WorldArea;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.*;
 import net.runelite.api.gameval.InterfaceID;
@@ -144,6 +144,8 @@ public class RoutePlannerPlugin extends Plugin {
     @Getter private int arrivalHoldTicksRemaining = 0;
     private RouteStep lastKillStep = null;
     private RouteStep lastDialogStep = null;
+    /** The step the NPC highlights were last worked out for. */
+    private RouteStep highlightedStep;
     private int dialogProgress = 0;
     private boolean dialogOptionsVisibleLast = false;
     private boolean anyDialogueOpenLast = false;
@@ -583,6 +585,9 @@ public class RoutePlannerPlugin extends Plugin {
         }
         saveRoutes();
         panel.refresh();
+        // The NPC highlighter only re-checks NPCs when told: drop the finished step's highlights now.
+        skillingNpcHighlighter.rebuild();
+        highlightedStep = activeRoute != null ? activeRoute.getActiveStep() : null;
     }
 
     /** Collapse any fully-completed OR not-yet-started section, and expand the one holding the
@@ -607,14 +612,14 @@ public class RoutePlannerPlugin extends Plugin {
                 sec.setCollapsed(true);
             }
             // A section that's partially in progress (some steps done, some not) but isn't the
-            // active section is left as-is -- the user may have manually expanded it on purpose.
+            // active section is left as-is: the user may have manually expanded it on purpose.
         }
     }
 
     /**
      * Agility steps point at the course's first obstacle. The preset start tiles are estimates, so
-     * once that obstacle is in the loaded scene, move the step onto it (and save), which fixes
-     * recorded, hand-made and Hub routes alike the first time someone walks up to the course.
+     * once that obstacle is in the loaded scene, move the step onto it (and save). Works the same
+     * for recorded, hand-made and Hub routes.
      */
     /** The agility step already on its first obstacle; it isn't scanned for again. */
     private RouteStep snappedAgilityStep;
@@ -839,8 +844,13 @@ public class RoutePlannerPlugin extends Plugin {
             lastPlayerLocation = Sailing.position(client);
         }
 
+        RouteStep step = activeRoute != null ? activeRoute.getActiveStep() : null;
+        // Any other way the step changes (undo, reset, a step marked incomplete, another route): re-light NPCs
+        if (step != highlightedStep) {
+            highlightedStep = step;
+            skillingNpcHighlighter.rebuild();
+        }
         if (activeRoute == null) { pushLive(null); return; }
-        RouteStep step = activeRoute.getActiveStep();
         pushLive(step);
         if (step == null) { lastDialogStep = null; return; }
 
@@ -865,8 +875,10 @@ public class RoutePlannerPlugin extends Plugin {
     /** Rebuild NPC highlights now and then while a step highlights NPCs, so ones that came into
      *  the 30-tile range since they spawned light up (the overlay service only checks at spawn). */
     private void refreshNpcHighlights(RouteStep step) {
+        // Kept to an area, NPCs walking in and out of it need a quicker look
+        int every = step.isHighlightInAreaOnly() && areaOf(step) != null ? 2 : 10;
         if (step.isHighlightEnabled() && (step.getSkillingTargetNpc() != null || step.getNpcHighlight() != null)
-                && client.getTickCount() % 10 == 0) {
+                && client.getTickCount() % every == 0) {
             skillingNpcHighlighter.rebuild();
         }
     }
@@ -995,13 +1007,29 @@ public class RoutePlannerPlugin extends Plugin {
     }
 
     /** The step's area while area steps are on (a beta feature), else null: off, steps go by their tile. */
-    public WorldArea areaOf(RouteStep step) {
+    public TileArea areaOf(RouteStep step) {
         return step != null && config.betaFeatures() ? step.area() : null;
+    }
+
+    /** Whether the step highlights something on tile {@code p}: anywhere, unless it keeps highlights to its area. */
+    public boolean highlightAllowed(RouteStep step, WorldPoint p) {
+        TileArea area = step != null && step.isHighlightInAreaOnly() ? areaOf(step) : null;
+        return area == null || area.contains(p);
+    }
+
+    /** As {@link #highlightAllowed(RouteStep, WorldPoint)} for something covering w x h tiles from {@code sw}: any of them. */
+    public boolean highlightAllowed(RouteStep step, WorldPoint sw, int w, int h) {
+        TileArea area = step != null && step.isHighlightInAreaOnly() ? areaOf(step) : null;
+        if (area == null) return true;
+        if (sw.getPlane() != area.getPlane()) return false;
+        for (int x = 0; x < w; x++)
+            for (int y = 0; y < h; y++) if (area.contains(sw.getX() + x, sw.getY() + y)) return true;
+        return false;
     }
 
     /** Anywhere in the step's area, or else within 3 tiles of its tile (from the hull while sailing). */
     private boolean isAtStep(RouteStep step) {
-        WorldArea area = areaOf(step);
+        TileArea area = areaOf(step);
         if (area != null) {
             WorldPoint at = Sailing.position(client);
             return at != null && area.contains(at);
@@ -1031,7 +1059,7 @@ public class RoutePlannerPlugin extends Plugin {
                 log.debug("Skilling XP gain goal reached!");
                 tryCompleteStep(step);
             }
-            if (panel != null) panel.refresh();
+            // No panel rebuild per XP drop: the step card's live progress already shows it.
         } else if (goalType == SkillGoalType.XP_TARGET) {
             if (event.getXp() >= step.getSkillingGoalValue()) {
                 log.debug("Skilling XP target reached: {}", event.getXp());

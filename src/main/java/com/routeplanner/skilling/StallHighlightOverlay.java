@@ -68,22 +68,25 @@ public class StallHighlightOverlay extends Overlay {
         int range = HIGHLIGHT_RANGE;
         boolean sailing = Sailing.isSailing(client);
         if (sailing) range = Math.max(range, top.getScene().getDrawDistance());
-        highlightIn(graphics, top, playerLoc, range, target);
+        highlightIn(graphics, top, playerLoc, range, target, step);
         // The boat is a little world of its own: its facilities (a salvaging station) are in its
         // scene, measured from where the player stands on deck.
         if (sailing) {
             WorldView deck = client.getLocalPlayer().getWorldView();
             if (deck != null && deck.getScene() != null) {
                 highlightIn(graphics, deck, client.getLocalPlayer().getWorldLocation(),
-                    HIGHLIGHT_RANGE, target);
+                    HIGHLIGHT_RANGE, target, null);
             }
         }
         return null;
     }
 
-    /** Highlights the step's target objects in {@code scene} within {@code range} tiles of {@code origin}. */
+    /**
+     * Highlights the step's target objects in {@code scene} within {@code range} tiles of {@code origin};
+     * with {@code areaStep}, only those inside that step's area when it keeps highlights to it.
+     */
     private void highlightIn(Graphics2D graphics, WorldView wv, WorldPoint origin,
-                             int range, String target) {
+                             int range, String target, RouteStep areaStep) {
         Scene scene = wv.getScene();
         Tile[][][] tiles = scene == null ? null : scene.getTiles();
         int z = wv.getPlane();
@@ -106,10 +109,16 @@ public class StallHighlightOverlay extends Overlay {
                         if (obj == null) continue;
                         // GameObjects span multiple tiles; only draw from the anchor tile
                         if (!obj.getSceneMinLocation().equals(tile.getSceneLocation())) continue;
-                        if (matches(obj.getId(), target)) draw(graphics, obj.getConvexHull());
+                        if (!matches(obj.getId(), target)) continue;
+                        int w = obj.getSceneMaxLocation().getX() - obj.getSceneMinLocation().getX() + 1;
+                        int h = obj.getSceneMaxLocation().getY() - obj.getSceneMinLocation().getY() + 1;
+                        if (areaStep == null || plugin.highlightAllowed(areaStep, tile.getWorldLocation(), w, h)) {
+                            draw(graphics, obj.getConvexHull());
+                        }
                     }
                 }
                 // Drains, levers on walls, wall decorations and floor objects are other kinds of object
+                if (areaStep != null && !plugin.highlightAllowed(areaStep, tile.getWorldLocation())) continue;
                 WallObject wall = tile.getWallObject();
                 if (wall != null && matches(wall.getId(), target)) draw(graphics, wall.getConvexHull());
                 DecorativeObject deco = tile.getDecorativeObject();
@@ -127,8 +136,18 @@ public class StallHighlightOverlay extends Overlay {
         if (comp != null && comp.getImpostorIds() != null) comp = comp.getImpostor();
         if (comp == null) return false;
         String lower = comp.getName() == null ? null : comp.getName().toLowerCase();
-        if (lower == null || !(lower.startsWith(target) || lower.endsWith(" " + target))) return false;
+        if (lower == null) return false;
+        if (!lower.startsWith(target) && (!lower.endsWith(" " + target) || isOtherTree(lower, target))) return false;
         return !isSunkenShipwreck(lower, comp);
+    }
+
+    /** A tree of another woodcutting tier: "tree" means regular trees, not "Oak tree" or "Willow tree". */
+    private static boolean isOtherTree(String lowerName, String target) {
+        for (WoodcuttingTrees.Tree t : WoodcuttingTrees.TREES) {
+            String tier = t.objectName.toLowerCase();
+            if (!tier.equals("tree") && lowerName.startsWith(tier + " ") && !target.startsWith(tier)) return true;
+        }
+        return false;
     }
 
     private void draw(Graphics2D graphics, Shape hull) {
