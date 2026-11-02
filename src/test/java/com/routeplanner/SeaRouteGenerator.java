@@ -32,7 +32,7 @@ public class SeaRouteGenerator {
         Client client = (Client) Proxy.newProxyInstance(Client.class.getClassLoader(), new Class[]{Client.class},
             (p, m, a) -> m.getReturnType() == int.class ? 0 : m.getReturnType() == boolean.class ? false : null);
         RoutePlannerConfig config = (RoutePlannerConfig) Proxy.newProxyInstance(RoutePlannerConfig.class.getClassLoader(),
-            new Class[]{RoutePlannerConfig.class}, (p, m, a) -> m.getName().equals("useSailing") || m.getName().equals("betaFeatures") ? true : null);
+            new Class[]{RoutePlannerConfig.class}, (p, m, a) -> m.getName().equals("useSailing") ? true : null);
         SailingDocks docks = new SailingDocks(client, null);
         PathfinderOverlay overlay = new PathfinderOverlay(client, null, config, null, docks);
         Method load = PathfinderOverlay.class.getDeclaredMethod("loadCollisionMap");

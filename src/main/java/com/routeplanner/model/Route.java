@@ -35,6 +35,17 @@ public class Route {
         this.name = name;
     }
 
+    /** Routes are told apart by identity: two routes with the same contents are still two routes. */
+    @Override
+    public boolean equals(Object o) {
+        return this == o;
+    }
+
+    @Override
+    public int hashCode() {
+        return System.identityHashCode(this);
+    }
+
     public List<RouteStep> getAllSteps() {
         List<RouteStep> all = new ArrayList<>();
         if (sections != null) {
@@ -58,6 +69,13 @@ public class Route {
             sections.add(def);
         }
         legacySteps = null;
+        // Every step names the section it's in (older saves and hand-written files may not)
+        for (RouteSection sec : sections) {
+            if (sec.getSteps() == null) continue;
+            for (RouteStep st : sec.getSteps()) {
+                if (sec.getId() != null && !sec.getId().equals(st.getSectionId())) st.setSectionId(sec.getId());
+            }
+        }
         // Agility steps saved with the old StepType.AGILITY load with type==null: turn them into
         // skilling steps (skill=AGILITY) at the course's start.
         for (RouteSection sec : sections) {
@@ -78,6 +96,15 @@ public class Route {
                 }
             }
         }
+    }
+
+    /** The section holding this step, or null. */
+    public RouteSection sectionOf(RouteStep step) {
+        if (sections == null || step == null) return null;
+        for (RouteSection s : sections) {
+            if (s.getSteps() != null && s.getSteps().contains(step)) return s;
+        }
+        return null;
     }
 
     public RouteSection findSection(String id) {

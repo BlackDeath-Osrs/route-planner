@@ -132,6 +132,8 @@ public class RoutePlannerPlugin extends Plugin {
     @Getter private List<Route> routes = new ArrayList<>();
     @Getter private final RouteHistory routeHistory = new RouteHistory();
     @Getter private Route activeRoute = null;
+    /** The route last paused (no route active), so it can be resumed, also after a restart. */
+    @Getter private Route pausedRoute = null;
 
     // Panel and toolbar
     @Getter private RoutePlannerPanel panel;
@@ -302,19 +304,48 @@ public class RoutePlannerPlugin extends Plugin {
 
     public void deleteRoute(Route route) {
         routeHistory.forget(route);
-        if (activeRoute == route) activeRoute = null;
+        if (activeRoute == route) {
+            resumeRoute();
+            activeRoute = null;
+        }
+        if (pausedRoute == route) pausedRoute = null;
         routes.remove(route);
         saveRoutes();
+        saveActiveRoute();
         panel.refresh();
+        skillingNpcHighlighter.rebuild();
     }
 
     public void setActiveRoute(Route route) {
         resumeRoute();
         this.activeRoute = route;
+        this.pausedRoute = null;
         autoAdvanceSections();
         saveActiveRoute();
         panel.refresh();
         skillingNpcHighlighter.rebuild();
+    }
+
+    /** Deselect the active route, remembering it so it can be resumed. */
+    public void pauseRoute() {
+        Route active = activeRoute;
+        if (active == null) return;
+        setActiveRoute(null);
+        pausedRoute = active;
+        saveActiveRoute();
+        panel.refresh();
+    }
+
+    /** Resume the paused route, if it's still there. */
+    public void resumePausedRoute() {
+        if (pausedRoute != null && routes.contains(pausedRoute)) setActiveRoute(pausedRoute);
+    }
+
+    public void renameRoute(Route route, String name) {
+        route.setName(name);
+        saveRoutes();
+        if (route == activeRoute || route == pausedRoute) saveActiveRoute();
+        panel.refresh();
     }
 
     public void addStep(Route route, RouteStep step) {
@@ -597,11 +628,9 @@ public class RoutePlannerPlugin extends Plugin {
      *  section route (e.g. a large imported guide) means everything shows expanded at once. */
     private void autoAdvanceSections() {
         if (activeRoute == null) return;
-        RouteStep active = activeRoute.getActiveStep();
-        String activeSectionId = active != null ? active.getSectionId() : null;
+        RouteSection activeSection = activeRoute.sectionOf(activeRoute.getActiveStep());
         for (RouteSection sec : activeRoute.getSections()) {
-            boolean isActive = sec.getId().equals(activeSectionId);
-            if (isActive) {
+            if (sec == activeSection) {
                 sec.setCollapsed(false);
                 continue;
             }
@@ -781,23 +810,30 @@ public class RoutePlannerPlugin extends Plugin {
     public void rebuildNpcHighlights() { skillingNpcHighlighter.rebuild(); }
 
     private static final String ACTIVE_ROUTE_KEY = "activeRoute";
+    /** "true" when no route is active: the one under ACTIVE_ROUTE_KEY (if any) is paused. */
+    private static final String ROUTE_PAUSED_KEY = "activeRoutePaused";
 
     private void saveActiveRoute() {
-        if (activeRoute != null) {
-            configManager.setConfiguration(RoutePlannerConfig.GROUP, ACTIVE_ROUTE_KEY, activeRoute.getName());
+        Route remembered = activeRoute != null ? activeRoute : pausedRoute;
+        if (remembered != null) {
+            configManager.setConfiguration(RoutePlannerConfig.GROUP, ACTIVE_ROUTE_KEY, remembered.getName());
         } else {
             configManager.unsetConfiguration(RoutePlannerConfig.GROUP, ACTIVE_ROUTE_KEY);
         }
+        configManager.setConfiguration(RoutePlannerConfig.GROUP, ROUTE_PAUSED_KEY, activeRoute == null);
     }
 
+    /** The route that was active (or paused) last time. With nothing saved yet, the first route is active. */
     private void restoreActiveRoute() {
         String savedName = configManager.getConfiguration(RoutePlannerConfig.GROUP, ACTIVE_ROUTE_KEY);
-        if (savedName != null && !savedName.isEmpty()) {
-            routes.stream()
-                .filter(r -> r.getName().equals(savedName))
-                .findFirst()
-                .ifPresent(r -> activeRoute = r);
-        } else if (!routes.isEmpty()) {
+        boolean paused = "true".equals(configManager.getConfiguration(RoutePlannerConfig.GROUP, ROUTE_PAUSED_KEY));
+        Route saved = savedName == null ? null
+            : routes.stream().filter(r -> savedName.equals(r.getName())).findFirst().orElse(null);
+        if (paused) {
+            pausedRoute = saved;
+        } else if (saved != null) {
+            activeRoute = saved;
+        } else if (savedName == null && !routes.isEmpty()) {
             activeRoute = routes.get(0);
         }
     }
@@ -915,10 +951,9 @@ public class RoutePlannerPlugin extends Plugin {
         return inv != null && Arrays.stream(inv.getItems()).allMatch(i -> i.getId() <= 0);
     }
 
-    /** Reset kill progress + light up the NPC when a note-kill step becomes active. */
+    /** Light up the NPC when a kill step becomes active. Its kills so far are saved with it. */
     private void startKillCount(RouteStep step) {
         if (step.getNpcHighlight() != null && step.getNpcKillCount() > 0 && step != lastKillStep) {
-            step.setNpcKillProgress(0);
             lastKillStep = step;
             skillingNpcHighlighter.rebuild();
         }
@@ -1006,9 +1041,9 @@ public class RoutePlannerPlugin extends Plugin {
         }
     }
 
-    /** The step's area while area steps are on (a beta feature), else null: off, steps go by their tile. */
+    /** The step's drawn area, or null when it goes by its tile. */
     public TileArea areaOf(RouteStep step) {
-        return step != null && config.betaFeatures() ? step.area() : null;
+        return step != null ? step.area() : null;
     }
 
     /** Whether the step highlights something on tile {@code p}: anywhere, unless it keeps highlights to its area. */
@@ -1111,6 +1146,7 @@ public class RoutePlannerPlugin extends Plugin {
         if (step.getNpcKillProgress() >= step.getNpcKillCount()) {
             tryCompleteStep(step);
         }
+        if (!step.isCompleted()) saveRoutes();
     }
 
     /** Trawling catches (Sailing) count toward the active step's catch goal. */

@@ -85,8 +85,6 @@ public class RoutePlannerPanel extends PluginPanel {
     private JLabel routeNameLabel, routeSubLabel;
     private ThinBar routeBar;
     private JButton undoButton, redoButton, pencilButton, pauseButton;
-    /** The route last paused from this panel, so the pause button can resume it. */
-    private Route pausedRoute;
     private JPanel editTools;
     private JPanel recBanner;
     private JLabel recStats, recLast;
@@ -581,18 +579,9 @@ public class RoutePlannerPanel extends PluginPanel {
             : "Last: " + htmlEscape(last)) + "</div></html>");
     }
 
-    /** Deselect the active route, remembering it so the pause button can bring it back. */
-    private void pauseRoute() {
-        Route active = plugin.getActiveRoute();
-        if (active == null) return;
-        plugin.setActiveRoute(null);
-        pausedRoute = active;
-        refresh();
-    }
-
     private void togglePause() {
-        if (plugin.getActiveRoute() != null) pauseRoute();
-        else if (pausedRoute != null && plugin.getRoutes().contains(pausedRoute)) plugin.setActiveRoute(pausedRoute);
+        if (plugin.getActiveRoute() != null) plugin.pauseRoute();
+        else plugin.resumePausedRoute();
     }
 
     private void showRouteMenu(Component anchor) {
@@ -607,7 +596,7 @@ public class RoutePlannerPanel extends PluginPanel {
         if (active != null) {
             JMenuItem pause = new JMenuItem("Pause this route");
             pause.setToolTipText("Hide the route's path and HUD until you pick it again");
-            pause.addActionListener(e -> pauseRoute());
+            pause.addActionListener(e -> plugin.pauseRoute());
             menu.add(pause);
         }
         JMenuItem manage = new JMenuItem("Manage routes...");
@@ -652,7 +641,8 @@ public class RoutePlannerPanel extends PluginPanel {
             routeSubLabel.setText(plugin.getRoutes().isEmpty() ? "Make one in My routes" : "Click to choose one");
             routeBar.setProgress(0, 1);
         }
-        if (active != null || !plugin.getRoutes().contains(pausedRoute)) pausedRoute = null;
+        Route pausedRoute = plugin.getPausedRoute();
+        if (pausedRoute != null && !plugin.getRoutes().contains(pausedRoute)) pausedRoute = null;
         pauseButton.setVisible(active != null || pausedRoute != null);
         pauseButton.setIcon(new Glyph(active != null ? Glyph.PAUSE : Glyph.PLAY, 14, null));
         pauseButton.setToolTipText(active != null ? "Pause this route (hides its path and HUD)"
@@ -1132,26 +1122,48 @@ public class RoutePlannerPanel extends PluginPanel {
         return menu;
     }
 
-    private void handleStepDrop(ListLine target) {
+    /**
+     * Drop the dragged step where the drop line was drawn: above the target line, or below it when
+     * {@code below}. Below a section header is the start of that section; above one is the end of
+     * the section before it.
+     */
+    private void handleStepDrop(ListLine target, boolean below) {
         if (draggedStep == null || draggedSection == null || target == null) return;
+        if (target.step == draggedStep) return;
+        Route route = plugin.getActiveRoute();
+        if (route == null) return;
+
         RouteSection targetSection = target.section;
-        // A section header has no step: dropping there means "append".
-        RouteStep targetStep = target.step;
-        if (targetStep == draggedStep) return;
+        int to;
+        if (target.step != null) {
+            to = targetSection.getSteps().indexOf(target.step);
+            if (to < 0) return;
+            if (below) to++;
+        } else if (below) {
+            to = 0;
+        } else {
+            int i = route.getSections().indexOf(targetSection);
+            if (i > 0) {
+                targetSection = route.getSections().get(i - 1);
+                to = targetSection.getSteps().size();
+            } else {
+                to = 0;
+            }
+        }
 
         List<RouteStep> src = draggedSection.getSteps();
         List<RouteStep> dst = targetSection.getSteps();
         int from = src.indexOf(draggedStep);
         if (from < 0) return;
-        int to = (targetStep == null) ? dst.size() : dst.indexOf(targetStep);
-        if (to < 0) return;
+        // Taking the step out first shifts the later ones in its own section up by one
+        if (src == dst && from < to) to--;
         if (src == dst && from == to) return;
 
-        plugin.getRouteHistory().push(plugin.getActiveRoute(),
+        plugin.getRouteHistory().push(route,
             "Move step \"" + draggedStep.getName() + "\"", plugin.getRouteGson());
         src.remove(from);
-        if (to > dst.size()) to = dst.size();
-        dst.add(to, draggedStep);
+        dst.add(Math.min(to, dst.size()), draggedStep);
+        draggedStep.setSectionId(targetSection.getId());
         // Otherwise the step would silently disappear into a collapsed section.
         if (targetSection.isCollapsed()) targetSection.setCollapsed(false);
         plugin.saveRoutes();
@@ -1241,7 +1253,8 @@ public class RoutePlannerPanel extends PluginPanel {
                     }
                     if (dev && draggedStep != null) {
                         dropLineY = -1;
-                        handleStepDrop(nearestLine(e.getY()));
+                        ListLine target = nearestLine(e.getY());
+                        handleStepDrop(target, target != null && e.getY() >= target.y + target.h / 2);
                         draggedStep = null;
                         draggedSection = null;
                         rebuild();
@@ -1561,10 +1574,10 @@ public class RoutePlannerPanel extends PluginPanel {
         if (route == plugin.getActiveRoute()) {
             JMenuItem pause = new JMenuItem("Pause this route");
             pause.setToolTipText("Hide the route's path and HUD until you pick it again");
-            pause.addActionListener(e -> pauseRoute());
+            pause.addActionListener(e -> plugin.pauseRoute());
             menu.add(pause);
             menu.addSeparator();
-        } else if (route == pausedRoute) {
+        } else if (route == plugin.getPausedRoute()) {
             JMenuItem resume = new JMenuItem("Resume this route");
             resume.addActionListener(e -> plugin.setActiveRoute(route));
             menu.add(resume);
@@ -1576,9 +1589,7 @@ public class RoutePlannerPanel extends PluginPanel {
             if (newName == null || newName.trim().isEmpty() || newName.trim().equals(route.getName())) return;
             String err = RouteTextValidator.checkField("Route name", newName.trim());
             if (err != null) { JOptionPane.showMessageDialog(this, err, "Links not allowed", JOptionPane.WARNING_MESSAGE); return; }
-            route.setName(newName.trim());
-            plugin.saveRoutes();
-            refresh();
+            plugin.renameRoute(route, newName.trim());
         });
         JMenuItem repeat = new JMenuItem(route.isRepeatable() ? "Repeatable: on" : "Repeatable: off");
         repeat.setToolTipText("A repeatable route starts over by itself when you finish it");
@@ -1676,8 +1687,7 @@ public class RoutePlannerPanel extends PluginPanel {
     // ------------------------------------------------------------------ route helpers
 
     private static RouteSection sectionOf(Route route, RouteStep step) {
-        for (RouteSection s : route.getSections()) if (s.getSteps().contains(step)) return s;
-        return null;
+        return route.sectionOf(step);
     }
 
     private static List<RouteStep> upcoming(Route route, RouteStep cur, int max) {

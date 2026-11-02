@@ -39,30 +39,12 @@ public interface RoutePlannerConfig extends Config {
     String recordSection = "recordSection";
 
     @ConfigSection(
-        name = "Beta features",
-        description = "Features still being worked on. They may change, or not always behave yet.",
-        position = 1000,
-        closedByDefault = true
-    )
-    String betaSection = "betaSection";
-
-    @ConfigSection(
         name = "Sailing",
         description = "Routes by boat, docks, salvaging and trawling.",
         position = 97,
         closedByDefault = true
     )
     String sailingSection = "sailingSection";
-
-    @ConfigItem(
-        keyName = "betaFeatures",
-        name = "Enable beta features",
-        description = "Turns on features that are still being tried out: drawn areas on location steps"
-            + " (Draw area in the step editor).",
-        position = 0,
-        section = betaSection
-    )
-    default boolean betaFeatures() { return false; }
 
     @ConfigItem(
         keyName = "routes",

@@ -115,7 +115,7 @@ public class RouteHistory {
             List<Route> parsed = RouteSerializer.fromJson(json, gson);
             if (parsed == null || parsed.isEmpty()) return false;
             Route snap = parsed.get(0);
-            route.setName(snap.getName());
+            // Only the steps and sections: renames aren't undo entries, so the name stays as it is now
             route.setSections(snap.getSections());
             return true;
         } catch (Exception ex) {

@@ -15,7 +15,7 @@ import java.util.List;
 import static org.junit.Assert.*;
 
 /**
- * Routes over the sea (a beta feature, switched on here) with the bundled collision map, docks and
+ * Routes over the sea (Sailing switched on here) with the bundled collision map, docks and
  * sea routes, as a level 99 sailor whose boats' docks aren't known yet (so any dock can be boarded from).
  */
 public class SailingRouteTest {
@@ -32,7 +32,7 @@ public class SailingRouteTest {
                 : m.getReturnType() == int.class ? 0 : m.getReturnType() == boolean.class ? false : null);
         RoutePlannerConfig config = (RoutePlannerConfig) Proxy.newProxyInstance(
             RoutePlannerConfig.class.getClassLoader(), new Class[]{RoutePlannerConfig.class},
-            (proxy, m, args) -> m.getName().equals("useSailing") || m.getName().equals("betaFeatures") ? true : null);
+            (proxy, m, args) -> m.getName().equals("useSailing") ? true : null);
         docks = new SailingDocks(client, null);
         docks.onGameTick();
         overlay = new PathfinderOverlay(client, null, config, null, docks);

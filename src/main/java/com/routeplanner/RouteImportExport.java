@@ -3,6 +3,7 @@ package com.routeplanner;
 import com.routeplanner.model.Route;
 import com.routeplanner.model.RouteSection;
 import com.routeplanner.model.RouteStep;
+import com.routeplanner.util.RouteSerializer;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.swing.*;
@@ -11,6 +12,7 @@ import java.awt.*;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -42,7 +44,7 @@ public class RouteImportExport {
         }
 
         try {
-            String json = plugin.getExportGson().toJson(route);
+            String json = plugin.getExportGson().toJson(RouteSerializer.shareableCopy(route, plugin.getRouteGson()));
             Files.write(file.toPath(), json.getBytes(StandardCharsets.UTF_8));
             JOptionPane.showMessageDialog(null,
                 "Route exported to:\n" + file.getAbsolutePath(),
@@ -71,7 +73,9 @@ public class RouteImportExport {
         }
 
         try {
-            String json = plugin.getExportGson().toJson(plugin.getRoutes());
+            List<Route> copies = new ArrayList<>();
+            for (Route r : plugin.getRoutes()) copies.add(RouteSerializer.shareableCopy(r, plugin.getRouteGson()));
+            String json = plugin.getExportGson().toJson(copies);
             Files.write(file.toPath(), json.getBytes(StandardCharsets.UTF_8));
             JOptionPane.showMessageDialog(null,
                 "All routes exported to:\n" + file.getAbsolutePath(),

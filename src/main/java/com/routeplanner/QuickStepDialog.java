@@ -84,8 +84,6 @@ public class QuickStepDialog extends JFrame {
     private final Route route;
     private final RouteStep editing;
     private final WorldPoint seedTile;
-    /** Drawn areas are a beta feature: off, the Area row is hidden and a step's area is left as it is. */
-    private final boolean areasOn;
     private Runnable onSaved;
 
     private Type type = Type.WALK;
@@ -152,7 +150,6 @@ public class QuickStepDialog extends JFrame {
         this.route = route;
         this.editing = editing;
         this.seedTile = seedTile;
-        this.areasOn = plugin.getConfig().betaFeatures();
 
         setTitle(editing == null ? "Add step" : "Edit step");
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
@@ -283,7 +280,6 @@ public class QuickStepDialog extends JFrame {
         draw.addActionListener(e -> drawArea());
         areaRow.add(draw, BorderLayout.EAST);
         areaRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, areaRow.getPreferredSize().height));
-        areaRow.setVisible(areasOn);
         p.add(areaRow);
         areaHighlightOnly.setToolTipText("<html>NPCs, objects and ground items light up only inside the area.<br>"
             + "Off: anything in range lights up, as without an area.</html>");
@@ -847,8 +843,8 @@ public class QuickStepDialog extends JFrame {
 
         WorldPoint wp = parseTile(tileField.getText());
         boolean tileBad = wp == null && !tileField.getText().trim().isEmpty();
-        TileArea area = areasOn ? parseArea(areaField.getText()) : null;
-        boolean areaBad = areasOn && area == null && !areaField.getText().trim().isEmpty();
+        TileArea area = parseArea(areaField.getText());
+        boolean areaBad = area == null && !areaField.getText().trim().isEmpty();
         if (wp == null && area != null) wp = area.centre();
         areaHighlightOnly.setVisible(area != null);
         String place = wp != null ? LocationNames.describe(wp) : "Anywhere";
@@ -876,7 +872,7 @@ public class QuickStepDialog extends JFrame {
         boolean hasQuest = questOn() && questComplete.isSelected() && questBox.getSelectedItem() != null;
         boolean hasNote = !noteArea.getText().trim().isEmpty();
 
-        boolean hasArea = areasOn && parseArea(areaField.getText()) != null;
+        boolean hasArea = parseArea(areaField.getText()) != null;
         if (place != null) parts.add(hasArea ? "you're anywhere in the area at " + place : "you're at " + place);
         if (hasItems) parts.add(itemsPhrase());
         if (hasSkill) parts.add(skillPhrase());
@@ -1064,8 +1060,8 @@ public class QuickStepDialog extends JFrame {
 
         WorldPoint wp = parseTile(tileField.getText());
         if (wp == null && !tileField.getText().trim().isEmpty()) { fail(tileField, "The tile should look like 3222, 3218 (add , 1 for upstairs)."); return; }
-        TileArea area = areasOn ? parseArea(areaField.getText()) : null;
-        if (areasOn && area == null && !areaField.getText().trim().isEmpty()) { fail(areaField, "Paint the area with Draw area, or type two corners on one floor, like 3200, 3200 to 3245, 3235."); return; }
+        TileArea area = parseArea(areaField.getText());
+        if (area == null && !areaField.getText().trim().isEmpty()) { fail(areaField, "Paint the area with Draw area, or type two corners on one floor, like 3200, 3200 to 3245, 3235."); return; }
         if (wp == null && area != null) wp = area.centre();
         boolean teleports = teleOn() && (hasTeleport() || (!teleTouched && editing != null && editing.getTeleportMethod() != null));
         if (teleOn() && !teleports) { errorLabel.setText("Pick a teleport, or press Remove in the Teleport section."); return; }
@@ -1084,10 +1080,8 @@ public class QuickStepDialog extends JFrame {
         RouteStep step = editing != null ? editing : new RouteStep(name, StepType.LOCATION, wp, -1);
         step.setName(name);
         step.setWorldPoint(wp);
-        if (areasOn) {
-            step.setArea(area);
-            step.setHighlightInAreaOnly(area != null && areaHighlightOnly.isSelected());
-        }
+        step.setArea(area);
+        step.setHighlightInAreaOnly(area != null && areaHighlightOnly.isSelected());
         apply(step, stairs);
         if (editing == null) plugin.addStep(route, step);
         else plugin.saveRoutes();

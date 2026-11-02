@@ -146,7 +146,7 @@ public class RouteStep {
     private boolean highlightEnabled; // master toggle: light up this step's in-game targets (default off)
     private String recipeLabel; // editor: the exact recipe/method dropdown label chosen (for reverse-prefill)
     private int npcKillCount;    // NOTE step: kills to auto-complete (0 = manual)
-    private transient int npcKillProgress; // kills so far while this step is active
+    private int npcKillProgress;           // kills so far while this step is active; saved so a reload carries on
     private String dialogOptions;          // NOTE step: chat option sequence to highlight, e.g. "3,1""
 
     public RouteStep(String name, StepType type, WorldPoint worldPoint, int targetId) {
@@ -185,6 +185,17 @@ public class RouteStep {
         npcKillProgress = 0;
         skillingProgress = 0;
         if (skillingGoalType == SkillGoalType.XP_GAIN) skillingStartXp = 0; // re-captured on the next StatChanged
+    }
+
+    /** Steps are told apart by identity: two steps with the same contents are still two steps. */
+    @Override
+    public boolean equals(Object o) {
+        return this == o;
+    }
+
+    @Override
+    public int hashCode() {
+        return System.identityHashCode(this);
     }
 
     // --- Component presence helpers ---

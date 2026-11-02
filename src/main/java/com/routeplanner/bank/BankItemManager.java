@@ -113,18 +113,9 @@ public class BankItemManager {
         List<List<String>> groups = parseItemList(itemListStr);
         if (groups.isEmpty()) return true;
 
-        ItemContainer inventory = client.getItemContainer(InventoryID.INVENTORY);
-        if (inventory == null) return false;
-
-        // Build map of item name -> total quantity in inventory
-        Map<String, Long> inventoryQtys = new HashMap<>();
-        for (Item item : inventory.getItems()) {
-            if (item.getId() <= 0) continue;
-            String name = itemManager.getItemComposition(item.getId()).getName();
-            if (name != null) {
-                inventoryQtys.merge(name.toLowerCase(), (long) item.getQuantity(), Long::sum);
-            }
-        }
+        if (client.getItemContainer(InventoryID.INVENTORY) == null) return false;
+        // Worn items count too: an amulet to bring is often put straight on
+        Map<String, Long> inventoryQtys = carriedQtys(true);
 
         for (List<String> group : groups) {
             boolean groupSatisfied = false;
@@ -142,17 +133,25 @@ public class BankItemManager {
         return true;
     }
 
-    // Current inventory quantities (item name lowercased -> total qty across stacks)
-    private Map<String, Long> inventoryQtyMap() {
+    /** Item name (lower-cased) -> total quantity in the inventory, plus what's worn when {@code worn}. */
+    private Map<String, Long> carriedQtys(boolean worn) {
         Map<String, Long> qtys = new HashMap<>();
-        ItemContainer inventory = client.getItemContainer(InventoryID.INVENTORY);
-        if (inventory == null) return qtys;
-        for (Item item : inventory.getItems()) {
+        addQtys(qtys, null, InventoryID.INVENTORY);
+        if (worn) addQtys(qtys, null, InventoryID.EQUIPMENT);
+        return qtys;
+    }
+
+    /** Adds a container's items to {@code qtys}, and their first item id per name to {@code ids} if given. */
+    private void addQtys(Map<String, Long> qtys, Map<String, Integer> ids, InventoryID container) {
+        ItemContainer c = client.getItemContainer(container);
+        if (c == null) return;
+        for (Item item : c.getItems()) {
             if (item.getId() <= 0) continue;
             String name = itemManager.getItemComposition(item.getId()).getName();
-            if (name != null) qtys.merge(name.toLowerCase(), (long) item.getQuantity(), Long::sum);
+            if (name == null) continue;
+            qtys.merge(name.toLowerCase(), (long) item.getQuantity(), Long::sum);
+            if (ids != null) ids.putIfAbsent(name.toLowerCase(), item.getId());
         }
-        return qtys;
     }
 
     // PICKUP: snapshot current counts of every item referenced in the list (baseline at step start)
@@ -282,17 +281,7 @@ public class BankItemManager {
         List<String[]> result = new ArrayList<>();
         if (groups.isEmpty()) return result;
 
-        ItemContainer inventory = client.getItemContainer(InventoryID.INVENTORY);
-        Map<String, Long> invQtys = new HashMap<>();
-        if (inventory != null) {
-            for (Item item : inventory.getItems()) {
-                if (item.getId() <= 0) continue;
-                String name = itemManager.getItemComposition(item.getId()).getName();
-                if (name != null) {
-                    invQtys.merge(name.toLowerCase(), (long) item.getQuantity(), Long::sum);
-                }
-            }
-        }
+        Map<String, Long> invQtys = carriedQtys(true);
 
         for (List<String> group : groups) {
             boolean have = false;
@@ -362,25 +351,17 @@ public class BankItemManager {
 
     /**
      * Have/need counts per item-list entry, counting only items gained since {@code baseline}
-     * when one is given. For alternatives ("Coins/Platinum token") the closest one is shown.
-     * Call on the client thread.
+     * when one is given (inventory only), else everything carried, worn items included. For
+     * alternatives ("Coins/Platinum token") the closest one is shown. Call on the client thread.
      */
     public List<ItemProgress> getItemProgress(String itemListStr, Map<String, Long> baseline) {
         List<ItemProgress> out = new ArrayList<>();
         List<List<String>> groups = parseItemList(itemListStr);
         if (groups.isEmpty()) return out;
-        ItemContainer inventory = client.getItemContainer(InventoryID.INVENTORY);
         Map<String, Long> invQtys = new HashMap<>();
         Map<String, Integer> invIds = new HashMap<>();
-        if (inventory != null) {
-            for (Item item : inventory.getItems()) {
-                if (item.getId() <= 0) continue;
-                String name = itemManager.getItemComposition(item.getId()).getName();
-                if (name == null) continue;
-                invQtys.merge(name.toLowerCase(), (long) item.getQuantity(), Long::sum);
-                invIds.putIfAbsent(name.toLowerCase(), item.getId());
-            }
-        }
+        addQtys(invQtys, invIds, InventoryID.INVENTORY);
+        if (baseline == null) addQtys(invQtys, invIds, InventoryID.EQUIPMENT);
         for (List<String> group : groups) {
             ItemProgress best = null;
             for (String alt : group) {
@@ -428,17 +409,7 @@ public class BankItemManager {
         List<String> missing = new ArrayList<>();
         if (groups.isEmpty()) return missing;
 
-        ItemContainer inventory = client.getItemContainer(InventoryID.INVENTORY);
-        Map<String, Long> inventoryQtys = new HashMap<>();
-        if (inventory != null) {
-            for (Item item : inventory.getItems()) {
-                if (item.getId() <= 0) continue;
-                String name = itemManager.getItemComposition(item.getId()).getName();
-                if (name != null) {
-                    inventoryQtys.merge(name.toLowerCase(), (long) item.getQuantity(), Long::sum);
-                }
-            }
-        }
+        Map<String, Long> inventoryQtys = carriedQtys(true);
 
         for (List<String> group : groups) {
             boolean found = false;

@@ -3,6 +3,7 @@ package com.routeplanner.util;
 import com.google.gson.*;
 import com.google.gson.reflect.TypeToken;
 import com.routeplanner.model.Route;
+import com.routeplanner.model.RouteStep;
 import net.runelite.api.coords.WorldPoint;
 
 import java.lang.reflect.Type;
@@ -29,6 +30,20 @@ public class RouteSerializer {
         if (loaded == null) return new ArrayList<>();
         for (Route r : loaded) r.migrateIfNeeded();
         return loaded;
+    }
+
+    /**
+     * A copy of the route to give to other people (export, the Route Hub): the steps and their ticks,
+     * without this player's progress on them (account, inventory counts, XP, kills, catches).
+     */
+    public static Route shareableCopy(Route route, Gson gson) {
+        Route copy = gson.fromJson(gson.toJson(route), Route.class);
+        copy.migrateIfNeeded();
+        for (RouteStep step : copy.getAllSteps()) {
+            step.resetProgress();
+            step.setSkillingStartXp(0);
+        }
+        return copy;
     }
 
     public static class WorldPointAdapter implements JsonSerializer<WorldPoint>, JsonDeserializer<WorldPoint> {

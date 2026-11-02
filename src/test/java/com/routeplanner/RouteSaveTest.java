@@ -105,4 +105,64 @@ public class RouteSaveTest {
         String old = "[{\"name\":\"Old\",\"sections\":[{\"id\":\"s1\",\"name\":\"Steps\",\"steps\":[{\"name\":\"Walk\"}]}]}]";
         assertFalse(RouteSerializer.fromJson(old, gson).get(0).getSteps().get(0).hasArea());
     }
+
+    @Test
+    public void sharedCopiesLeaveOutThePlayersProgress() {
+        Route route = new Route("Test");
+        RouteStep step = new RouteStep("Buy", StepType.ITEM, null, -1);
+        step.setItemMode(ItemMode.SHOP);
+        step.setItemList("Spade");
+        step.setPickupBaseline(Collections.singletonMap("spade", 2L));
+        step.setBaselineAccount(123456789L);
+        step.setSkillingStartXp(5000);
+        step.setNpcKillProgress(3);
+        step.setCatchProgress(7);
+        step.setCompleted(true);
+        route.addStepToLastSection(step);
+
+        String json = gson.toJson(RouteSerializer.shareableCopy(route, gson));
+        assertFalse(json.contains("123456789"));
+        assertFalse(json.contains("pickupBaseline"));
+        RouteStep back = gson.fromJson(json, Route.class).getSteps().get(0);
+        assertEquals(0, back.getSkillingStartXp());
+        assertEquals(0, back.getNpcKillProgress());
+        assertEquals(0, back.getCatchProgress());
+        assertTrue(back.isCompleted()); // ticks are still shared
+        // The route itself is untouched
+        assertEquals(123456789L, step.getBaselineAccount());
+    }
+
+    @Test
+    public void killProgressIsSaved() {
+        Route route = new Route("Test");
+        RouteStep step = new RouteStep("Kill", StepType.LOCATION, null, -1);
+        step.setNpcKillCount(10);
+        step.setNpcKillProgress(7);
+        route.addStepToLastSection(step);
+        String json = RouteSerializer.toJson(Collections.singletonList(route), gson);
+        assertEquals(7, RouteSerializer.fromJson(json, gson).get(0).getSteps().get(0).getNpcKillProgress());
+    }
+
+    @Test
+    public void loadedStepsKnowTheirSection() {
+        String json = "[{\"name\":\"Old\",\"sections\":[{\"id\":\"s1\",\"name\":\"A\",\"steps\":[{\"name\":\"Walk\"}]},"
+            + "{\"id\":\"s2\",\"name\":\"B\",\"steps\":[{\"name\":\"Talk\",\"sectionId\":\"s1\"}]}]}]";
+        Route route = RouteSerializer.fromJson(json, gson).get(0);
+        assertEquals("s1", route.getSteps().get(0).getSectionId());
+        assertEquals("s2", route.getSteps().get(1).getSectionId());
+        assertSame(route.getSections().get(1), route.sectionOf(route.getSteps().get(1)));
+    }
+
+    @Test
+    public void identicalStepsAreStillDifferentSteps() {
+        Route route = new Route("Test");
+        RouteStep first = new RouteStep("Deposit", StepType.ITEM, null, -1);
+        RouteStep second = new RouteStep("Deposit", StepType.ITEM, null, -1);
+        route.addStepToLastSection(first);
+        route.addStepToLastSection(second);
+        route.removeStep(second);
+        assertEquals(1, route.getSteps().size());
+        assertSame(first, route.getSteps().get(0));
+        assertNotEquals(new Route("Same"), new Route("Same"));
+    }
 }

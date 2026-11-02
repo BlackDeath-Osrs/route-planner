@@ -18,4 +18,15 @@ public class RouteSection {
         this.name = name;
         this.collapsed = false;
     }
+
+    /** Sections are told apart by identity, like routes and steps. */
+    @Override
+    public boolean equals(Object o) {
+        return this == o;
+    }
+
+    @Override
+    public int hashCode() {
+        return System.identityHashCode(this);
+    }
 }
