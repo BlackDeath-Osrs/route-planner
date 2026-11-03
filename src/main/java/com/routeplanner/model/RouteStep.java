@@ -30,7 +30,7 @@ public class RouteStep {
     private String itemList;  // comma separated, / for alternatives e.g. "Spade,Rune pouch/Divine Rune pouch"
     private ItemMode itemMode = ItemMode.BANK;  // null (left out of older saves) means BANK
     private transient boolean sellArmed = false;  // SELL: true once items seen in inventory
-    private Map<String, Long> pickupBaseline;  // PICKUP/SHOP: inventory counts when step became active
+    private Map<String, Long> pickupBaseline;  // PICKUP/SHOP: carried and worn counts when step became active
     // The account the step's baselines (pickupBaseline, skillingStartXp) were taken on when it became
     // active; 0 = not taken yet. Saved, so reloading keeps the progress; an imported route or another
     // account doesn't match, so those take their own.

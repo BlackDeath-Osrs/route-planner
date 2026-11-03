@@ -171,21 +171,18 @@ public class BankItemManager {
         return total;
     }
 
-    /** Snapshot current inventory counts for items referenced in itemListStr. */
+    /**
+     * Counts of the items referenced in itemListStr, carried or worn, when the step starts.
+     * Worn items count on both sides, so putting on an item that was picked up keeps it gained.
+     */
     public java.util.Map<String, Long> snapshotInventory(String itemListStr) {
         java.util.Map<String, Long> snapshot = new java.util.HashMap<>();
-        ItemContainer inv = client.getItemContainer(InventoryID.INVENTORY);
-        if (inv == null || itemListStr == null) return snapshot;
+        if (client.getItemContainer(InventoryID.INVENTORY) == null || itemListStr == null) return snapshot;
+        Map<String, Long> carried = carriedQtys(true);
         for (java.util.List<String> group : parseItemList(itemListStr)) {
             for (String alt : group) {
                 String name = parseItemName(alt).toLowerCase();
-                long count = 0;
-                for (Item item : inv.getItems()) {
-                    if (item.getId() <= 0) continue;
-                    String n = itemManager.getItemComposition(item.getId()).getName();
-                    if (nameMatches(name, n)) count += item.getQuantity();
-                }
-                snapshot.put(name, count);
+                snapshot.put(name, countOf(carried, name));
             }
         }
         return snapshot;
@@ -194,16 +191,8 @@ public class BankItemManager {
     /** True when enough of each item group has been gained ABOVE the baseline snapshot. */
     public boolean hasAllItemsAboveBaseline(String itemListStr, java.util.Map<String, Long> baseline) {
         if (baseline == null) return hasAllItems(itemListStr);
-        ItemContainer inv = client.getItemContainer(InventoryID.INVENTORY);
-        if (inv == null) return false;
-        // Count current inventory
-        java.util.Map<String, Long> current = new java.util.HashMap<>();
-        for (Item item : inv.getItems()) {
-            if (item.getId() <= 0) continue;
-            String n = itemManager.getItemComposition(item.getId()).getName();
-            if (n == null) continue;
-            current.merge(n.toLowerCase(), (long) item.getQuantity(), Long::sum);
-        }
+        if (client.getItemContainer(InventoryID.INVENTORY) == null) return false;
+        Map<String, Long> current = carriedQtys(true);
         for (java.util.List<String> group : parseItemList(itemListStr)) {
             long required = 0;
             for (String alt : group) required = Math.max(required, parseQuantityValue(alt));
@@ -307,15 +296,7 @@ public class BankItemManager {
         List<List<String>> groups = parseItemList(itemListStr);
         List<String[]> result = new ArrayList<>();
         if (groups.isEmpty()) return result;
-        ItemContainer inventory = client.getItemContainer(InventoryID.INVENTORY);
-        Map<String, Long> invQtys = new HashMap<>();
-        if (inventory != null) {
-            for (Item item : inventory.getItems()) {
-                if (item.getId() <= 0) continue;
-                String name = itemManager.getItemComposition(item.getId()).getName();
-                if (name != null) invQtys.merge(name.toLowerCase(), (long) item.getQuantity(), Long::sum);
-            }
-        }
+        Map<String, Long> invQtys = carriedQtys(true);
         for (List<String> group : groups) {
             boolean have = false;
             StringBuilder disp = new StringBuilder();
@@ -350,8 +331,8 @@ public class BankItemManager {
     }
 
     /**
-     * Have/need counts per item-list entry, counting only items gained since {@code baseline}
-     * when one is given (inventory only), else everything carried, worn items included. For
+     * Have/need counts per item-list entry, carried and worn, counting only items gained since
+     * {@code baseline} when one is given. For
      * alternatives ("Coins/Platinum token") the closest one is shown. Call on the client thread.
      */
     public List<ItemProgress> getItemProgress(String itemListStr, Map<String, Long> baseline) {
@@ -361,7 +342,7 @@ public class BankItemManager {
         Map<String, Long> invQtys = new HashMap<>();
         Map<String, Integer> invIds = new HashMap<>();
         addQtys(invQtys, invIds, InventoryID.INVENTORY);
-        if (baseline == null) addQtys(invQtys, invIds, InventoryID.EQUIPMENT);
+        addQtys(invQtys, invIds, InventoryID.EQUIPMENT);
         for (List<String> group : groups) {
             ItemProgress best = null;
             for (String alt : group) {

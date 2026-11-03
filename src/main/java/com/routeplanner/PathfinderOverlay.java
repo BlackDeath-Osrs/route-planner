@@ -279,6 +279,8 @@ public class PathfinderOverlay extends Overlay {
             // A Shortest Path teleport counts anywhere, surface to surface too
             if (sp != null && sp.teleport) return sp;
             if (floorChange(a, b)) {
+                int back = bounceEnd(i);
+                if (back >= 0) { i = back - 1; continue; }   // carry on from the landing tile
                 Transport known = TransportLoader.find(a, b);
                 if (known != null) return known;
                 return sp != null ? sp : new Transport(a, b, null, -1);
@@ -295,6 +297,27 @@ public class PathfinderOverlay extends Overlay {
 
     /** Further than this between two path tiles on one floor is a transport (raft, rope...), not a door. */
     private static final int SAME_FLOOR_JUMP = 2;
+
+    /** At most this many path tiles on the other floor, and this far from where it left, for a bounce. */
+    private static final int BOUNCE_TILES = 4, BOUNCE_RANGE = 6;
+
+    /**
+     * When the floor change leaving path tile {@code i} is only a quick trip up and straight back down
+     * (or down and up) that lands a few tiles from where it left, the index of the tile it lands on;
+     * else -1. A pathfinder can take such a trip to get round a wall (up and down the Wizards' Tower
+     * stairs to reach the ladder beside them), but nobody would climb those stairs, so the climb to
+     * point at is the next one.
+     */
+    private int bounceEnd(int i) {
+        WorldPoint start = cachedPath.get(i);
+        for (int j = i + 1; j + 1 < cachedPath.size() && j - i <= BOUNCE_TILES; j++) {
+            WorldPoint a = cachedPath.get(j), b = cachedPath.get(j + 1);
+            if (!floorChange(a, b)) continue;
+            boolean home = !otherFloor(b, start) && b.distanceTo2D(start) <= BOUNCE_RANGE;
+            return home ? j + 1 : -1;
+        }
+        return -1;
+    }
 
     private void updatePath() {
         tickCount++;

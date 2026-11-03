@@ -115,15 +115,20 @@ public class ShopOverlay extends Overlay {
         return null;
     }
 
+    /** How many of the item are carried or worn, matching the step's baseline. */
     private long countInInventory(String itemName) {
-        ItemContainer inv = client.getItemContainer(InventoryID.INVENTORY);
-        if (inv == null) return 0;
+        return countIn(InventoryID.INVENTORY, itemName) + countIn(InventoryID.EQUIPMENT, itemName);
+    }
+
+    private long countIn(InventoryID container, String itemName) {
+        ItemContainer c = client.getItemContainer(container);
+        if (c == null) return 0;
         long total = 0;
-        for (Item invItem : inv.getItems()) {
-            if (invItem.getId() <= 0) continue;
-            String name = itemManager.getItemComposition(invItem.getId()).getName();
+        for (Item item : c.getItems()) {
+            if (item.getId() <= 0) continue;
+            String name = itemManager.getItemComposition(item.getId()).getName();
             if (BankItemManager.nameMatches(itemName, name)) {
-                total += invItem.getQuantity();
+                total += item.getQuantity();
             }
         }
         return total;
