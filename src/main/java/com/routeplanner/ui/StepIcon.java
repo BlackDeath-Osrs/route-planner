@@ -54,11 +54,13 @@ public final class StepIcon implements Icon {
             ItemMode mode = s.getItemMode();
             if (mode == ItemMode.SHOP) return Kind.BUY;
             if (mode == ItemMode.SELL) return Kind.SELL;
+            if (mode == ItemMode.USE_UP) return Kind.SKILL;
             if (mode == ItemMode.PICKUP) {
                 return s.getSkillingTargetNpc() != null || s.getSkillingTargetObject() != null ? Kind.GATHER : Kind.PICKUP;
             }
             return Kind.BANK;
         }
+        if (s.hasFarmPatch()) return Kind.GATHER;
         if (s.hasSkillGoal()) return "AGILITY".equalsIgnoreCase(s.getSkillingSkill()) ? Kind.AGILITY : Kind.SKILL;
         if (s.getTeleportMethod() != null) return Kind.TELEPORT;
         if (s.hasNote()) return Kind.NOTE;

@@ -6,6 +6,7 @@ import net.runelite.api.Client;
 import net.runelite.api.InventoryID;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
+import com.routeplanner.util.Herbs;
 import net.runelite.client.game.ItemManager;
 import net.runelite.http.api.item.ItemPrice;
 
@@ -42,19 +43,42 @@ public class BankItemManager {
     /** Item-list names ending in "(*)" mean any charge: "Amulet of glory(*)" matches glory(1)-(6). */
     public static final String ANY_CHARGE = "(*)";
 
-    /** True when an item-list name (without quantity) refers to the actual item name. */
+    /**
+     * True when an item-list name (without quantity) refers to the actual item name. Besides plain
+     * names: "Amulet of glory(*)" is any charge, "*" is a wildcard ("Grimy *" is every grimy herb)
+     * and "Any herb" is any grimy or clean herb.
+     */
     public static boolean nameMatches(String listName, String actual) {
         if (listName == null || actual == null) return false;
         String want = listName.trim().toLowerCase();
         String have = actual.trim().toLowerCase();
-        if (!want.endsWith(ANY_CHARGE)) return want.equals(have);
-        String base = want.substring(0, want.length() - ANY_CHARGE.length()).trim();
-        return have.startsWith(base) && CHARGE_SUFFIX.matcher(have.substring(base.length()).trim()).matches();
+        if (want.equals(Herbs.ANY_HERB.toLowerCase())) return Herbs.isHerb(have);
+        if (want.endsWith(ANY_CHARGE)) {
+            String base = want.substring(0, want.length() - ANY_CHARGE.length()).trim();
+            return have.startsWith(base) && CHARGE_SUFFIX.matcher(have.substring(base.length()).trim()).matches();
+        }
+        if (want.contains("*")) return have.matches(globToRegex(want));
+        return want.equals(have);
     }
 
-    /** How many of an item-list name are in a name -> quantity map, summing every charge for "(*)". */
+    private static String globToRegex(String glob) {
+        StringBuilder re = new StringBuilder();
+        for (String part : glob.split("\\*", -1)) {
+            if (re.length() > 0) re.append(".*");
+            re.append(Pattern.quote(part));
+        }
+        return re.toString();
+    }
+
+    /** Whether an item-list name stands for several items, so counts have to be summed. */
+    private static boolean isPattern(String listName) {
+        String n = listName.trim();
+        return n.contains("*") || n.equalsIgnoreCase(Herbs.ANY_HERB);
+    }
+
+    /** How many of an item-list name are in a name -> quantity map, summing every match for a pattern. */
     public static long countOf(Map<String, Long> qtys, String listName) {
-        if (!listName.trim().endsWith(ANY_CHARGE)) return qtys.getOrDefault(listName.trim().toLowerCase(), 0L);
+        if (!isPattern(listName)) return qtys.getOrDefault(listName.trim().toLowerCase(), 0L);
         long total = 0;
         for (Map.Entry<String, Long> e : qtys.entrySet()) {
             if (nameMatches(listName, e.getKey())) total += e.getValue();
@@ -231,6 +255,44 @@ public class BankItemManager {
             }
         }
         return true;
+    }
+
+    /** Names of the unnoted items in the inventory, lowercased. */
+    private Set<String> unnotedInventoryNames() {
+        Set<String> names = new HashSet<>();
+        ItemContainer inventory = client.getItemContainer(InventoryID.INVENTORY);
+        if (inventory == null) return names;
+        for (Item item : inventory.getItems()) {
+            if (item.getId() <= 0) continue;
+            net.runelite.api.ItemComposition comp = itemManager.getItemComposition(item.getId());
+            if (comp.getNote() != -1) continue; // noted
+            if (comp.getName() != null) names.add(comp.getName().toLowerCase());
+        }
+        return names;
+    }
+
+    // USE_UP: true when none of the listed items are left unnoted in the inventory
+    public boolean hasNoneUnnoted(String itemListStr) {
+        if (client.getItemContainer(InventoryID.INVENTORY) == null) return false;
+        Set<String> names = unnotedInventoryNames();
+        for (List<String> group : parseItemList(itemListStr)) {
+            for (String alt : group) {
+                if (anyMatches(names, parseItemName(alt))) return false;
+            }
+        }
+        return true;
+    }
+
+    // USE_UP: [displayText, "DONE" or "LEFT"] per list entry
+    public List<String[]> getUseUpStatusList(String itemListStr) {
+        Set<String> names = unnotedInventoryNames();
+        List<String[]> result = new ArrayList<>();
+        for (List<String> group : parseItemList(itemListStr)) {
+            boolean left = false;
+            for (String alt : group) left |= anyMatches(names, parseItemName(alt));
+            result.add(new String[]{String.join("/", group), left ? "LEFT" : "DONE"});
+        }
+        return result;
     }
 
     // SELL: returns [displayText, status] where status is "SOLD" or "HOLDING"

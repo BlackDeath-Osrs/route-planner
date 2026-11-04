@@ -11,5 +11,7 @@ public enum ItemMode {
     /** Pick up or gather: counts items gained since the step started. */
     PICKUP,
     /** Deposit everything at any bank; no list. */
-    DEPOSIT_ALL
+    DEPOSIT_ALL,
+    /** Use them all up (clean, note, drop...): done once none are left unnoted in the inventory. */
+    USE_UP
 }

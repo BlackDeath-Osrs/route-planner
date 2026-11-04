@@ -75,6 +75,14 @@ public interface RoutePlannerConfig extends Config {
     default RouteMode mode() { return RouteMode.DEVELOPER; }
 
     @ConfigItem(
+        keyName = "showHud",
+        name = "Show HUD",
+        description = "Show the on-screen route HUD. Turn off to follow the route from the side panel's step card only.",
+        position = 1
+    )
+    default boolean showHud() { return true; }
+
+    @ConfigItem(
         keyName = "hudTheme",
         name = "HUD Theme",
         description = "Color theme for the on-screen HUD. 'OSRS Brown' is the custom theme; 'Quest Helper style' matches RuneLite's standard overlay look.",

@@ -139,6 +139,23 @@ public class RouteStep {
         return boardPoint != null;
     }
 
+    // Farming patch: the patch's own object id (the same whatever grows in it), so a step works for
+    // any seed. With farmReplant the step is done once something is planted in it; without, once it
+    // gave Farming XP and has nothing left to pick, harvest or check (a bush, a tree).
+    // -1 = the patch nearest the step's tile, looked up (and kept) the first time it's in view.
+    private int farmPatchId;
+    private boolean farmReplant;
+    private transient boolean farmDone;
+
+    public boolean hasFarmPatch() {
+        return farmPatchId != 0;
+    }
+
+    /** The patch is still to be looked up from the step's tile. */
+    public boolean farmPatchUnresolved() {
+        return farmPatchId < 0;
+    }
+
     // Note step (informational, not tracked)
     private String noteText;
     private boolean noteAutoComplete; // NOTE step: done on arrival, no manual tick (off = wait for the tick)
@@ -184,6 +201,7 @@ public class RouteStep {
         catchProgress = 0;
         npcKillProgress = 0;
         skillingProgress = 0;
+        farmDone = false;
         if (skillingGoalType == SkillGoalType.XP_GAIN) skillingStartXp = 0; // re-captured on the next StatChanged
     }
 
@@ -227,7 +245,7 @@ public class RouteStep {
 
     /** Anything the highlight toggle lights up: NPCs, objects, and bank/inventory items. */
     public boolean hasHighlight() {
-        return notBlank(skillingTargetNpc) || notBlank(skillingTargetObject) || notBlank(npcHighlight)
+        return farmPatchId != 0 || notBlank(skillingTargetNpc) || notBlank(skillingTargetObject) || notBlank(npcHighlight)
             || notBlank(bankHighlightItems) || notBlank(herblorePotion) || notBlank(inventoryHighlightItems);
     }
 

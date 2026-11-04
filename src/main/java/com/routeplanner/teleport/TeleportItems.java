@@ -78,6 +78,12 @@ public class TeleportItems {
         new TeleportItem("Ardy cloak: Monastery",          "Ardougne cloak",  new int[]{13121,13122,13123,13124}, 13121, new WorldPoint(2606, 3211, 0)),
         new TeleportItem("Ardy cloak 2+: Farm patch",      "Ardougne cloak",  new int[]{13122,13123,13124},       13122, new WorldPoint(2678, 3374, 0)),
 
+        // --- Explorer's ring 2-4 (2:13126, 3:13127, 4:13128) ---
+        new TeleportItem("Explorer's ring: Cabbage patch", "Explorer's ring", new int[]{13126,13127,13128},       13128, new WorldPoint(3055, 3293, 0)),
+
+        // --- Farming cape (9810, trimmed 9811) ---
+        new TeleportItem("Farming cape: Farming Guild",    "Farming cape",    new int[]{9810,9811},               9811,  new WorldPoint(1247, 3726, 0)),
+
         // --- Slayer ring (charges 1-8: 11866-11873, eternal: 21268) ---
         new TeleportItem("Slayer ring: Stronghold Slayer Cave", "Slayer ring", new int[]{11866,11867,11868,11869,11870,11871,11872,11873,21268}, 11866, new WorldPoint(2428, 3423, 0)),
         new TeleportItem("Slayer ring: Slayer Tower",           "Slayer ring", new int[]{11866,11867,11868,11869,11870,11871,11872,11873,21268}, 11866, new WorldPoint(3428, 3535, 0)),
@@ -102,6 +108,7 @@ public class TeleportItems {
 
         // --- Player-owned house (destination HOUSE: an instance, so no fixed tile) ---
         new TeleportItem("Construction cape: House", "Construction cape", new int[]{9789, 9790}, 9790, HOUSE),
+        new TeleportItem("Construction cape: Hosidius", "Construction cape", new int[]{9789, 9790}, 9790, new WorldPoint(1744, 3517, 0)),
         new TeleportItem("House tab: House",         "Teleport to house", new int[]{8013}, 8013, HOUSE)
     );
 

@@ -9,6 +9,9 @@ import com.routeplanner.model.RouteStep;
 import com.routeplanner.util.LocationNames;
 import net.runelite.api.Client;
 import net.runelite.api.NPC;
+import net.runelite.api.ObjectComposition;
+import com.routeplanner.farming.FarmingTracker;
+import com.routeplanner.util.Herbs;
 import net.runelite.api.Player;
 import net.runelite.api.Skill;
 import net.runelite.api.coords.WorldPoint;
@@ -24,6 +27,10 @@ import java.util.*;
  *  - Any other skill: the XP gained becomes an "Gain XP amount" goal, with the NPC or object
  *    you were using (a pickpocket NPC, a stall, a range) as the highlight target.
  *  - Kills: NPCs you were fighting that die become a kill-count step highlighting that NPC.
+ *  - Farming patches: XP from a patch becomes a step on the patch itself (any seed will do),
+ *    done once it's replanted, or for a bush or tree once it has nothing left to pick or check.
+ *  - Cleaning herbs: done once no grimy herbs are left; noting them at the Tool Leprechaun: done
+ *    once none are left unnoted. Neither depends on the herb or how many there were.
  *
  * Repeating the same thing in the same spot adds to one step rather than making many. Like the
  * rest of the recorder it only reads game state; it never acts for the player.
@@ -58,6 +65,18 @@ class ActivityRecorder {
     private WorldPoint targetPos;   // where the player stood when they clicked it
     private WorldPoint targetObjectTile; // the clicked object's own tile, when it was an object
     private int targetTick = -1000;
+    /** "Use Torstol seed -> Herb patch": the item used, "Torstol seed". */
+    private String targetUsed;
+    private int cleanTick = -1000;
+
+    /** The latest farming patch step, its patch, and the latest clean / leprechaun step. */
+    private RouteStep farmStep;
+    private int farmStepPatch = -1;
+    private RouteStep cleanStep;
+    private RouteStep leprechaunStep;
+    /** Patch work, cleaning and noting keep the player busy where they are, like XP does. */
+    private int choreTick = -1000;
+    private WorldPoint chorePos;
     private int teleportTick = -1000;
     private int combatTick = -1000;
     /** The NPC last clicked to attack, and when: a kill counts even if the target just changed. */
@@ -97,7 +116,9 @@ class ActivityRecorder {
         }
         targetName = null;
         attackedName = null;
-        targetTick = teleportTick = combatTick = lastXpTick = attackedTick = -1000;
+        targetTick = teleportTick = combatTick = lastXpTick = attackedTick = cleanTick = choreTick = -1000;
+        farmStep = cleanStep = leprechaunStep = null;
+        farmStepPatch = -1;
         step = null;
         gathered.clear();
         pendingGains.clear();
@@ -110,6 +131,7 @@ class ActivityRecorder {
         targetObjectTile = objectTile;
         targetObjectId = npc ? -1 : objectId;
         targetName = cleanName(target);
+        targetUsed = FarmingTracker.usedItem(target);
         targetOption = option;
         targetIsNpc = npc;
         targetTick = tick;
@@ -135,6 +157,39 @@ class ActivityRecorder {
         sailing.onLowerNet(tick);
     }
 
+    /** "Clean" on a grimy herb. */
+    void onCleanClick(int tick) {
+        cleanTick = tick;
+    }
+
+    /** An item was used on the Tool Leprechaun, which notes it. */
+    void onNoteAtLeprechaun(String item, WorldPoint pos, int tick) {
+        if (item == null) return;
+        String entry = Herbs.isHerb(item) ? Herbs.ANY_HERB : item;
+        if (leprechaunStep == null || host.lastDraft() != leprechaunStep || !host.isNear(leprechaunStep, pos, ACTIVITY_RADIUS)) {
+            leprechaunStep = host.stepAt(pos, "Note items with the Tool Leprechaun" + LocationNames.at(pos));
+            leprechaunStep.setItemMode(ItemMode.USE_UP);
+            leprechaunStep.setNpcHighlight("Tool Leprechaun");
+            leprechaunStep.setHighlightEnabled(true);
+            step = null;
+        }
+        List<String> items = new ArrayList<>();
+        if (leprechaunStep.getItemList() != null) items.addAll(Arrays.asList(leprechaunStep.getItemList().split(",\\s*")));
+        if (!items.contains(entry)) items.add(entry);
+        String list = String.join(", ", items);
+        leprechaunStep.setItemList(list);
+        leprechaunStep.setInventoryHighlightItems(list);
+        leprechaunStep.setName((items.size() == 1 && Herbs.ANY_HERB.equals(entry) ? "Note the herbs" : "Note " + list)
+            + " with the Tool Leprechaun" + LocationNames.at(pos));
+        chore(pos, tick);
+        host.trace("LEPRECHAUN noted " + item + " -> " + RouteRecorder.describeStep(leprechaunStep));
+    }
+
+    private void chore(WorldPoint pos, int tick) {
+        choreTick = tick;
+        chorePos = pos;
+    }
+
     void onTeleportClick(int tick) {
         teleportTick = tick;
     }
@@ -144,6 +199,7 @@ class ActivityRecorder {
         // Mid-fight: standing (or stopping the boat) between kills isn't a stop either; nor is
         // waiting for a shoal mid-trawl
         if (tick - combatTick <= BUSY_TICKS) return true;
+        if (tick - choreTick <= BUSY_TICKS && (pos == null || chorePos == null || pos.distanceTo2D(chorePos) <= ACTIVITY_RADIUS)) return true;
         if (sailing.isBusy(tick)) return true;
         if (step == null || host.lastDraft() != step || tick - lastXpTick > BUSY_TICKS) return false;
         if (skill == Skill.AGILITY) return true; // a lap ranges all over (and up) the course
@@ -186,6 +242,11 @@ class ActivityRecorder {
         if (COMBAT.contains(s)) { host.trace("XP+" + gained + " " + s + " ignored (combat)"); return; }
         if (s == Skill.MAGIC && (tick - teleportTick <= TELEPORT_XP_TICKS || tick - combatTick <= TARGET_WINDOW_TICKS)) {
             host.trace("XP+" + gained + " MAGIC ignored (teleport/combat)");
+            return;
+        }
+        if (s == Skill.FARMING && onFarmingXp(pos, tick)) return;
+        if (s == Skill.HERBLORE && tick - cleanTick <= TARGET_WINDOW_TICKS) {
+            onCleaningXp(pos, tick);
             return;
         }
         // Trawling: its XP (the net's Sailing, the catches' Fishing) belongs to it; the catches make the
@@ -254,6 +315,87 @@ class ActivityRecorder {
         }
         pendingGains.clear();
         refresh(pos);
+    }
+
+    /**
+     * Farming XP from a patch (anything whose look changes with what grows in it): a step on the
+     * patch, the same for any seed. False when it isn't from a patch.
+     */
+    private boolean onFarmingXp(WorldPoint pos, int tick) {
+        return onFarmingXp(pos, tick, false);
+    }
+
+    private boolean onFarmingXp(WorldPoint pos, int tick, boolean planted) {
+        boolean clicked = tick - targetTick <= TARGET_WINDOW_TICKS && !targetIsNpc && targetObjectId > 0;
+        int patch;
+        if (clicked && isPatch(targetObjectId)) {
+            patch = targetObjectId;
+        } else if (farmStep != null && host.hasDraft(farmStep) && tick - choreTick <= BUSY_TICKS
+                && host.isNear(farmStep, pos, ACTIVITY_RADIUS)) {
+            patch = farmStepPatch; // still harvesting from the last click
+        } else {
+            return false;
+        }
+        boolean seed = planted && clicked && patch == targetObjectId;
+        // The same patch again (after cleaning or noting in between, too) stays one step
+        boolean same = farmStep != null && host.hasDraft(farmStep) && farmStepPatch == patch
+            && host.isNear(farmStep, pos, ACTIVITY_RADIUS);
+        if (!same) {
+            farmStep = host.stepAt(pos, "Tend the patch" + LocationNames.at(pos));
+            farmStep.setFarmPatchId(patch);
+            farmStep.setHighlightEnabled(true);
+            farmStepPatch = patch;
+        }
+        if (seed) farmStep.setFarmReplant(true);
+        if (clicked || !same) {
+            // Named after the patch, not what grew in it: "herb patch", not "Torstol"
+            String what = patchName(patch, clicked ? targetName : null);
+            String at = LocationNames.at(farmStep.getWorldPoint());
+            farmStep.setName(farmStep.isFarmReplant() ? "Harvest and replant the " + what + at : "Tend the " + what + at);
+        }
+        step = null; // not an XP activity: no XP goal, so any seed and any yield will do
+        chore(pos, tick);
+        host.trace("FARMING patch " + patch + (seed ? " planted" : "") + " -> " + RouteRecorder.describeStep(farmStep));
+        return true;
+    }
+
+    /** "You plant ...": planting gives no XP, so the message marks the patch step as a replant. */
+    void onPlantMessage(WorldPoint pos, int tick) {
+        onFarmingXp(pos, tick, true);
+    }
+
+    /** Herblore XP from cleaning: one step, done once no grimy herbs are left (any herb, any amount). */
+    private void onCleaningXp(WorldPoint pos, int tick) {
+        if (cleanStep == null || host.lastDraft() != cleanStep || !host.isNear(cleanStep, pos, ACTIVITY_RADIUS)) {
+            cleanStep = host.stepAt(pos, "Clean the grimy herbs" + LocationNames.at(pos));
+            cleanStep.setItemMode(ItemMode.USE_UP);
+            cleanStep.setItemList("Grimy *");
+            cleanStep.setInventoryHighlightItems("Grimy *");
+            cleanStep.setHighlightEnabled(true);
+            host.trace("CLEANING -> " + RouteRecorder.describeStep(cleanStep));
+        }
+        step = null;
+        chore(pos, tick);
+    }
+
+    /** Farming patches (and bushes, trees) change look with what grows in them: an object with variants. */
+    private boolean isPatch(int objectId) {
+        ObjectComposition comp = client.getObjectDefinition(objectId);
+        return comp != null && comp.getImpostorIds() != null;
+    }
+
+    /** "herb patch": the name its empty form goes by, else the name it was clicked by, lowercased. */
+    private String patchName(int objectId, String clickedName) {
+        ObjectComposition comp = client.getObjectDefinition(objectId);
+        if (comp != null && comp.getImpostorIds() != null) {
+            for (int id : comp.getImpostorIds()) {
+                ObjectComposition v = id > 0 ? client.getObjectDefinition(id) : null;
+                String n = v == null ? null : v.getName();
+                String l = n == null ? "" : n.toLowerCase();
+                if (l.endsWith("patch") || l.equals("allotment")) return l;
+            }
+        }
+        return clickedName != null ? clickedName.toLowerCase() : "patch";
     }
 
     /**

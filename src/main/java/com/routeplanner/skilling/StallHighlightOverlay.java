@@ -37,6 +37,9 @@ public class StallHighlightOverlay extends Overlay {
     /** How far from the player targets are highlighted on land, in tiles. */
     private static final int HIGHLIGHT_RANGE = 20;
 
+    /** A target meaning "the object with this id" (a farming patch), not a name. */
+    private static final String PATCH_PREFIX = "#patch:";
+
     private final Client client;
     private final RoutePlannerPlugin plugin;
 
@@ -52,11 +55,11 @@ public class StallHighlightOverlay extends Overlay {
     public Dimension render(Graphics2D graphics) {
         if (plugin.getActiveRoute() == null) return null;
         RouteStep step = plugin.getActiveRoute().getActiveStep();
-        if (step == null || !step.isHighlightEnabled() || step.getSkillingTargetObject() == null
-            || step.getSkillingTargetObject().trim().isEmpty()) return null;
-        String targetName = step.getSkillingTargetObject();
-        if (targetName == null || targetName.trim().isEmpty()) return null;
-        String target = targetName.trim().toLowerCase();
+        if (step == null || !step.isHighlightEnabled()) return null;
+        // A farming patch is lit by its id: its name changes with whatever grows in it
+        String target = step.hasFarmPatch() ? PATCH_PREFIX + step.getFarmPatchId()
+            : step.getSkillingTargetObject() == null ? null : step.getSkillingTargetObject().trim().toLowerCase();
+        if (target == null || target.isEmpty()) return null;
 
         // The boat's tile while sailing (a shipwreck being salvaged), otherwise the player's
         WorldPoint playerLoc = Sailing.position(client);
@@ -132,6 +135,7 @@ public class StallHighlightOverlay extends Overlay {
     /** Whether the object is the step's target: "Baker's stall" by its start, a kind by its end
      *  ("shipwreck" lights any of the eight). */
     private boolean matches(int id, String target) {
+        if (target.startsWith(PATCH_PREFIX)) return target.equals(PATCH_PREFIX + id);
         ObjectComposition comp = client.getObjectDefinition(id);
         if (comp != null && comp.getImpostorIds() != null) comp = comp.getImpostor();
         if (comp == null) return false;

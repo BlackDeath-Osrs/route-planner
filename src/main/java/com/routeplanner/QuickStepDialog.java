@@ -72,8 +72,8 @@ public class QuickStepDialog extends JFrame {
     private static final Color DONE_BG = new Color(20, 33, 20), DONE_EDGE = new Color(44, 74, 44), DONE_FG = new Color(207, 233, 207);
     private static final Color MANUAL_BG = new Color(42, 36, 20), MANUAL_EDGE = new Color(74, 63, 34), MANUAL_FG = new Color(234, 220, 181);
     private static final Color ERROR = new Color(255, 120, 110);
-    private static final String[] ITEM_MODES = {"Bring from the bank", "Buy at a shop", "Sell to a shop", "Pick up or gather", "Deposit everything"};
-    private static final ItemMode[] ITEM_MODE_KEYS = {ItemMode.BANK, ItemMode.SHOP, ItemMode.SELL, ItemMode.PICKUP, ItemMode.DEPOSIT_ALL};
+    private static final String[] ITEM_MODES = {"Bring from the bank", "Buy at a shop", "Sell to a shop", "Pick up or gather", "Deposit everything", "Use them all up"};
+    private static final ItemMode[] ITEM_MODE_KEYS = {ItemMode.BANK, ItemMode.SHOP, ItemMode.SELL, ItemMode.PICKUP, ItemMode.DEPOSIT_ALL, ItemMode.USE_UP};
     private static final String[] GOALS = {"Gain XP", "Reach level", "Reach total XP"};
     private static final SkillGoalType[] GOAL_KEYS = {SkillGoalType.XP_GAIN, SkillGoalType.LEVEL, SkillGoalType.XP_TARGET};
     private static final Pattern QTY = Pattern.compile("^([\\d.]+\\s*(?:k|m|mil|b)?)\\s+(.+)$", Pattern.CASE_INSENSITIVE);
@@ -879,10 +879,12 @@ public class QuickStepDialog extends JFrame {
         if (kills > 0) parts.add("you've killed " + kills + " " + orDefault(whoField.getText(), "of the NPC"));
         if (hasChat) parts.add("you've picked chat options " + chatText(" then "));
         if (hasQuest) parts.add(questBox.getSelectedItem() + " is finished");
+        boolean hasFarm = editing != null && editing.hasFarmPatch();
+        if (hasFarm) parts.add(editing.isFarmReplant() ? "you've replanted the patch" : "you've tended the patch");
 
         boolean teleportArrival = teleOn() && hasTeleport() && wp == null;
         if (teleportArrival) parts.add("you've arrived by teleport");
-        boolean triggers = hasItems || hasSkill || kills > 0 || hasChat || hasQuest || teleportArrival;
+        boolean triggers = hasItems || hasSkill || kills > 0 || hasChat || hasQuest || teleportArrival || hasFarm;
         boolean manual = !triggers && (wp == null || (hasNote && !noteAuto.isSelected()));
         String html;
         if (manual) {
@@ -904,6 +906,7 @@ public class QuickStepDialog extends JFrame {
         if (mode == ItemMode.SHOP) return "you've bought " + list;
         if (mode == ItemMode.SELL) return "you've sold " + list;
         if (mode == ItemMode.PICKUP) return "you've picked up " + list;
+        if (mode == ItemMode.USE_UP) return "no unnoted " + list + " are left in your inventory";
         return "you have " + list + " in your inventory";
     }
 
@@ -925,7 +928,7 @@ public class QuickStepDialog extends JFrame {
             if (mode == ItemMode.DEPOSIT_ALL) return "Deposit everything" + at;
             String list = itemsSummary(1);
             if (list.isEmpty()) return "Get items" + at;
-            String verb = mode == ItemMode.SHOP ? "Buy " : mode == ItemMode.SELL ? "Sell " : mode == ItemMode.PICKUP ? "Pick up " : "Get ";
+            String verb = mode == ItemMode.SHOP ? "Buy " : mode == ItemMode.SELL ? "Sell " : mode == ItemMode.PICKUP ? "Pick up " : mode == ItemMode.USE_UP ? "Use up " : "Get ";
             return verb + list + at;
         }
         if (type == Type.TALK) return "Talk to " + orDefault(whoField.getText(), "someone") + at;

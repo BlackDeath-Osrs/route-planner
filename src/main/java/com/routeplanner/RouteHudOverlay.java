@@ -93,7 +93,7 @@ public class RouteHudOverlay extends Overlay {
     @Override
     public Dimension render(Graphics2D graphics) {
         Route activeRoute = plugin.getActiveRoute();
-        if (coveredByWindow()) return null;
+        if (!config.showHud() || coveredByWindow()) return null;
 
         if (activeRoute == null) return null;
 
@@ -180,7 +180,13 @@ public class RouteHudOverlay extends Overlay {
             if (curStep.hasItems()) {
                 lines.add(new String[]{"---", "DIM"});
                 ItemMode mode = curStep.getItemMode();
-                if (mode == ItemMode.SELL) {
+                if (mode == ItemMode.USE_UP) {
+                    lines.add(new String[]{"None left:", "TITLE"});
+                    for (String[] st : bankItemManager.getUseUpStatusList(curStep.getItemList())) {
+                        boolean done = st[1].equals("DONE");
+                        lines.add(new String[]{"  " + (done ? "[x] " : "[  ] ") + st[0], done ? "HAVE" : "CURRENT"});
+                    }
+                } else if (mode == ItemMode.SELL) {
                     lines.add(new String[]{"Sell:", "TITLE"});
                     for (String[] st : bankItemManager.getSellStatusList(curStep.getItemList())) {
                         boolean sold = st[1].equals("SOLD");
@@ -200,6 +206,17 @@ public class RouteHudOverlay extends Overlay {
                         lines.add(new String[]{"  " + mark + st[0], have ? "HAVE" : "CURRENT"});
                     }
                 }
+            }
+        }
+
+        // Farming patch
+        if (routeHasIncompleteStep) {
+            RouteStep curStep = steps.get(routeCurrentIdx);
+            if (curStep.hasFarmPatch()) {
+                lines.add(new String[]{"---", "DIM"});
+                String what = curStep.isFarmReplant() ? "Harvest and replant the patch" : "Tend the patch";
+                lines.add(new String[]{"  " + (curStep.isFarmDone() ? "[x] " : "[  ] ") + what,
+                    curStep.isFarmDone() ? "HAVE" : "CURRENT"});
             }
         }
 

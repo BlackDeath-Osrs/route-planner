@@ -177,7 +177,7 @@ public class RouteHubPanel extends JPanel {
         }.execute();
     }
 
-    private static final int MAX_STEPS = 1500;
+    private static final int MAX_STEPS = 10_000;
     private static final int MAX_NOTE_LEN = 280;
     private static final int MAX_NAME_LEN = 100;
 

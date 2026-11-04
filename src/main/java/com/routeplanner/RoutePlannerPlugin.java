@@ -29,6 +29,7 @@ import com.routeplanner.sailing.Sailing;
 import com.routeplanner.sailing.SailingDocks;
 import com.routeplanner.sailing.SailingTimers;
 import com.routeplanner.sailing.ShoalRouteOverlay;
+import com.routeplanner.farming.FarmingTracker;
 import com.routeplanner.skilling.StallHighlightOverlay;
 import com.routeplanner.teleport.MinigameTeleportOverlay;
 import com.routeplanner.teleport.NexusTeleportOverlay;
@@ -51,6 +52,7 @@ import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
+import net.runelite.client.events.RuneScapeProfileChanged;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.game.SpriteManager;
 import net.runelite.client.game.npcoverlay.NpcOverlayService;
@@ -124,6 +126,7 @@ public class RoutePlannerPlugin extends Plugin {
     @Inject private BankItemManager bankItemManager;
     @Inject private BankFilterButton bankFilterButton;
     @Inject @Getter private TileMenuHandler tileMenuHandler;
+    @Inject private FarmingTracker farmingTracker;
     @Inject private SkillingNpcHighlighter skillingNpcHighlighter;
     @Inject @Getter private SailingDocks sailingDocks;
     @Inject @Getter private SailingTimers sailingTimers;
@@ -240,7 +243,7 @@ public class RoutePlannerPlugin extends Plugin {
 
     /** The helpers with their own @Subscribe handlers, registered on start-up and unregistered on shut-down. */
     private List<Object> subscribers() {
-        return Arrays.asList(sailingTimers, bankFilterButton, tileMenuHandler, shortestPathBridge);
+        return Arrays.asList(sailingTimers, bankFilterButton, tileMenuHandler, shortestPathBridge, farmingTracker);
     }
 
     @Override
@@ -376,6 +379,11 @@ public class RoutePlannerPlugin extends Plugin {
      * e.g. a Bank-items + Skill-goal step completes only after BOTH the items are held
      * AND the skill goal is reached.
      */
+    /** For trackers outside the plugin: complete the step if everything on it is now met. */
+    public void tryCompleteActiveStep(RouteStep step) {
+        tryCompleteStep(step);
+    }
+
     private void tryCompleteStep(RouteStep step) {
         if (step == null) return;
         if (activeRoute != null && step == activeRoute.getTestStep() && activeRoute.isTestPassed()) return;
@@ -399,7 +407,9 @@ public class RoutePlannerPlugin extends Plugin {
         boolean boardOk  = !step.hasBoarding() || step.isBoarded();
         // Catch (Sailing): enough fish caught
         boolean catchOk  = !step.hasCatchGoal() || step.getCatchProgress() >= step.getCatchGoal();
-        if (itemsOk && skillOk && locOk && noteOk && killsOk && dialogOk && questOk && boardOk && catchOk) {
+        // Farming patch: replanted (or tended), whatever was grown in it
+        boolean farmOk   = !step.hasFarmPatch() || step.isFarmDone();
+        if (itemsOk && skillOk && locOk && noteOk && killsOk && dialogOk && questOk && boardOk && catchOk && farmOk) {
             completeStep(step);
         }
     }
@@ -440,6 +450,7 @@ public class RoutePlannerPlugin extends Plugin {
         if (step.getItemMode() == ItemMode.SELL) {
             return step.isSellArmed() && bankItemManager.hasSoldAll(step.getItemList());
         }
+        if (step.getItemMode() == ItemMode.USE_UP) return bankItemManager.hasNoneUnnoted(step.getItemList());
         if (step.countsGainedItems()) {
             // Only items picked up / bought since the step started count, never ones already carried.
             return step.getPickupBaseline() != null
@@ -813,22 +824,32 @@ public class RoutePlannerPlugin extends Plugin {
     /** "true" when no route is active: the one under ACTIVE_ROUTE_KEY (if any) is paused. */
     private static final String ROUTE_PAUSED_KEY = "activeRoutePaused";
 
+    /**
+     * Saves the active (or paused) route for the logged-in character, and globally as the
+     * fallback for characters that haven't picked a route yet.
+     */
     private void saveActiveRoute() {
         Route remembered = activeRoute != null ? activeRoute : pausedRoute;
+        boolean paused = activeRoute == null;
+        boolean perCharacter = configManager.getRSProfileKey() != null;
         if (remembered != null) {
             configManager.setConfiguration(RoutePlannerConfig.GROUP, ACTIVE_ROUTE_KEY, remembered.getName());
+            if (perCharacter) {
+                configManager.setRSProfileConfiguration(RoutePlannerConfig.GROUP, ACTIVE_ROUTE_KEY, remembered.getName());
+            }
         } else {
             configManager.unsetConfiguration(RoutePlannerConfig.GROUP, ACTIVE_ROUTE_KEY);
+            if (perCharacter) configManager.unsetRSProfileConfiguration(RoutePlannerConfig.GROUP, ACTIVE_ROUTE_KEY);
         }
-        configManager.setConfiguration(RoutePlannerConfig.GROUP, ROUTE_PAUSED_KEY, activeRoute == null);
+        configManager.setConfiguration(RoutePlannerConfig.GROUP, ROUTE_PAUSED_KEY, paused);
+        if (perCharacter) configManager.setRSProfileConfiguration(RoutePlannerConfig.GROUP, ROUTE_PAUSED_KEY, paused);
     }
 
     /** The route that was active (or paused) last time. With nothing saved yet, the first route is active. */
     private void restoreActiveRoute() {
         String savedName = configManager.getConfiguration(RoutePlannerConfig.GROUP, ACTIVE_ROUTE_KEY);
         boolean paused = "true".equals(configManager.getConfiguration(RoutePlannerConfig.GROUP, ROUTE_PAUSED_KEY));
-        Route saved = savedName == null ? null
-            : routes.stream().filter(r -> savedName.equals(r.getName())).findFirst().orElse(null);
+        Route saved = findRoute(savedName);
         if (paused) {
             pausedRoute = saved;
         } else if (saved != null) {
@@ -836,6 +857,39 @@ public class RoutePlannerPlugin extends Plugin {
         } else if (savedName == null && !routes.isEmpty()) {
             activeRoute = routes.get(0);
         }
+    }
+
+    private Route findRoute(String name) {
+        if (name == null) return null;
+        return routes.stream().filter(r -> name.equals(r.getName())).findFirst().orElse(null);
+    }
+
+    /**
+     * On login (or switching account/world type), switches to the route this character had.
+     * A character with no saved choice keeps the current route and adopts it as its own.
+     */
+    @Subscribe
+    public void onRuneScapeProfileChanged(RuneScapeProfileChanged event) {
+        if (configManager.getRSProfileKey() == null) return;
+        String pausedValue = configManager.getRSProfileConfiguration(RoutePlannerConfig.GROUP, ROUTE_PAUSED_KEY);
+        if (pausedValue == null) {
+            saveActiveRoute();
+            return;
+        }
+        String savedName = configManager.getRSProfileConfiguration(RoutePlannerConfig.GROUP, ACTIVE_ROUTE_KEY);
+        Route saved = findRoute(savedName);
+        boolean paused = "true".equals(pausedValue);
+        Route wantActive = paused ? null : saved;
+        Route wantPaused = paused ? saved : null;
+        if (wantActive == activeRoute && wantPaused == pausedRoute) return;
+
+        resumeRoute();
+        activeRoute = wantActive;
+        pausedRoute = wantPaused;
+        autoAdvanceSections();
+        saveActiveRoute();
+        skillingNpcHighlighter.rebuild();
+        if (panel != null) SwingUtilities.invokeLater(panel::refresh);
     }
 
     private static final String ROUTES_BACKUP_KEY = "routesBackup";

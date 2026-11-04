@@ -27,6 +27,8 @@ import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.MenuOptionClicked;
+import com.routeplanner.farming.FarmingTracker;
+import com.routeplanner.util.Herbs;
 import net.runelite.api.events.StatChanged;
 import net.runelite.api.gameval.VarbitID;
 import net.runelite.api.widgets.Widget;
@@ -151,6 +153,7 @@ public class RouteRecorder {
                 case GAME_OBJECT_THIRD_OPTION:
                 case GAME_OBJECT_FOURTH_OPTION:
                 case GAME_OBJECT_FIFTH_OPTION:
+                case WIDGET_TARGET_ON_GAME_OBJECT: // "Use Torstol seed -> Herb patch"
                     return true;
                 default:
                     return false;
@@ -302,6 +305,11 @@ public class RouteRecorder {
             activity.onTargetClick(click.option, click.target, click.isNpc(), click.id, stepTile(), objectTile, click.tick);
         }
         if (click.isNpc()) dialog.onNpcClick(click.option, click.target, click.tick);
+        if ("Clean".equalsIgnoreCase(click.option) && Herbs.isGrimy(click.target)) activity.onCleanClick(click.tick);
+        // Using items on the Tool Leprechaun notes them
+        if (click.action == MenuAction.WIDGET_TARGET_ON_NPC && click.target.toLowerCase().endsWith("-> tool leprechaun")) {
+            activity.onNoteAtLeprechaun(FarmingTracker.usedItem(click.target), stepTile(), click.tick);
+        }
         dialog.onMenuClick(e.getParam1(), e.getParam0(), stepTile());
         String nexus = nexusDestination(e, click);
         if (nexus != null) {
@@ -375,6 +383,10 @@ public class RouteRecorder {
             if (c != null && netDown && Sailing.isSailing(client)) {
                 activity.onCatch(c.fish, c.count, stepTile(), client.getTickCount());
             }
+        }
+        if ((e.getType() == ChatMessageType.SPAM || e.getType() == ChatMessageType.GAMEMESSAGE)
+                && Text.removeTags(e.getMessage()).startsWith("You plant ")) {
+            activity.onPlantMessage(stepTile(), client.getTickCount());
         }
         if (e.getType() != ChatMessageType.GAMEMESSAGE) return;
         if (dialog.onGameMessage(e.getMessage(), stepTile())) activity.onQuestComplete(client.getTickCount());

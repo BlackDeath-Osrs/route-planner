@@ -42,4 +42,21 @@ public class ItemListParseTest {
         carried.put("amulet of glory(2)", 2L);
         assertEquals(3, BankItemManager.countOf(carried, "Amulet of glory(*)"));
     }
+
+    @Test
+    public void wildcardsAndAnyHerb() {
+        assertTrue(BankItemManager.nameMatches("Grimy *", "Grimy torstol"));
+        assertTrue(BankItemManager.nameMatches("Grimy *", "Grimy ranarr weed"));
+        assertFalse(BankItemManager.nameMatches("Grimy *", "Torstol"));
+        assertTrue(BankItemManager.nameMatches("Any herb", "Grimy snapdragon"));
+        assertTrue(BankItemManager.nameMatches("Any herb", "Ranarr weed"));
+        assertFalse(BankItemManager.nameMatches("Any herb", "Torstol seed"));
+        assertFalse(BankItemManager.nameMatches("Any herb", "Grimy dog"));
+        Map<String, Long> carried = new HashMap<>();
+        carried.put("grimy torstol", 3L);
+        carried.put("grimy toadflax", 2L);
+        carried.put("torstol", 1L);
+        assertEquals(5, BankItemManager.countOf(carried, "Grimy *"));
+        assertEquals(6, BankItemManager.countOf(carried, "Any herb"));
+    }
 }

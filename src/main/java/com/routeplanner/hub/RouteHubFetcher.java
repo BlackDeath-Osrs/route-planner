@@ -26,7 +26,7 @@ public class RouteHubFetcher {
 
     // Size caps: a response bigger than these is rejected.
     private static final long MAX_INDEX_BYTES = 1_500_000;   // ~1 MB catalog, some headroom
-    private static final long MAX_ROUTE_BYTES = 2_500_000;   // ~2 MB per-route cap, some headroom
+    private static final long MAX_ROUTE_BYTES = 15_000_000;  // 10,000 steps at up to ~1.5 KB each
     private static final long MAX_ICON_BYTES = 25_000;       // 20 KB icon cap, some headroom
 
     private final OkHttpClient okHttpClient;

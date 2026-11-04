@@ -22,7 +22,7 @@ public class HubRouteEntry {
 
     private static final int MAX_NAME_LEN = 100;
     private static final int MAX_DESC_LEN = 120;
-    private static final int MAX_STEPS = 1500;
+    private static final int MAX_STEPS = 10_000;
 
     /**
      * @return null if the entry is safe to display/install, or a short reason if it should be
