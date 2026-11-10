@@ -61,6 +61,11 @@ public class SkillingNpcHighlighter {
         return targetNames;
     }
 
+    /** Whether the active step highlights this NPC. */
+    public boolean isHighlighted(NPC npc) {
+        return shouldHighlight(npc) != null;
+    }
+
     private HighlightedNpc shouldHighlight(NPC npc) {
         if (plugin.getActiveRoute() == null) return null;
 

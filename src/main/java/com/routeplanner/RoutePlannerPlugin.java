@@ -1,5 +1,6 @@
 package com.routeplanner;
 
+import com.routeplanner.util.SceneObjects;
 import com.google.gson.Gson;
 import com.google.inject.Provides;
 import com.routeplanner.agility.AgilityCourse;
@@ -117,6 +118,7 @@ public class RoutePlannerPlugin extends Plugin {
     @Inject private GroundItemOverlay groundItemOverlay;
     @Inject private DialogHighlighter dialogHighlighter;
     @Inject private StallHighlightOverlay stallHighlightOverlay;
+    @Inject private NpcIconOverlay npcIconOverlay;
     @Inject private SpellbookOverlay spellbookOverlay;
     @Inject private MinigameTeleportOverlay minigameTeleportOverlay;
     @Inject private QuestListOverlay questListOverlay;
@@ -267,7 +269,7 @@ public class RoutePlannerPlugin extends Plugin {
             netDepthOverlay, minimapArrowOverlay, worldMapPathOverlay, routeHudOverlay, bankOverlay, shopOverlay,
             groundItemOverlay, stallHighlightOverlay, spellbookOverlay, minigameTeleportOverlay,
             questListOverlay, inventoryItemOverlay, teleportItemOverlay, recordingOverlay, nexusTeleportOverlay,
-            areaDrawer);
+            areaDrawer, npcIconOverlay);
     }
 
     /** The helpers with their own @Subscribe handlers, registered on start-up and unregistered on shut-down. */
@@ -760,6 +762,7 @@ public class RoutePlannerPlugin extends Plugin {
                 if (t == null) continue;
                 // Checked in place: a list per tile meant ~10,000 throwaway lists per scan.
                 for (GameObject g : t.getGameObjects()) {
+                    if (!SceneObjects.isObject(g)) continue;
                     WorldPoint at = obstacleAt(g, first);
                     if (at != null && obstacleDistance(current, at) < bestDist) { bestDist = obstacleDistance(current, at); best = at; }
                 }

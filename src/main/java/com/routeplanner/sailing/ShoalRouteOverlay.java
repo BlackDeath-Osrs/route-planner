@@ -1,5 +1,6 @@
 package com.routeplanner.sailing;
 
+import com.routeplanner.util.SceneObjects;
 import com.routeplanner.LineStyle;
 import com.routeplanner.PathfinderOverlay;
 import com.routeplanner.RoutePlannerConfig;
@@ -259,7 +260,7 @@ public class ShoalRouteOverlay extends Overlay {
                 for (Tile t : row) {
                     if (t == null) continue;
                     for (GameObject obj : t.getGameObjects()) {
-                        if (obj == null) continue;
+                        if (!SceneObjects.isObject(obj)) continue;
                         ObjectComposition def = client.getObjectDefinition(obj.getId());
                         if (def == null) continue;
                         int area = def.getSizeX() * def.getSizeY();

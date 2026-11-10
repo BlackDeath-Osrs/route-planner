@@ -1,5 +1,6 @@
 package com.routeplanner.farming;
 
+import com.routeplanner.util.SceneObjects;
 import com.routeplanner.RoutePlannerPlugin;
 import com.routeplanner.model.Route;
 import com.routeplanner.model.RouteStep;
@@ -110,7 +111,7 @@ public class FarmingTracker {
                 Tile tile = plane[x][y];
                 if (tile == null || tile.getGameObjects() == null) continue;
                 for (GameObject obj : tile.getGameObjects()) {
-                    if (obj == null || !FarmingPatches.isPatch(obj.getId())) continue;
+                    if (!SceneObjects.isObject(obj) || !FarmingPatches.isPatch(obj.getId())) continue;
                     // Distance to the nearest of the patch's tiles (tree patches are 3x3 and bigger)
                     int dx = Math.max(0, Math.max(obj.getSceneMinLocation().getX() - cx, cx - obj.getSceneMaxLocation().getX()));
                     int dy = Math.max(0, Math.max(obj.getSceneMinLocation().getY() - cy, cy - obj.getSceneMaxLocation().getY()));

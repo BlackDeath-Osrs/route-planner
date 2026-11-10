@@ -1,5 +1,6 @@
 package com.routeplanner.record;
 
+import com.routeplanner.util.SceneObjects;
 import com.routeplanner.model.RouteStep;
 import com.routeplanner.sailing.CatchMessages;
 import com.routeplanner.sailing.Sailing;
@@ -287,7 +288,7 @@ final class SailingActivity {
                 Tile t = tiles[x][y];
                 if (t == null) continue;
                 for (GameObject obj : t.getGameObjects()) {
-                    if (obj == null) continue;
+                    if (!SceneObjects.isObject(obj)) continue;
                     ObjectComposition def = client.getObjectDefinition(obj.getId());
                     if (def != null && def.getImpostorIds() != null) def = def.getImpostor();
                     String name = def == null ? null : def.getName();

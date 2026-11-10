@@ -1,5 +1,6 @@
 package com.routeplanner;
 
+import com.routeplanner.util.SceneObjects;
 import com.routeplanner.model.RouteStep;
 import com.routeplanner.model.StepType;
 import com.routeplanner.model.TileArea;
@@ -114,7 +115,7 @@ public class RouteOverlay extends Overlay {
                             if (t == null) continue;
                             // Build a list of all renderable objects on this tile
                             List<TileObject> candidates = new ArrayList<>();
-                            for (GameObject obj : t.getGameObjects()) { if (obj != null) candidates.add(obj); }
+                            for (GameObject obj : t.getGameObjects()) { if (SceneObjects.isObject(obj)) candidates.add(obj); }
                             if (t.getWallObject() != null) candidates.add(t.getWallObject());
                             if (t.getDecorativeObject() != null) candidates.add(t.getDecorativeObject());
                             if (t.getGroundObject() != null) candidates.add(t.getGroundObject());
@@ -129,6 +130,7 @@ public class RouteOverlay extends Overlay {
                                     graphics.setColor(pulse);
                                     graphics.setStroke(new java.awt.BasicStroke(2));
                                     graphics.draw(clickbox);
+                                    HighlightIcon.drawAbove(graphics, plugin, clickbox);
                                     drewHull = true;
                                 } else {
                                     // Fallback to tile poly if no clickbox
@@ -174,7 +176,7 @@ public class RouteOverlay extends Overlay {
                 Tile t = tiles[x][y];
                 if (t == null) continue;
                 List<TileObject> objs = new ArrayList<>();
-                for (GameObject obj : t.getGameObjects()) { if (obj != null) objs.add(obj); }
+                for (GameObject obj : t.getGameObjects()) { if (SceneObjects.isObject(obj)) objs.add(obj); }
                 if (t.getGroundObject() != null) objs.add(t.getGroundObject());
                 if (t.getDecorativeObject() != null) objs.add(t.getDecorativeObject());
                 for (TileObject obj : objs) {
@@ -188,6 +190,7 @@ public class RouteOverlay extends Overlay {
                     graphics.setColor(pulse);
                     graphics.setStroke(new java.awt.BasicStroke(2));
                     graphics.draw(clickbox);
+                    HighlightIcon.drawAbove(graphics, plugin, clickbox);
                     drew = true;
                 }
             }

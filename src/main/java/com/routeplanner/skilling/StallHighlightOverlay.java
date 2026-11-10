@@ -1,5 +1,7 @@
 package com.routeplanner.skilling;
 
+import com.routeplanner.util.SceneObjects;
+import com.routeplanner.HighlightIcon;
 import com.routeplanner.RoutePlannerPlugin;
 import com.routeplanner.model.RouteStep;
 import com.routeplanner.model.StepType;
@@ -109,7 +111,7 @@ public class StallHighlightOverlay extends Overlay {
                 GameObject[] objects = tile.getGameObjects();
                 if (objects != null) {
                     for (GameObject obj : objects) {
-                        if (obj == null) continue;
+                        if (!SceneObjects.isObject(obj)) continue;
                         // GameObjects span multiple tiles; only draw from the anchor tile
                         if (!obj.getSceneMinLocation().equals(tile.getSceneLocation())) continue;
                         if (!matches(obj.getId(), target)) continue;
@@ -164,6 +166,7 @@ public class StallHighlightOverlay extends Overlay {
         graphics.setColor(ColorUtil.colorWithAlpha(base, outA));
         graphics.setStroke(new BasicStroke(2));
         graphics.draw(hull);
+        HighlightIcon.drawAbove(graphics, plugin, hull);
     }
 
     /**

@@ -11,10 +11,12 @@ import net.runelite.api.Client;
 import net.runelite.api.Skill;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
+import net.runelite.client.config.ConfigManager;
 import net.runelite.client.ui.overlay.*;
 
 import javax.inject.Inject;
 import java.awt.*;
+import java.awt.geom.AffineTransform;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -26,6 +28,7 @@ public class RouteHudOverlay extends Overlay {
     private final RoutePlannerPlugin plugin;
     private final RoutePlannerConfig config;
     private final BankItemManager bankItemManager;
+    private final ConfigManager configManager;
 
     private static final Color BG_COLOR      = new Color(52, 40, 24, 64);   // OSRS brown @ ~25% opacity
     private static final Color TITLE_COLOR   = new Color(255, 152, 31);     // OSRS orange
@@ -36,7 +39,8 @@ public class RouteHudOverlay extends Overlay {
 
     @Inject
     public RouteHudOverlay(Client client, RoutePlannerPlugin plugin, RoutePlannerConfig config,
-                           BankItemManager bankItemManager) {
+                           BankItemManager bankItemManager, ConfigManager configManager) {
+        this.configManager = configManager;
         this.client = client;
         this.plugin = plugin;
         this.config = config;
@@ -47,7 +51,7 @@ public class RouteHudOverlay extends Overlay {
         setLayer(OverlayLayer.UNDER_WIDGETS);
         setPriority(OverlayPriority.MED);
         setMovable(true);
-        setResizable(false);
+        setResizable(true); // Alt + drag a corner or edge rescales the HUD
         setSnappable(true);
     }
 
@@ -77,6 +81,58 @@ public class RouteHudOverlay extends Overlay {
     };
     private int lastWidth, lastHeight; // size when last drawn; hidden frames report none
 
+    /** Smallest and largest HUD Scale, in percent. */
+    private static final int MIN_SCALE = 50, MAX_SCALE = 200;
+    /** How long an Alt-drag resize must rest before the new size is saved. */
+    private static final long SAVE_AFTER_MS = 500;
+
+    /** The size an Alt-drag resize has reached but not yet saved (0 when not resizing), in percent. */
+    private int resizeScale;
+    private long resizedAt;
+    /** Whether this drag follows the width (else the height); null until the drag has moved. */
+    private Boolean dragByWidth;
+    /** The HUD's size at 100% when last drawn. */
+    private int naturalWidth, naturalHeight;
+
+    /**
+     * The HUD's size in percent. RuneLite's Alt-drag resize hands over a new size in pixels; it's
+     * turned into a scale here, since the HUD's own size follows its text, and saved once the
+     * drag rests.
+     */
+    private int scalePercent() {
+        Dimension want = getPreferredSize();
+        long now = System.currentTimeMillis();
+        if (want != null) {
+            setPreferredSize(null);
+            if (naturalWidth > 0 && naturalHeight > 0) {
+                // Follow one side: the width whenever it moved (a corner or side edge), the height
+                // only for a top or bottom edge. Following both would jump between the two sizes
+                // they imply, since dragging doesn't keep the HUD's shape.
+                // The side is picked on the drag's first move and kept until it ends.
+                if (dragByWidth == null && (want.width != lastWidth || want.height != lastHeight)) {
+                    dragByWidth = want.width != lastWidth;
+                }
+                if (dragByWidth != null) {
+                    double percent = dragByWidth ? 100.0 * want.width / naturalWidth : 100.0 * want.height / naturalHeight;
+                    resizeScale = clampScale((int) Math.round(percent));
+                    resizedAt = now;
+                }
+            }
+        }
+        if (resizeScale > 0 && now - resizedAt > SAVE_AFTER_MS) {
+            int done = resizeScale;
+            resizeScale = 0;
+            dragByWidth = null;
+            if (done != config.hudScale()) configManager.setConfiguration(RoutePlannerConfig.GROUP, "hudScale", done);
+            return done;
+        }
+        return clampScale(resizeScale > 0 ? resizeScale : config.hudScale());
+    }
+
+    private static int clampScale(int percent) {
+        return Math.max(MIN_SCALE, Math.min(MAX_SCALE, percent));
+    }
+
     /** True when an open bank, shop, GE or similar window overlaps where the HUD sits. */
     private boolean coveredByWindow() {
         Rectangle at = getBounds();
@@ -100,8 +156,10 @@ public class RouteHudOverlay extends Overlay {
         int fontStyle = config.hudFontBold() ? Font.BOLD : Font.PLAIN;
         graphics.setFont(config.hudFontFamily().toFont(config.hudFontSize(), fontStyle));
         FontMetrics fm = graphics.getFontMetrics();
-        int lineHeight = fm.getHeight() + 3;
-        int padding = 7;
+        boolean compact = config.hudCompact();
+        int lineHeight = fm.getHeight() + (compact ? 1 : 3);
+        int padding = compact ? 4 : 7;
+        int wrap = compact ? 32 : 42;
 
         // Build content: [text, color]
         List<String[]> lines = new ArrayList<>();
@@ -126,23 +184,24 @@ public class RouteHudOverlay extends Overlay {
         }
 
         // Show route name as title always
-        if (activeRoute != null) {
+        if (activeRoute != null && !compact) {
             lines.add(new String[]{activeRoute.getName(), "TITLE"});
         }
 
         // Show route location step if there is one incomplete
         if (routeHasIncompleteStep) {
             RouteStep current = steps.get(routeCurrentIdx);
-            String curPrefix = ">> " + (routeCurrentIdx + 1) + ". ";
-            List<String> curWrapped = wrapText(curPrefix + current.getName(), 42);
+            String curPrefix = compact ? "" : ">> " + (routeCurrentIdx + 1) + ". ";
+            String indent = compact ? "" : "     ";
+            List<String> curWrapped = wrapText(curPrefix + current.getName(), wrap);
             for (int i = 0; i < curWrapped.size(); i++) {
-                String curLine = i == 0 ? curWrapped.get(i) : "     " + curWrapped.get(i);
+                String curLine = i == 0 ? curWrapped.get(i) : indent + curWrapped.get(i);
                 lines.add(new String[]{curLine, "CURRENT"});
             }
-            if (routeCurrentIdx + 1 < steps.size()) {
+            if (routeCurrentIdx + 1 < steps.size() && !compact) {
                 RouteStep next = steps.get(routeCurrentIdx + 1);
                 String nxtPrefix = "   " + (routeCurrentIdx + 2) + ". ";
-                List<String> nxtWrapped = wrapText(nxtPrefix + next.getName(), 42);
+                List<String> nxtWrapped = wrapText(nxtPrefix + next.getName(), wrap);
                 for (int i = 0; i < nxtWrapped.size(); i++) {
                     String nxtLine = i == 0 ? nxtWrapped.get(i) : "     " + nxtWrapped.get(i);
                     lines.add(new String[]{nxtLine, "NEXT"});
@@ -160,7 +219,7 @@ public class RouteHudOverlay extends Overlay {
                         || t.actionText.startsWith(SailingDocks.DISEMBARK)
                         || t.actionText.startsWith("Use "))) {
                 lines.add(new String[]{"---", "DIM"});
-                for (String wrapped : wrapText(t.actionText, 42)) lines.add(new String[]{wrapped, "TITLE"});
+                for (String wrapped : wrapText(t.actionText, wrap)) lines.add(new String[]{wrapped, "TITLE"});
             }
         }
 
@@ -241,7 +300,7 @@ public class RouteHudOverlay extends Overlay {
                     ? curStep.getNoteText() : curStep.getName();
                 for (String para : note.split("\\r?\\n")) {
                     if (para.trim().isEmpty()) continue;
-                    for (String wrapped : wrapText(para, 42)) {
+                    for (String wrapped : wrapText(para, wrap)) {
                         lines.add(new String[]{wrapped, "CURRENT"});
                     }
                 }
@@ -286,7 +345,7 @@ public class RouteHudOverlay extends Overlay {
                         lines.add(new String[]{sk + " Level:", "TITLE"});
                         lines.add(new String[]{"  " + curLvl + " / " + s.getSkillingGoalValue(), "CURRENT"});
                     }
-                    lines.add(new String[]{"Lvl: " + curLvl, "NEXT"});
+                    if (!compact) lines.add(new String[]{"Lvl: " + curLvl, "NEXT"});
                     break;
                 }
             }
@@ -333,6 +392,11 @@ public class RouteHudOverlay extends Overlay {
             dividerC = new Color(185, 145, 85, 45);
         }
 
+        // Everything below is drawn at the HUD's own size, then scaled as a whole
+        double scale = scalePercent() / 100.0;
+        AffineTransform unscaled = graphics.getTransform();
+        graphics.scale(scale, scale);
+
         // Background
         graphics.setColor(bgC);
         graphics.fillRoundRect(0, 0, width, totalHeight, 6, 6);
@@ -369,6 +433,11 @@ public class RouteHudOverlay extends Overlay {
             y += lineHeight;
         }
 
+        graphics.setTransform(unscaled);
+        naturalWidth = width;
+        naturalHeight = totalHeight;
+        width = (int) Math.ceil(width * scale);
+        totalHeight = (int) Math.ceil(totalHeight * scale);
         lastWidth = width;
         lastHeight = totalHeight;
         return new Dimension(width, totalHeight);

@@ -6,6 +6,7 @@ import net.runelite.client.config.ConfigItem;
 import net.runelite.client.config.Alpha;
 import net.runelite.client.config.ConfigSection;
 import net.runelite.client.config.Range;
+import net.runelite.client.config.Units;
 import java.awt.Color;
 
 @ConfigGroup(RoutePlannerConfig.GROUP)
@@ -91,6 +92,24 @@ public interface RoutePlannerConfig extends Config {
     default HudTheme hudTheme() { return HudTheme.OSRS_BROWN; }
 
     @ConfigItem(
+        keyName = "hudCompact",
+        name = "Compact HUD",
+        description = "A smaller HUD: just the current step and what it needs, without the route name or next step.",
+        position = 2
+    )
+    default boolean hudCompact() { return false; }
+
+    @ConfigItem(
+        keyName = "hudScale",
+        name = "HUD Scale",
+        description = "Size of the HUD. You can also hold Alt and drag the HUD's corner or edge.",
+        position = 2
+    )
+    @Range(min = 50, max = 200)
+    @Units(Units.PERCENT)
+    default int hudScale() { return 100; }
+
+    @ConfigItem(
         keyName = "arrivalHideDelay",
         name = "Arrival Hide Delay",
         description = "Increase the tick value 0-30 for the delay. 0 = hide on arrival, 30 = Always On.",
@@ -114,6 +133,13 @@ public interface RoutePlannerConfig extends Config {
         description = "Color for NPC and object outlines"
     )
     default Color npcHighlightColor() { return new Color(255, 165, 0, 200); }
+
+    @ConfigItem(
+        keyName = "highlightIcon",
+        name = "Icon Over Highlights",
+        description = "Show the Route Planner icon above highlighted NPCs and objects"
+    )
+    default boolean highlightIcon() { return true; }
 
     @Alpha
     @ConfigItem(

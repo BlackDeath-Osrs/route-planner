@@ -1,5 +1,6 @@
 package com.routeplanner.teleport;
 
+import com.routeplanner.util.SceneObjects;
 import com.routeplanner.model.RouteStep;
 import net.runelite.api.Client;
 import net.runelite.api.GameObject;
@@ -59,7 +60,7 @@ public final class PortalNexus {
                 GameObject[] objects = tile.getGameObjects();
                 if (objects == null) continue;
                 for (GameObject obj : objects) {
-                    if (obj == null) continue;
+                    if (!SceneObjects.isObject(obj)) continue;
                     // GameObjects span multiple tiles; only count them from the anchor tile
                     if (!obj.getSceneMinLocation().equals(tile.getSceneLocation())) continue;
                     ObjectComposition comp = client.getObjectDefinition(obj.getId());

@@ -1,5 +1,6 @@
 package com.routeplanner;
 
+import com.routeplanner.util.SceneObjects;
 import com.routeplanner.model.ItemMode;
 import com.routeplanner.model.RouteStep;
 import com.routeplanner.model.StepType;
@@ -112,7 +113,7 @@ public class TileMenuHandler {
                 Tile tile = client.getTopLevelWorldView().getSelectedSceneTile();
                 if (tile != null) {
                     for (GameObject obj : tile.getGameObjects()) {
-                        if (obj != null) {
+                        if (SceneObjects.isObject(obj)) {
                             client.createMenuEntry(-1)
                                 .setOption(SET_TRANSITION_OBJECT + " (ID:" + obj.getId() + ")")
                                 .setTarget("<col=00ff00>" + MENU_TARGET + "</col>")
@@ -152,7 +153,7 @@ public class TileMenuHandler {
             Tile tile = client.getTopLevelWorldView().getSelectedSceneTile();
             if (tile == null) return;
             for (GameObject obj : tile.getGameObjects()) {
-                if (obj != null) {
+                if (SceneObjects.isObject(obj)) {
                     activeStep.setTransitionObjectId(obj.getId());
                     plugin.saveRoutes();
                     client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",

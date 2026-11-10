@@ -1,5 +1,6 @@
 package com.routeplanner.sailing;
 
+import com.routeplanner.util.SceneObjects;
 import com.routeplanner.RoutePlannerConfig;
 import net.runelite.api.Client;
 import net.runelite.api.GameObject;
@@ -266,7 +267,7 @@ public class SailingTimers {
                 if (t == null) continue;
                 for (GameObject obj : t.getGameObjects()) {
                     // Each wreck once (from its corner tile), if any tile it covers is within reach of the hull
-                    if (obj == null || !obj.getSceneMinLocation().equals(t.getSceneLocation()) || !activeWreck(obj)) continue;
+                    if (!SceneObjects.isObject(obj) || !obj.getSceneMinLocation().equals(t.getSceneLocation()) || !activeWreck(obj)) continue;
                     if (inHookReach(wv, obj)) out.add(obj.getWorldLocation());
                 }
             }
@@ -294,7 +295,7 @@ public class SailingTimers {
         if (all == null) return true;   // out of view: can't tell, keep counting
         Tile t = all[wv.getPlane()][lp.getSceneX()][lp.getSceneY()];
         if (t == null) return false;
-        for (GameObject obj : t.getGameObjects()) if (obj != null && activeWreck(obj)) return true;
+        for (GameObject obj : t.getGameObjects()) if (SceneObjects.isObject(obj) && activeWreck(obj)) return true;
         return false;
     }
 
