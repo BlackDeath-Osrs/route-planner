@@ -210,8 +210,8 @@ public class ReRecordDialog extends JDialog {
                     merged.add(r.step);
             }
         }
-        section.getSteps().clear();
-        section.getSteps().addAll(merged);
+        // One swap, so the game never reads a half-built list
+        section.setSteps(merged);
         plugin.saveRoutes();
         plugin.refreshHighlights();
         dispose();

@@ -87,6 +87,7 @@ public class RouteRecorder {
     private final List<NPC> pendingKills = new ArrayList<>();
 
     private WorldPoint lastPos;
+    private WorldPoint lastStepTile;    // stepTile() as of the last tick
     private WorldPoint anchor;          // where the last step was recorded (or recording started)
     private int idleTicks;
 
@@ -444,9 +445,9 @@ public class RouteRecorder {
 
     @Subscribe
     public void onGameTick(GameTick tick) {
+        settleKills();
         WorldPoint pos = playerPos();
         if (pos == null) return;
-        settleKills();
         WorldPoint prevTile = lastStepTile; // where the player stood last tick (null in instances)
         lastStepTile = stepTile();
         items.onTick(stepTile());
@@ -833,8 +834,6 @@ public class RouteRecorder {
     }
 
     /** Where the player is, for putting on a step; null inside instances (made-up coordinates). */
-    private WorldPoint lastStepTile;
-
     private WorldPoint stepTile() {
         return inInstance() ? null : playerPos();
     }

@@ -61,42 +61,8 @@ public class SkillingNpcHighlighter {
         return targetNames;
     }
 
-    /** Whether the active step highlights this NPC. */
-    public boolean isHighlighted(NPC npc) {
-        return shouldHighlight(npc) != null;
-    }
-
     private HighlightedNpc shouldHighlight(NPC npc) {
-        if (plugin.getActiveRoute() == null) return null;
-
-        RouteStep step = plugin.getActiveRoute().getActiveStep();
-        if (step == null || !step.isHighlightEnabled()) return null;
-
-        String targetName;
-        if (step.getSkillingTargetNpc() != null) {
-            targetName = step.getSkillingTargetNpc();
-        } else if (step.getNpcHighlight() != null) {
-            targetName = step.getNpcHighlight();
-        } else {
-            return null;
-        }
-        if (targetName == null || targetName.trim().isEmpty()) return null;
-
-        // Support multiple NPCs: comma-separated, with / for alternatives
-        // e.g. "Rommik,Shop assistant/Shop keeper"
-        if (!NpcNames.matches(targetNames(targetName), npc.getName())) return null;
-
-        // Only highlight NPCs within 30 tiles of the player; at sea, measured from the boat and out
-        // as far as the client draws (sea creatures are further apart)
-        WorldPoint at = Sailing.position(client);
-        if (at == null) return null;
-        int range = 30;
-        if (Sailing.isSailing(client) && client.getTopLevelWorldView() != null) {
-            range = Math.max(range, client.getTopLevelWorldView().getScene().getDrawDistance());
-        }
-        if (npc.getWorldLocation().distanceTo(at) > range) return null;
-        if (!plugin.highlightAllowed(step, npc.getWorldLocation())) return null;
-
+        if (!isHighlighted(npc)) return null;
         return HighlightedNpc.builder()
             .npc(npc)
             .highlightColor(plugin.getConfig().npcHighlightColor())
@@ -105,5 +71,40 @@ public class SkillingNpcHighlighter {
             .tile(false)
             .nameOnMinimap(true)
             .build();
+    }
+
+    /** Whether the active step highlights this NPC. */
+    public boolean isHighlighted(NPC npc) {
+        if (plugin.getActiveRoute() == null) return false;
+
+        RouteStep step = plugin.getActiveRoute().getActiveStep();
+        if (step == null || !step.isHighlightEnabled()) return false;
+
+        String targetName;
+        if (step.getSkillingTargetNpc() != null) {
+            targetName = step.getSkillingTargetNpc();
+        } else if (step.getNpcHighlight() != null) {
+            targetName = step.getNpcHighlight();
+        } else {
+            return false;
+        }
+        if (targetName == null || targetName.trim().isEmpty()) return false;
+
+        // Support multiple NPCs: comma-separated, with / for alternatives
+        // e.g. "Rommik,Shop assistant/Shop keeper"
+        if (!NpcNames.matches(targetNames(targetName), npc.getName())) return false;
+
+        // Only highlight NPCs within 30 tiles of the player; at sea, measured from the boat and out
+        // as far as the client draws (sea creatures are further apart)
+        WorldPoint at = Sailing.position(client);
+        if (at == null) return false;
+        int range = 30;
+        if (Sailing.isSailing(client) && client.getTopLevelWorldView() != null) {
+            range = Math.max(range, client.getTopLevelWorldView().getScene().getDrawDistance());
+        }
+        if (npc.getWorldLocation().distanceTo(at) > range) return false;
+        if (!plugin.highlightAllowed(step, npc.getWorldLocation())) return false;
+
+        return true;
     }
 }
