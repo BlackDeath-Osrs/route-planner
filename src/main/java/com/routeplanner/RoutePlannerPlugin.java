@@ -7,11 +7,12 @@ import com.routeplanner.agility.AgilityCoursePresets;
 import com.routeplanner.agility.AgilityObstacle;
 import com.routeplanner.bank.BankFilterButton;
 import com.routeplanner.bank.BankItemManager;
+import com.routeplanner.ui.StepSprites;
 import com.routeplanner.bank.BankOverlay;
 import com.routeplanner.bank.GroundItemOverlay;
 import com.routeplanner.bank.InventoryItemOverlay;
 import com.routeplanner.bank.ShopOverlay;
-import com.routeplanner.dialog.DialogHighlightOverlay;
+import com.routeplanner.dialog.DialogHighlighter;
 import com.routeplanner.hub.RouteHubCatalog;
 import com.routeplanner.model.ItemMode;
 import com.routeplanner.model.Route;
@@ -21,6 +22,7 @@ import com.routeplanner.model.SkillGoalType;
 import com.routeplanner.model.StepType;
 import com.routeplanner.model.TileArea;
 import com.routeplanner.quest.QuestListOverlay;
+import com.routeplanner.record.ReRecordSession;
 import com.routeplanner.record.RecordingOverlay;
 import com.routeplanner.record.RouteRecorder;
 import com.routeplanner.sailing.CatchMessages;
@@ -43,6 +45,7 @@ import com.routeplanner.util.RouteSerializer;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.*;
+import net.runelite.client.util.Text;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.*;
 import net.runelite.api.gameval.InterfaceID;
@@ -54,6 +57,7 @@ import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.events.RuneScapeProfileChanged;
 import net.runelite.client.game.ItemManager;
+import net.runelite.client.game.SkillIconManager;
 import net.runelite.client.game.SpriteManager;
 import net.runelite.client.game.npcoverlay.NpcOverlayService;
 import net.runelite.client.plugins.Plugin;
@@ -92,6 +96,7 @@ public class RoutePlannerPlugin extends Plugin {
     @Inject private Gson gson;
     @Inject @Getter private SpriteManager spriteManager;
     @Inject @Getter private ItemManager itemManager;
+    @Inject private SkillIconManager skillIconManager;
     @Inject private ClientToolbar clientToolbar;
     @Inject private OverlayManager overlayManager;
     @Inject @Named("developerMode") @Getter private boolean developerMode;
@@ -110,7 +115,7 @@ public class RoutePlannerPlugin extends Plugin {
     @Inject private BankOverlay bankOverlay;
     @Inject private ShopOverlay shopOverlay;
     @Inject private GroundItemOverlay groundItemOverlay;
-    @Inject private DialogHighlightOverlay dialogHighlightOverlay;
+    @Inject private DialogHighlighter dialogHighlighter;
     @Inject private StallHighlightOverlay stallHighlightOverlay;
     @Inject private SpellbookOverlay spellbookOverlay;
     @Inject private MinigameTeleportOverlay minigameTeleportOverlay;
@@ -148,12 +153,17 @@ public class RoutePlannerPlugin extends Plugin {
     private volatile WorldPoint lastPlayerLocation = null;
     @Getter private int arrivalHoldTicksRemaining = 0;
     private RouteStep lastKillStep = null;
+    private final KillCredit killCredit = new KillCredit();
+    /** NPCs that died this tick. Credit waits for the tick's end, when any killing hit has been seen too. */
+    private final List<NPC> pendingKills = new ArrayList<>();
     private RouteStep lastDialogStep = null;
     /** The step the NPC highlights were last worked out for. */
     private RouteStep highlightedStep;
     private int dialogProgress = 0;
     private boolean dialogOptionsVisibleLast = false;
     private boolean anyDialogueOpenLast = false;
+    /** Whether the open conversation is with the step's NPC (always true for steps without one). */
+    private boolean dialogPartnerOk = false;
     /** Deposit-all steps: when the bank was opened for this step (-1 = not open). */
     private RouteStep depositStep = null;
     private int depositOpenTick = -1;
@@ -180,6 +190,24 @@ public class RoutePlannerPlugin extends Plugin {
 
     public int getDialogProgress() {
         return dialogProgress;
+    }
+
+    public boolean isDialogPartnerOk() {
+        return dialogPartnerOk;
+    }
+
+    /** Whether the player is talking to the NPC the step names: the NPC they're interacting with,
+     *  or the name over the NPC's chat head. Steps that name no NPC accept any conversation. */
+    private boolean talkingToStepNpc(RouteStep step) {
+        String target = step.getSkillingTargetNpc() != null ? step.getSkillingTargetNpc() : step.getNpcHighlight();
+        if (target == null || target.trim().isEmpty()) return true;
+        java.util.List<String> names = NpcNames.parse(target);
+        Player me = client.getLocalPlayer();
+        if (me != null && me.getInteracting() instanceof NPC
+            && NpcNames.matches(names, me.getInteracting().getName())) return true;
+        Widget head = client.getWidget(InterfaceID.ChatLeft.NAME);
+        return head != null && !head.isHidden()
+            && NpcNames.matches(names, Text.removeTags(head.getText()));
     }
 
     public WorldPoint getLastPlayerLocation() {
@@ -211,6 +239,7 @@ public class RoutePlannerPlugin extends Plugin {
 
         panel = injector.getInstance(RoutePlannerPanel.class);
         panel.init(this);
+        StepSprites.init(spriteManager, itemManager, skillIconManager, bankItemManager, panel::repaint);
 
         // A drawn stand-in until the game's world map orb loads (see RouteIcon), then the real one.
         routeIcon = ImageUtil.loadImageResource(getClass(), "route_icon.png");
@@ -236,14 +265,14 @@ public class RoutePlannerPlugin extends Plugin {
     private List<Overlay> overlays() {
         return Arrays.asList(routeOverlay, minimapOverlay, pathfinderOverlay, shoalRouteOverlay,
             netDepthOverlay, minimapArrowOverlay, worldMapPathOverlay, routeHudOverlay, bankOverlay, shopOverlay,
-            groundItemOverlay, dialogHighlightOverlay, stallHighlightOverlay, spellbookOverlay, minigameTeleportOverlay,
+            groundItemOverlay, stallHighlightOverlay, spellbookOverlay, minigameTeleportOverlay,
             questListOverlay, inventoryItemOverlay, teleportItemOverlay, recordingOverlay, nexusTeleportOverlay,
             areaDrawer);
     }
 
     /** The helpers with their own @Subscribe handlers, registered on start-up and unregistered on shut-down. */
     private List<Object> subscribers() {
-        return Arrays.asList(sailingTimers, bankFilterButton, tileMenuHandler, shortestPathBridge, farmingTracker);
+        return Arrays.asList(sailingTimers, bankFilterButton, tileMenuHandler, shortestPathBridge, farmingTracker, dialogHighlighter);
     }
 
     @Override
@@ -252,10 +281,17 @@ public class RoutePlannerPlugin extends Plugin {
         saveRoutes();
         clientToolbar.removeNavigation(navButton);
         navButton = null;
+        StepSprites.shutDown();
+        dialogHighlighter.clear();
         overlays().forEach(overlayManager::remove);
         subscribers().forEach(eventBus::unregister);
         pathfinderOverlay.shutDown();
         routeRecorder.cancel();
+        ReRecordSession unfinished = endReRecord();
+        if (unfinished != null) {
+            unfinished.restoreTicks();
+            saveRoutes();
+        }
         areaDrawer.cancel();
         bankFilterButton.reset();
         tileMenuHandler.shutDown();
@@ -488,6 +524,42 @@ public class RoutePlannerPlugin extends Plugin {
         refreshHighlights();
     }
 
+    /** The section being re-recorded, or null. */
+    @Getter private ReRecordSession reRecord;
+
+    /**
+     * Re-record a section of the active route: untick it and guide through just that section while
+     * the recorder runs. {@link #endReRecord()} hands the session to the comparison afterwards.
+     * Call on the client thread.
+     */
+    public void startReRecord(RouteSection section) {
+        Route route = activeRoute;
+        if (route == null || section == null || routeRecorder.isRecording()) return;
+        resumeRoute();
+        reRecord = new ReRecordSession(route, section);
+        for (RouteStep s : section.getSteps()) {
+            s.setCompleted(false);
+            s.resetProgress();
+        }
+        route.setFocusSection(section);
+        autoAdvanceSections();
+        routeRecorder.start(route);
+        highlightedStep = route.getActiveStep();
+        refreshHighlights();
+    }
+
+    /** Stop guiding through the re-recorded section; returns its session (null if there was none). */
+    public ReRecordSession endReRecord() {
+        ReRecordSession session = reRecord;
+        reRecord = null;
+        if (session != null) {
+            session.getRoute().setFocusSection(null);
+            autoAdvanceSections();
+            highlightedStep = activeRoute != null ? activeRoute.getActiveStep() : null;
+        }
+        return session;
+    }
+
     public void resumeRoute() {
         if (activeRoute == null || activeRoute.getTestStep() == null) return;
         RouteStep step = activeRoute.getTestStep();
@@ -618,9 +690,10 @@ public class RoutePlannerPlugin extends Plugin {
             return;
         }
         step.setCompleted(true);
+        if (reRecord != null) reRecord.ticked(step, routeRecorder.getDraftCount());
         autoAdvanceSections();
         // If route is repeatable and all steps are now done, reset and restart
-        if (activeRoute != null && activeRoute.isRepeatable()
+        if (activeRoute != null && activeRoute.isRepeatable() && reRecord == null
                 && activeRoute.getActiveStep() == null) {
             resetRoute(activeRoute);
             return;
@@ -934,6 +1007,7 @@ public class RoutePlannerPlugin extends Plugin {
             lastPlayerLocation = Sailing.position(client);
         }
 
+        settleKills();
         RouteStep step = activeRoute != null ? activeRoute.getActiveStep() : null;
         // Any other way the step changes (undo, reset, a step marked incomplete, another route): re-light NPCs
         if (step != highlightedStep) {
@@ -957,6 +1031,7 @@ public class RoutePlannerPlugin extends Plugin {
         checkItems(step);
         startKillCount(step);
         trackDialogue(step);
+        dialogHighlighter.apply();
         checkTeleportArrival(step);
         if (checkBoarding(step)) return;
         checkArrival(step);
@@ -1030,8 +1105,10 @@ public class RoutePlannerPlugin extends Plugin {
         boolean anyOpen = optionsVisible || isAnyDialogueOpen();
         if (anyOpen && !anyDialogueOpenLast) {
             dialogProgress = 0;
+            dialogPartnerOk = false;
         }
-        if (!optionsVisible && dialogOptionsVisibleLast) {
+        if (anyOpen && !dialogPartnerOk) dialogPartnerOk = talkingToStepNpc(step);
+        if (!optionsVisible && dialogOptionsVisibleLast && dialogPartnerOk) {
             dialogProgress++;
             if (dialogProgress >= step.getDialogOptions().split(",").length) {
                 tryCompleteStep(step);
@@ -1166,7 +1243,8 @@ public class RoutePlannerPlugin extends Plugin {
         RouteStep step = activeRoute.getActiveStep();
         if (step == null || step.getTargetId() <= 0) return; // -1 = none; 0 = left out of older saves
         // The kill is one goal; the step's others (items, location, ...) still have to be met.
-        if (event.getNpc().getId() == step.getTargetId() && event.getNpc().isDead()) {
+        if (event.getNpc().getId() == step.getTargetId() && event.getNpc().isDead()
+            && killCredit.isMine(event.getNpc(), client.getTickCount())) {
             tryCompleteStep(step);
         }
     }
@@ -1187,16 +1265,33 @@ public class RoutePlannerPlugin extends Plugin {
     }
 
     @Subscribe
+    public void onHitsplatApplied(HitsplatApplied event) {
+        if (event.getActor() instanceof NPC && event.getHitsplat().isMine()) {
+            killCredit.onHit(event.getActor(), client.getTickCount());
+        }
+    }
+
+    @Subscribe
     public void onActorDeath(ActorDeath event) {
-        if (activeRoute == null) return;
-        RouteStep step = activeRoute.getActiveStep();
-        if (step == null) return;
-        if (step.getNpcHighlight() == null || step.getNpcKillCount() <= 0) return;
-        if (!(event.getActor() instanceof NPC)) return;
-        String name = ((NPC) event.getActor()).getName();
-        if (!NpcNames.matches(step.getNpcHighlight(), name)) return;
-        step.setNpcKillProgress(step.getNpcKillProgress() + 1);
-        log.debug("Note kill {}/{}: {}", step.getNpcKillProgress(), step.getNpcKillCount(), name);
+        if (event.getActor() instanceof NPC) pendingKills.add((NPC) event.getActor());
+    }
+
+    /** Count this tick's deaths toward the active kill step, if they're the step's NPC and the player's kill. */
+    private void settleKills() {
+        if (pendingKills.isEmpty()) return;
+        List<NPC> deaths = new ArrayList<>(pendingKills);
+        pendingKills.clear();
+        RouteStep step = activeRoute != null ? activeRoute.getActiveStep() : null;
+        if (step == null || step.getNpcHighlight() == null || step.getNpcKillCount() <= 0) return;
+        boolean counted = false;
+        for (NPC npc : deaths) {
+            if (!NpcNames.matches(step.getNpcHighlight(), npc.getName())) continue;
+            if (!killCredit.isMine(npc, client.getTickCount())) continue;
+            step.setNpcKillProgress(step.getNpcKillProgress() + 1);
+            log.debug("Note kill {}/{}: {}", step.getNpcKillProgress(), step.getNpcKillCount(), npc.getName());
+            counted = true;
+        }
+        if (!counted) return;
         if (step.getNpcKillProgress() >= step.getNpcKillCount()) {
             tryCompleteStep(step);
         }

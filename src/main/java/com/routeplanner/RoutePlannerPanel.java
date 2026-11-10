@@ -5,6 +5,8 @@ import com.routeplanner.hub.RouteHubPanel;
 import com.routeplanner.model.Route;
 import com.routeplanner.model.RouteSection;
 import com.routeplanner.model.RouteStep;
+import com.routeplanner.record.ReRecordDialog;
+import com.routeplanner.record.ReRecordSession;
 import com.routeplanner.record.RecordReviewDialog;
 import com.routeplanner.record.RouteRecorder;
 import com.routeplanner.ui.StepIcon;
@@ -90,6 +92,7 @@ public class RoutePlannerPanel extends PluginPanel {
     private JLabel recStats, recLast;
     private Timer recTimer;
     private long recStartMillis;
+    private JLabel recTitle;
     private final JPanel routeContent = new JPanel();
     private boolean showAllSteps;
 
@@ -533,7 +536,8 @@ public class RoutePlannerPanel extends PluginPanel {
 
         JPanel top = new JPanel(new BorderLayout(6, 0));
         top.setOpaque(false);
-        JLabel title = new JLabel("Recording", new Glyph(Glyph.REC, 10, REC_RED), SwingConstants.LEFT);
+        recTitle = new JLabel("Recording", new Glyph(Glyph.REC, 10, REC_RED), SwingConstants.LEFT);
+        JLabel title = recTitle;
         title.setForeground(Color.WHITE);
         title.setFont(FontManager.getRunescapeBoldFont());
         recStats = new JLabel();
@@ -571,6 +575,9 @@ public class RoutePlannerPanel extends PluginPanel {
     private void updateRecBanner() {
         RouteRecorder rec = plugin.getRouteRecorder();
         if (!rec.isRecording()) return;
+        ReRecordSession reRecord = plugin.getReRecord();
+        recTitle.setText(reRecord != null ? "Re-recording" : "Recording");
+        recTitle.setToolTipText(reRecord != null ? reRecord.getSection().getName() : null);
         long secs = Math.max(0, (System.currentTimeMillis() - recStartMillis) / 1000);
         int n = rec.getDraftCount();
         recStats.setText(n + (n == 1 ? " step · " : " steps · ") + String.format("%d:%02d", secs / 60, secs % 60));
@@ -757,9 +764,9 @@ public class RoutePlannerPanel extends PluginPanel {
 
         JPanel head = new JPanel(new BorderLayout(7, 0));
         head.setOpaque(false);
-        JLabel icon = new JLabel(new StepIcon(StepIcon.kindOf(step), 26, false));
+        JLabel icon = new JLabel(new StepIcon(step, 30, false));
         icon.setVerticalAlignment(SwingConstants.TOP);
-        JLabel title = new JLabel("<html><div style='width:138px'>" + htmlEscape(step.getName()) + "</div></html>");
+        JLabel title = new JLabel("<html><div style='width:134px'>" + htmlEscape(step.getName()) + "</div></html>");
         title.setForeground(Color.WHITE);
         title.setFont(FontManager.getRunescapeBoldFont());
         head.add(icon, BorderLayout.WEST);
@@ -1007,7 +1014,7 @@ public class RoutePlannerPanel extends PluginPanel {
         row.setAlignmentX(Component.LEFT_ALIGNMENT);
         JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
         left.setOpaque(false);
-        left.add(new JLabel(new StepIcon(StepIcon.kindOf(step), 18, step.isCompleted())));
+        left.add(new JLabel(new StepIcon(step, 18, step.isCompleted())));
         row.add(left, BorderLayout.WEST);
         WrapLabel name = new WrapLabel(step.getName(), 138);
         name.setForeground(step.isCompleted() ? DONE_FG : Color.WHITE);
@@ -1114,10 +1121,15 @@ public class RoutePlannerPanel extends PluginPanel {
             plugin.saveRoutes();
             refresh();
         });
+        JMenuItem reRecord = new JMenuItem("Re-record Section");
+        reRecord.setToolTipText("Play this section again while recording, then compare and pick the changes");
+        reRecord.setEnabled(!plugin.getRouteRecorder().isRecording() && !section.getSteps().isEmpty());
+        reRecord.addActionListener(ev -> startReRecord(section));
         menu.add(up);
         menu.add(down);
         menu.add(mark);
         menu.add(rename);
+        menu.add(reRecord);
         menu.add(delete);
         return menu;
     }
@@ -1404,7 +1416,7 @@ public class RoutePlannerPanel extends PluginPanel {
             String num = String.valueOf(l.num);
             g.setColor(DIM_FG);
             g.drawString(num, 26 - small.stringWidth(num), baseline(small, top + 9));
-            new StepIcon(StepIcon.kindOf(step), 18, step.isCompleted()).paintIcon(this, g, 30, top);
+            new StepIcon(step, 18, step.isCompleted()).paintIcon(this, g, 30, top);
 
             g.setFont(UIManager.getFont("Label.font"));
             FontMetrics fm = g.getFontMetrics();
@@ -1667,11 +1679,26 @@ public class RoutePlannerPanel extends PluginPanel {
         plugin.getClientThread().invokeLater(() -> {
             List<RouteStep> drafts = recorder.stop();
             Route route = recorder.getTargetRoute();
+            ReRecordSession reRecord = plugin.endReRecord();
             SwingUtilities.invokeLater(() -> {
                 refresh();
-                if (drafts.isEmpty()) JOptionPane.showMessageDialog(this, "Nothing was recorded.");
+                if (reRecord != null) new ReRecordDialog(plugin, reRecord, drafts).setVisible(true);
+                else if (drafts.isEmpty()) JOptionPane.showMessageDialog(this, "Nothing was recorded.");
                 else new RecordReviewDialog(plugin, route, drafts).setVisible(true);
             });
+        });
+    }
+
+    private void startReRecord(RouteSection section) {
+        int c = JOptionPane.showConfirmDialog(this, "<html>Re-record <b>" + htmlEscape(section.getName())
+                + "</b>?<br><br>The route takes you through this section again while you record. When you press "
+                + "Stop, you'll see the new steps<br>and changes side by side and pick what to keep. Your ticks "
+                + "come back if you discard it.</html>",
+            "Re-record section", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (c != JOptionPane.OK_OPTION) return;
+        plugin.getClientThread().invokeLater(() -> {
+            plugin.startReRecord(section);
+            SwingUtilities.invokeLater(this::refresh);
         });
     }
 

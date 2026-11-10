@@ -186,6 +186,9 @@ class DialogRecorder {
         if (convNpc != null) {
             step = host.stepAt(pos, "Talk to " + convNpc + LocationNames.at(pos));
             if (step.getSkillingTargetNpc() == null) step.setSkillingTargetNpc(convNpc);
+        } else {
+            // Reading a book, a puzzle, a lever's "Are you sure?": its picks go on the object's step
+            step = host.recentObjectStep(tick);
         }
         host.trace("DIALOG start npc=" + convNpc + " step=" + RouteRecorder.describeStep(step));
     }

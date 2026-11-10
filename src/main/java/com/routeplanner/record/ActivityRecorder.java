@@ -12,7 +12,6 @@ import net.runelite.api.NPC;
 import net.runelite.api.ObjectComposition;
 import com.routeplanner.farming.FarmingTracker;
 import com.routeplanner.util.Herbs;
-import net.runelite.api.Player;
 import net.runelite.api.Skill;
 import net.runelite.api.coords.WorldPoint;
 
@@ -79,9 +78,6 @@ class ActivityRecorder {
     private WorldPoint chorePos;
     private int teleportTick = -1000;
     private int combatTick = -1000;
-    /** The NPC last clicked to attack, and when: a kill counts even if the target just changed. */
-    private String attackedName;
-    private int attackedTick = -1000;
 
     /** The step being added to, and what it's for. */
     private RouteStep step;
@@ -115,8 +111,7 @@ class ActivityRecorder {
             xp.put(s, client.getSkillExperience(s));
         }
         targetName = null;
-        attackedName = null;
-        targetTick = teleportTick = combatTick = lastXpTick = attackedTick = cleanTick = choreTick = -1000;
+        targetTick = teleportTick = combatTick = lastXpTick = cleanTick = choreTick = -1000;
         farmStep = cleanStep = leprechaunStep = null;
         farmStepPatch = -1;
         step = null;
@@ -135,10 +130,6 @@ class ActivityRecorder {
         targetOption = option;
         targetIsNpc = npc;
         targetTick = tick;
-        if ("Attack".equalsIgnoreCase(option) && npc) {
-            attackedName = cleanName(target);
-            attackedTick = tick;
-        }
         // A ship's cannon fights too: its hits give Sailing XP the way an attack gives Ranged
         if ("Attack".equalsIgnoreCase(option)
             || ("Operate".equalsIgnoreCase(option) && target != null && target.toLowerCase().contains("cannon"))) {
@@ -232,6 +223,11 @@ class ActivityRecorder {
             for (AgilityObstacle o : c.getObstacles()) if (o.matchesId(clickedObjectId)) return true;
         }
         return false;
+    }
+
+    /** XP that belongs to something else (a shortcut): only keeps the count current. */
+    void noteXp(Skill s, int newXp) {
+        xp.put(s, newXp);
     }
 
     void onXp(Skill s, int newXp, WorldPoint pos, int tick) {
@@ -430,24 +426,10 @@ class ActivityRecorder {
         pendingTick = tick;
     }
 
-    /** An NPC died; count it if the player was fighting it. */
-    void onNpcDeath(NPC npc, WorldPoint pos) {
-        Player me = client.getLocalPlayer();
-        if (me == null || npc.getName() == null) return;
+    /** One of the player's kills: it joins the current kill step, or starts one. */
+    void onKill(NPC npc, WorldPoint pos) {
+        if (npc.getName() == null) return;
         String name = cleanName(npc.getName());
-        // Ours if we were fighting it, or it's what we've been attacking: with several about (or a
-        // ship's cannon landing the last hit) the target has often moved on to the next one already.
-        boolean fighting = me.getInteracting() == npc || npc.getInteracting() == me;
-        // ...but not one another player was fighting (sea creatures go for the boat's crew, NPCs)
-        boolean otherPlayers = npc.getInteracting() instanceof Player && npc.getInteracting() != me;
-        boolean attacked = name.equalsIgnoreCase(attackedName) && host.currentTick() - attackedTick <= TARGET_WINDOW_TICKS
-            && !otherPlayers;
-        if (!fighting && !attacked) {
-            host.trace("DEATH '" + name + "' not ours (attacked=" + attackedName + " "
-                + (host.currentTick() - attackedTick) + " ticks ago, its target="
-                + (npc.getInteracting() == null ? "none" : npc.getInteracting().getName()) + ")");
-            return;
-        }
         RouteStep last = host.lastDraft();
         boolean same = last != null && name.equalsIgnoreCase(last.getNpcHighlight()) && last.getNpcKillCount() > 0
             && host.isNear(last, pos, ACTIVITY_RADIUS);

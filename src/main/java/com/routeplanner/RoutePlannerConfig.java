@@ -124,6 +124,13 @@ public interface RoutePlannerConfig extends Config {
     default Color minimapColor() { return Color.GREEN; }
 
     @ConfigItem(
+        keyName = "dialogOptionColor",
+        name = "Dialog Option Color",
+        description = "Text color of the chat option to pick"
+    )
+    default Color dialogOptionColor() { return new Color(255, 140, 0); }
+
+    @ConfigItem(
         keyName = "hudFontSize",
         name = "HUD Font Size",
         description = "Font size for the XP tracker HUD"

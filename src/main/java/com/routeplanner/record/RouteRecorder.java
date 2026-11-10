@@ -1,5 +1,6 @@
 package com.routeplanner.record;
 
+import com.routeplanner.KillCredit;
 import com.routeplanner.RoutePlannerConfig;
 import com.routeplanner.model.Route;
 import com.routeplanner.model.RouteStep;
@@ -21,10 +22,12 @@ import net.runelite.api.InventoryID;
 import net.runelite.api.Item;
 import net.runelite.api.MenuAction;
 import net.runelite.api.NPC;
+import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.ActorDeath;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameTick;
+import net.runelite.api.events.HitsplatApplied;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.MenuOptionClicked;
 import com.routeplanner.farming.FarmingTracker;
@@ -74,11 +77,14 @@ public class RouteRecorder {
     private final ItemRecorder items;
     private final ActivityRecorder activity;
     private final DialogRecorder dialog;
+    private final ObjectRecorder objects;
 
     @Getter private volatile boolean recording;
     /** The route the recording was started on; the review saves into this one. */
     @Getter private Route targetRoute;
     private final List<RouteStep> drafts = new ArrayList<>();
+    private final KillCredit killCredit = new KillCredit();
+    private final List<NPC> pendingKills = new ArrayList<>();
 
     private WorldPoint lastPos;
     private WorldPoint anchor;          // where the last step was recorded (or recording started)
@@ -177,12 +183,14 @@ public class RouteRecorder {
         this.items = new ItemRecorder(client, itemManager, this);
         this.activity = new ActivityRecorder(client, this);
         this.dialog = new DialogRecorder(client, this);
+        this.objects = new ObjectRecorder(client, this);
     }
 
     /** Begin recording into {@code route}. Call on the client thread. */
     public void start(Route route) {
         if (recording) return;
         drafts.clear();
+        pendingKills.clear();
         targetRoute = route;
         lastPos = playerPos();
         anchor = lastPos;
@@ -199,6 +207,7 @@ public class RouteRecorder {
         items.start();
         activity.start();
         dialog.start();
+        objects.start();
         recording = true;
         eventBus.register(this);
         log.info("Route Planner: recording started on route '{}'", route.getName());
@@ -304,6 +313,14 @@ public class RouteRecorder {
                 : null;
             activity.onTargetClick(click.option, click.target, click.isNpc(), click.id, stepTile(), objectTile, click.tick);
         }
+        if (click.isObject() && !Sailing.isSailing(client)) {
+            WorldPoint objectTile = inInstance() ? null
+                : WorldPoint.fromScene(client.getTopLevelWorldView(), click.sceneX, click.sceneY, client.getTopLevelWorldView().getPlane());
+            objects.onClick(click.option, click.target, activity.onAgilityCourse(stepTile(), click.id, click.tick),
+                objectTile, click.sceneX, click.sceneY, click.tick);
+        } else if (click.isNpc() || "Walk here".equalsIgnoreCase(click.option)) {
+            objects.onOtherClick();
+        }
         if (click.isNpc()) dialog.onNpcClick(click.option, click.target, click.tick);
         if ("Clean".equalsIgnoreCase(click.option) && Herbs.isGrimy(click.target)) activity.onCleanClick(click.tick);
         // Using items on the Tool Leprechaun notes them
@@ -395,20 +412,48 @@ public class RouteRecorder {
     @Subscribe
     public void onStatChanged(StatChanged e) {
         trace("XP " + e.getSkill() + " xp=" + e.getXp());
-        activity.onXp(e.getSkill(), e.getXp(), stepTile(), client.getTickCount());
+        if (objects.onXp(e.getSkill(), e.getXp(), client.getTickCount())) {
+            activity.noteXp(e.getSkill(), e.getXp());
+        } else {
+            activity.onXp(e.getSkill(), e.getXp(), stepTile(), client.getTickCount());
+        }
+    }
+
+    @Subscribe
+    public void onHitsplatApplied(HitsplatApplied e) {
+        if (e.getActor() instanceof NPC && e.getHitsplat().isMine()) {
+            killCredit.onHit(e.getActor(), client.getTickCount());
+        }
     }
 
     @Subscribe
     public void onActorDeath(ActorDeath e) {
-        if (e.getActor() instanceof NPC) trace("DEATH npc='" + e.getActor().getName() + "'");
-        if (e.getActor() instanceof NPC) activity.onNpcDeath((NPC) e.getActor(), stepTile());
+        if (!(e.getActor() instanceof NPC)) return;
+        trace("DEATH npc='" + e.getActor().getName() + "'");
+        pendingKills.add((NPC) e.getActor());
+    }
+
+    /** Record this tick's deaths that were the player's kills. Done at the tick's end, when any killing hit has been seen too. */
+    private void settleKills() {
+        for (NPC npc : pendingKills) {
+            if (killCredit.isMine(npc, client.getTickCount())) activity.onKill(npc, stepTile());
+            else trace("DEATH '" + npc.getName() + "' not ours");
+        }
+        pendingKills.clear();
     }
 
     @Subscribe
     public void onGameTick(GameTick tick) {
         WorldPoint pos = playerPos();
         if (pos == null) return;
+        settleKills();
+        WorldPoint prevTile = lastStepTile; // where the player stood last tick (null in instances)
+        lastStepTile = stepTile();
         items.onTick(stepTile());
+        LocalPoint local = client.getLocalPlayer().getLocalLocation();
+        if (local != null && lastPos != null) {
+            objects.onTick(stepTile(), local.getSceneX(), local.getSceneY(), !pos.equals(lastPos), client.getTickCount());
+        }
         dialog.onTick(stepTile(), client.getTickCount());
         if (lastPos == null) { lastPos = pos; anchor = pos; return; }
 
@@ -433,6 +478,7 @@ public class RouteRecorder {
         } else if (jumped) {
             trace("JUMP from=" + lastPos + " to=" + pos + " planeChanged=" + planeChanged
                 + " lastClick=" + (lastClick == null ? "none" : lastClick.describe() + "#" + lastClick.id + "@" + lastClick.tick));
+            objects.onJump(prevTile, client.getTickCount());
             onJump(lastPos, pos, planeChanged);
             idleTicks = 0;
         } else if (pos.equals(lastPos)) {
@@ -749,6 +795,11 @@ public class RouteRecorder {
         return drafts.contains(step);
     }
 
+    /** The object interaction's step if it was just made, for a conversation it opened. */
+    RouteStep recentObjectStep(int tick) {
+        return objects.recentStep(tick);
+    }
+
     RouteStep lastDraft() {
         return drafts.isEmpty() ? null : drafts.get(drafts.size() - 1);
     }
@@ -770,6 +821,7 @@ public class RouteRecorder {
     /** Items that arrived without a pickup, purchase or withdrawal: gathering, if anything. */
     void onItemsGained(Map<String, Long> gains, int tick) {
         trace("GAINED " + gains);
+        if (objects.onItemsGained(gains, tick)) return;
         activity.onItemsGained(gains, tick);
     }
 
@@ -781,6 +833,8 @@ public class RouteRecorder {
     }
 
     /** Where the player is, for putting on a step; null inside instances (made-up coordinates). */
+    private WorldPoint lastStepTile;
+
     private WorldPoint stepTile() {
         return inInstance() ? null : playerPos();
     }

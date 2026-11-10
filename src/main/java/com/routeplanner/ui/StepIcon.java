@@ -5,6 +5,7 @@ import com.routeplanner.model.RouteStep;
 import net.runelite.client.util.ColorUtil;
 
 import javax.swing.Icon;
+import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Component;
@@ -13,10 +14,11 @@ import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Path2D;
+import java.awt.image.BufferedImage;
 
 /**
- * A small drawn glyph for what a step asks of the player (talk, buy, gather, kill...), on a dark
- * tile. Drawn rather than loaded so it stays crisp at any size and needs no image resources.
+ * An icon for what a step asks of the player (talk, buy, gather, kill...): the game's own sprite
+ * for it where there is one (see StepSprites), otherwise a small drawn glyph on a dark tile.
  */
 public final class StepIcon implements Icon {
 
@@ -34,11 +36,22 @@ public final class StepIcon implements Icon {
     private static final Color TILE = new Color(20, 20, 20);
 
     private final Kind kind;
+    private final RouteStep step;
     private final int size;
     private final boolean dim;
 
     public StepIcon(Kind kind, int size, boolean dim) {
+        this(kind, null, size, dim);
+    }
+
+    /** The icon for a step, using what it targets (its skill, item, teleport) where known. */
+    public StepIcon(RouteStep step, int size, boolean dim) {
+        this(kindOf(step), step, size, dim);
+    }
+
+    private StepIcon(Kind kind, RouteStep step, int size, boolean dim) {
         this.kind = kind;
+        this.step = step;
         this.size = size;
         this.dim = dim;
     }
@@ -72,6 +85,11 @@ public final class StepIcon implements Icon {
 
     @Override
     public void paintIcon(Component c, Graphics g, int x, int y) {
+        BufferedImage sprite = step != null ? StepSprites.forStep(step, kind) : StepSprites.forKind(kind);
+        if (sprite != null) {
+            paintSprite(g, sprite, x, y);
+            return;
+        }
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g2.translate(x, y);
@@ -87,6 +105,30 @@ public final class StepIcon implements Icon {
         g2.setColor(col);
         g2.setStroke(new BasicStroke(1.7f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
         draw(g2);
+        g2.dispose();
+    }
+
+    /**
+     * The sprite centred in the icon's square: small sprites at the largest whole-number scale that
+     * fits (pixel art stays sharp), larger ones scaled down smoothly.
+     */
+    private void paintSprite(Graphics g, BufferedImage img, int x, int y) {
+        int w = img.getWidth(), h = img.getHeight();
+        if (w <= 0 || h <= 0) return;
+        Graphics2D g2 = (Graphics2D) g.create();
+        int longest = Math.max(w, h);
+        if (longest <= size) {
+            int scale = size / longest;
+            w *= scale;
+            h *= scale;
+            g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+        } else {
+            w = w * size / longest;
+            h = h * size / longest;
+            g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+        }
+        if (dim) g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.45f));
+        g2.drawImage(img, x + (size - w) / 2, y + (size - h) / 2, w, h, null);
         g2.dispose();
     }
 

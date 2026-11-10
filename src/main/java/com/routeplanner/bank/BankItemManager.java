@@ -427,7 +427,17 @@ public class BankItemManager {
         return new ItemProgress(name, sold ? 1 : 0, 1, idFor(parseItemName(name.split("/")[0]), new HashMap<>()));
     }
 
-    private final Map<String, Integer> idCache = new HashMap<>();
+    private final Map<String, Integer> idCache = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** The first listed item's id, for a step's icon; -1 when it can't be identified. */
+    public int firstItemId(String itemListStr) {
+        List<List<String>> groups = parseItemList(itemListStr);
+        if (groups.isEmpty()) return -1;
+        String name = parseItemName(groups.get(0).get(0));
+        int id = idFor(name, Collections.emptyMap());
+        if (id <= 0) idCache.remove(name.trim().toLowerCase()); // the item list may not have loaded yet
+        return id;
+    }
 
     /** An item id for a list name, for its icon: from the inventory, else the item search. */
     private int idFor(String listName, Map<String, Integer> invIds) {

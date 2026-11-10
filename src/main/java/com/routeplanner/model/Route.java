@@ -26,6 +26,9 @@ public class Route {
     // route and whether or not it's ticked. Never saved, so a restart always resumes the route.
     private transient RouteStep testStep;
     private transient boolean testPassed;
+    // Re-recording a section: while set, the route guides through this section only (its first
+    // unticked step is the active one, null once it's all done). Never saved.
+    private transient RouteSection focusSection;
 
     // Legacy flat-step format; migrated into a default section on load.
     @SerializedName("steps")
@@ -151,6 +154,10 @@ public class Route {
     public RouteStep getActiveStep() {
         if (testStep != null) return testStep;
         if (sections == null) return null;
+        if (focusSection != null && sections.contains(focusSection)) {
+            for (RouteStep s : focusSection.getSteps()) if (!s.isCompleted()) return s;
+            return null;
+        }
         for (RouteSection sec : sections) {
             if (sec.getSteps() == null) continue;
             for (RouteStep s : sec.getSteps()) if (!s.isCompleted()) return s;
