@@ -31,7 +31,7 @@ import javax.inject.Singleton;
  *    (planting gives no XP of its own, and the message covers every crop: seeds, saplings,
  *    spores, coral frags);
  *  - other patch steps (a bush, a tree) once the patch gave Farming XP and has nothing left to
- *    pick, harvest or check.
+ *    pick, harvest or check, or once a dead crop was cleared from it.
  */
 @Singleton
 public class FarmingTracker {
@@ -59,6 +59,20 @@ public class FarmingTracker {
         if (!isObjectAction(e.getMenuAction())) return;
         clickedPatchId = e.getId();
         clickTick = client.getTickCount();
+        // A dead patch gives no XP for clearing, so clearing it counts as tending it: the step is
+        // done once the patch is empty (a replant step after it then has the seed planted)
+        RouteStep step = activeFarmStep();
+        if (step != null && !step.isFarmReplant() && e.getId() == step.getFarmPatchId()
+            && "Clear".equalsIgnoreCase(e.getMenuOption()) && isDead(e.getId())) {
+            tendedStep = step;
+        }
+    }
+
+    /** Whether the patch, as it looks now, holds a dead crop ("Dead herbs", "Dead tree", ...). */
+    private boolean isDead(int patchId) {
+        ObjectComposition comp = client.getObjectDefinition(patchId);
+        if (comp != null && comp.getImpostorIds() != null) comp = comp.getImpostor();
+        return comp != null && comp.getName() != null && comp.getName().toLowerCase().startsWith("dead");
     }
 
     @Subscribe

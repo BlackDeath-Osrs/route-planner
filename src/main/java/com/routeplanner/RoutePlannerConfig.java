@@ -135,6 +135,14 @@ public interface RoutePlannerConfig extends Config {
     default Color npcHighlightColor() { return new Color(255, 165, 0, 200); }
 
     @ConfigItem(
+        keyName = "objectHighlightRadius",
+        name = "Object Highlight Radius",
+        description = "Objects light up only within this many tiles of the step's location. Steps that keep highlights to a drawn area use the area instead."
+    )
+    @Range(min = 1, max = 30)
+    default int objectHighlightRadius() { return 10; }
+
+    @ConfigItem(
         keyName = "highlightIcon",
         name = "Icon Over Highlights",
         description = "Show the Route Planner icon above highlighted NPCs and objects"

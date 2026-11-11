@@ -1,6 +1,7 @@
 package com.routeplanner;
 
 import com.routeplanner.model.ItemMode;
+import com.routeplanner.model.ProgressCheck;
 import com.routeplanner.model.Route;
 import com.routeplanner.model.RouteStep;
 import com.routeplanner.model.SkillGoalType;
@@ -8,6 +9,8 @@ import com.routeplanner.model.StepType;
 import com.routeplanner.model.TileArea;
 import com.routeplanner.sailing.SailingDocks;
 import com.routeplanner.skilling.RecipeLabels;
+import com.routeplanner.teleport.FairyRings;
+import com.routeplanner.teleport.Quetzals;
 import com.routeplanner.teleport.TeleportItem;
 import com.routeplanner.teleport.TeleportItems;
 import com.routeplanner.teleport.TeleportPickers;
@@ -87,7 +90,8 @@ public class QuickStepDialog extends JFrame {
     private Runnable onSaved;
 
     private Type type = Type.WALK;
-    private boolean extraItems, extraSkill, extraQuest, extraHighlight, extraStairs, extraChat, extraTele, extraBoat;
+    private boolean extraItems, extraSkill, extraQuest, extraHighlight, extraStairs, extraChat, extraTele, extraBoat, extraProgress;
+    private final HintField progressField = new HintField();
 
     // Teleport: only written back when changed here, so steps with unusual teleports stay intact
     private String teleMethod = "WALK"; // WALK | SPELL | ITEM | NEXUS | PORTAL
@@ -132,9 +136,9 @@ public class QuickStepDialog extends JFrame {
     private final JPanel doneBox = new JPanel(new BorderLayout(7, 0));
     private final JLabel errorLabel = new JLabel(" ");
 
-    private JPanel whereSec, teleSec, whoSec, chatSec, itemsSec, skillSec, questSec, highlightSec, stairsSec, boatSec, noteSec;
+    private JPanel whereSec, teleSec, whoSec, chatSec, itemsSec, skillSec, questSec, highlightSec, stairsSec, boatSec, progressSec, noteSec;
     private JPanel addMore;
-    private JButton addItemsBtn, addSkillBtn, addQuestBtn, addHighlightBtn, addStairsBtn, addTeleBtn, addBoatBtn;
+    private JButton addItemsBtn, addSkillBtn, addQuestBtn, addHighlightBtn, addStairsBtn, addTeleBtn, addBoatBtn, addProgressBtn;
     private JPanel killRow;
     private final Map<JPanel, Component> gaps = new HashMap<>();
     private JPanel addMoreRow;
@@ -181,8 +185,9 @@ public class QuickStepDialog extends JFrame {
         highlightSec = buildHighlight();
         stairsSec = buildStairs();
         boatSec = buildBoat();
+        progressSec = buildProgress();
         noteSec = buildNote();
-        for (JPanel p : new JPanel[]{whereSec, teleSec, whoSec, chatSec, itemsSec, skillSec, questSec, highlightSec, stairsSec, boatSec, noteSec}) {
+        for (JPanel p : new JPanel[]{whereSec, teleSec, whoSec, chatSec, itemsSec, skillSec, questSec, highlightSec, stairsSec, boatSec, progressSec, noteSec}) {
             Component gap = Box.createVerticalStrut(10);
             gaps.put(p, gap); // hidden with its section, so hidden sections leave no hole
             root.add(gap);
@@ -485,14 +490,18 @@ public class QuickStepDialog extends JFrame {
         return p;
     }
 
-    private static final String[] TELE_HOW = {"Spell", "Item", "Portal Nexus", "House portal"};
-    private static final String[] TELE_HOW_KEYS = {"SPELL", "ITEM", "NEXUS", "PORTAL"};
+    private static final String[] TELE_HOW = {"Spell", "Item", "Portal Nexus", "House portal", "Fairy ring", "Quetzal (Renu)", "Quetzal whistle"};
+    private static final String[] TELE_HOW_KEYS = {"SPELL", "ITEM", "NEXUS", "PORTAL", FairyRings.METHOD, Quetzals.METHOD_RENU, Quetzals.METHOD_WHISTLE};
     private static final String NEXUS_HINT = "Destination as named in your nexus, e.g. Varrock";
     private static final String PORTAL_HINT = "Portal's destination, e.g. Varrock for Varrock Portal";
     private final JComboBox<String> teleHow = combo(TELE_HOW);
     private final JComboBox<Object> spellBox = new JComboBox<>();
     private final JComboBox<Object> itemBox = new JComboBox<>();
     private final HintField nexusField = new HintField();
+    private final JComboBox<String> ringBox = new JComboBox<>();
+    private final JComboBox<String> quetzalBox = new JComboBox<>();
+    /** The card both quetzal methods share: a landing-site dropdown. */
+    private static final String QUETZAL_CARD = "QUETZAL_SITE";
     private final JPanel teleChoice = new JPanel(new CardLayout());
 
     private JPanel buildTeleport() {
@@ -575,12 +584,38 @@ public class QuickStepDialog extends JFrame {
             teleportChosen(null);
         }));
 
-        for (JComponent c : new JComponent[]{spellBox, itemBox}) c.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+        // Fairy rings: every code, with where it lands
+        ringBox.addItem("Choose a code...");
+        for (String code : FairyRings.codes()) ringBox.addItem(ringLabel(code));
+        ringBox.setMaximumRowCount(14);
+        ringBox.addActionListener(e -> {
+            if (loading) return;
+            String code = ringBox.getSelectedIndex() > 0 ? FairyRings.normalize(String.valueOf(ringBox.getSelectedItem()).split(" - ")[0]) : null;
+            chosenNexus = code;
+            teleMethod = FairyRings.METHOD;
+            teleportChosen(code != null ? FairyRings.destination(code) : null);
+        });
+
+        // Quetzals: every landing site, by name (Renu and the whistle fly to the same ones)
+        quetzalBox.addItem("Choose a landing site...");
+        for (String site : Quetzals.sites()) quetzalBox.addItem(site);
+        quetzalBox.setMaximumRowCount(14);
+        quetzalBox.addActionListener(e -> {
+            if (loading) return;
+            String site = quetzalBox.getSelectedIndex() > 0 ? String.valueOf(quetzalBox.getSelectedItem()) : null;
+            chosenNexus = site;
+            teleMethod = TELE_HOW_KEYS[Math.max(0, teleHow.getSelectedIndex())];
+            teleportChosen(site != null ? Quetzals.destination(site) : null);
+        });
+
+        for (JComponent c : new JComponent[]{spellBox, itemBox, ringBox, quetzalBox}) c.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
         teleChoice.setOpaque(false);
         teleChoice.setAlignmentX(Component.LEFT_ALIGNMENT);
         teleChoice.add(spellBox, "SPELL");
         teleChoice.add(itemBox, "ITEM");
         teleChoice.add(nexusField, "NEXUS");
+        teleChoice.add(ringBox, FairyRings.METHOD);
+        teleChoice.add(quetzalBox, QUETZAL_CARD);
         teleChoice.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
         p.add(teleChoice);
 
@@ -589,6 +624,16 @@ public class QuickStepDialog extends JFrame {
             showTeleCard(key);
             if (loading) return;
             teleMethod = key;
+            // The nexus/portal text and the fairy ring code share chosenNexus: take the shown one's
+            if (FairyRings.METHOD.equals(key)) {
+                chosenNexus = ringBox.getSelectedIndex() > 0
+                    ? FairyRings.normalize(String.valueOf(ringBox.getSelectedItem()).split(" - ")[0]) : null;
+            } else if (isQuetzal(key)) {
+                chosenNexus = quetzalBox.getSelectedIndex() > 0 ? String.valueOf(quetzalBox.getSelectedItem()) : null;
+            } else if ("NEXUS".equals(key) || "PORTAL".equals(key)) {
+                String t = nexusField.getText().trim();
+                chosenNexus = t.isEmpty() ? null : t;
+            }
             teleTouched = true;
             refresh();
         });
@@ -602,13 +647,33 @@ public class QuickStepDialog extends JFrame {
         showTeleCard(TELE_HOW_KEYS[how]);
         if (chosenSpell != null) spellBox.setSelectedItem(chosenSpell);
         if (chosenItem != null) itemBox.setSelectedItem(chosenItem);
-        if (chosenNexus != null) nexusField.setText(chosenNexus);
+        if (chosenNexus != null && FairyRings.METHOD.equals(teleMethod)) {
+            String code = FairyRings.normalize(chosenNexus);
+            for (int i = 1; i < ringBox.getItemCount(); i++) {
+                if (ringBox.getItemAt(i).startsWith(FairyRings.spaced(code) + " - ")) ringBox.setSelectedIndex(i);
+            }
+        } else if (chosenNexus != null && isQuetzal(teleMethod)) {
+            String site = Quetzals.site(chosenNexus);
+            if (site != null) quetzalBox.setSelectedItem(site);
+        } else if (chosenNexus != null) {
+            nexusField.setText(chosenNexus);
+        }
+    }
+
+    private static boolean isQuetzal(String key) {
+        return Quetzals.METHOD_RENU.equals(key) || Quetzals.METHOD_WHISTLE.equals(key);
+    }
+
+    /** "C K R - Karamja", as listed in the fairy ring code dropdown. */
+    private static String ringLabel(String code) {
+        WorldPoint dest = FairyRings.destination(code);
+        return FairyRings.spaced(code) + " - " + (dest != null ? LocationNames.describe(dest) : "?");
     }
 
     private void showTeleCard(String key) {
         boolean portal = "PORTAL".equals(key);
         nexusField.setHint(portal ? PORTAL_HINT : NEXUS_HINT);
-        ((CardLayout) teleChoice.getLayout()).show(teleChoice, portal ? "NEXUS" : key);
+        ((CardLayout) teleChoice.getLayout()).show(teleChoice, portal ? "NEXUS" : isQuetzal(key) ? QUETZAL_CARD : key);
     }
 
     /** A teleport was picked: aim the step at where it lands (the house has no tile to aim at). */
@@ -624,7 +689,9 @@ public class QuickStepDialog extends JFrame {
 
     private boolean hasTeleport() {
         return ("SPELL".equals(teleMethod) && chosenSpell != null) || ("ITEM".equals(teleMethod) && chosenItem != null)
-            || (("NEXUS".equals(teleMethod) || "PORTAL".equals(teleMethod)) && chosenNexus != null);
+            || (("NEXUS".equals(teleMethod) || "PORTAL".equals(teleMethod)) && chosenNexus != null)
+            || (FairyRings.METHOD.equals(teleMethod) && FairyRings.destination(chosenNexus) != null)
+            || (isQuetzal(teleMethod) && Quetzals.destination(chosenNexus) != null);
     }
 
     private JPanel buildStairs() {
@@ -645,6 +712,20 @@ public class QuickStepDialog extends JFrame {
         p.add(Box.createVerticalStrut(3));
         p.add(small("<html>When the step is on another floor: the tile by the stairs. The route goes there first, then on.</html>"));
         listen(stairsField);
+        return p;
+    }
+
+    private JPanel buildProgress() {
+        JPanel p = section();
+        p.add(label("Game progress"));
+        progressField.setHint("varbit 3185 >= 4  or  varp 1194 bit 6");
+        progressField.setAlignmentX(Component.LEFT_ALIGNMENT);
+        progressField.setMaximumSize(new Dimension(Integer.MAX_VALUE, progressField.getPreferredSize().height));
+        p.add(progressField);
+        p.add(Box.createVerticalStrut(3));
+        p.add(small("<html>A quest stage (varbit or varp &gt;= value) or a diary task (varp and bit). Once the game "
+            + "shows it, the step ticks itself off, even if it was done before the route got here.</html>"));
+        listen(progressField);
         return p;
     }
 
@@ -744,8 +825,11 @@ public class QuickStepDialog extends JFrame {
         addBoatBtn.setToolTipText("Board a boat at a dock first");
         addBoatBtn.addActionListener(e -> { extraBoat = true; refresh(); });
         addTeleBtn = button("+ Teleport");
-        addTeleBtn.setToolTipText("Get there with a spell, an item, the Portal Nexus or a house portal");
+        addTeleBtn.setToolTipText("Get there with a spell, an item, the Portal Nexus, a house portal or a fairy ring");
         addTeleBtn.addActionListener(e -> { extraTele = true; refresh(); });
+        addProgressBtn = button("+ Game progress");
+        addProgressBtn.setToolTipText("Tick the step off when the game shows a quest stage or diary task done");
+        addProgressBtn.addActionListener(e -> { extraProgress = true; refresh(); });
         p.add(addMoreRow);
         p.setAlignmentX(Component.LEFT_ALIGNMENT);
         return p;
@@ -825,6 +909,7 @@ public class QuickStepDialog extends JFrame {
         highlightSec.setVisible(extraHighlight);
         stairsSec.setVisible(extraStairs);
         boatSec.setVisible(extraBoat);
+        progressSec.setVisible(extraProgress);
         teleSec.setVisible(teleOn());
         noteAuto.setVisible(type == Type.NOTE || type == Type.WALK || !noteArea.getText().trim().isEmpty());
         highlight.setVisible(type == Type.TALK || type == Type.KILL || extraHighlight || skillOn() || itemsOn());
@@ -839,6 +924,7 @@ public class QuickStepDialog extends JFrame {
         if (!extraStairs) addMoreRow.add(addStairsBtn);
         if (!extraBoat) addMoreRow.add(addBoatBtn);
         if (!teleOn()) addMoreRow.add(addTeleBtn);
+        if (!extraProgress) addMoreRow.add(addProgressBtn);
         addMoreRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, addMoreRow.getPreferredSize().height));
 
         WorldPoint wp = parseTile(tileField.getText());
@@ -884,14 +970,16 @@ public class QuickStepDialog extends JFrame {
 
         boolean teleportArrival = teleOn() && hasTeleport() && wp == null;
         if (teleportArrival) parts.add("you've arrived by teleport");
-        boolean triggers = hasItems || hasSkill || kills > 0 || hasChat || hasQuest || teleportArrival || hasFarm;
+        ProgressCheck progress = extraProgress ? ProgressCheck.parse(progressField.getText()) : null;
+        boolean triggers = hasItems || hasSkill || kills > 0 || hasChat || hasQuest || teleportArrival || hasFarm || progress != null;
         boolean manual = !triggers && (wp == null || (hasNote && !noteAuto.isSelected()));
         String html;
         if (manual) {
             String why = wp != null ? " (Complete on arrival is off)" : "";
             html = "You'll tick this off yourself" + why + ": Done on the step card, or right-click, Mark Complete.";
         } else {
-            html = "Completes when " + joinAnd(parts) + ".";
+            html = parts.isEmpty() ? "" : "Completes when " + joinAnd(parts) + ".";
+            if (progress != null) html += (html.isEmpty() ? "Completes" : " Or completes") + " as soon as the game shows " + progress + ".";
         }
         doneLabel.setText(html);
         doneBox.setBackground(manual ? MANUAL_BG : DONE_BG);
@@ -956,7 +1044,8 @@ public class QuickStepDialog extends JFrame {
             } else if (s.getTeleportItem() != null && !s.getTeleportItem().isEmpty()) {
                 chosenItem = TeleportItems.getByDisplayName(s.getTeleportItem());
                 if (chosenItem != null) teleMethod = "ITEM";
-            } else if (("NEXUS".equals(s.getTeleportMethod()) || "PORTAL".equals(s.getTeleportMethod()))
+            } else if (("NEXUS".equals(s.getTeleportMethod()) || "PORTAL".equals(s.getTeleportMethod())
+                        || FairyRings.METHOD.equals(s.getTeleportMethod()) || isQuetzal(s.getTeleportMethod()))
                     && s.getTeleportNexus() != null) {
                 teleMethod = s.getTeleportMethod();
                 chosenNexus = s.getTeleportNexus();
@@ -1033,6 +1122,10 @@ public class QuickStepDialog extends JFrame {
             extraHighlight = true;
             hlInventory.setText(s.getInventoryHighlightItems());
         }
+        if (s.getProgressCheck() != null && !s.getProgressCheck().trim().isEmpty()) {
+            extraProgress = true;
+            progressField.setText(s.getProgressCheck());
+        }
         if (s.getTransitionPoint() != null) {
             extraStairs = true;
             stairsField.setText(formatTile(s.getTransitionPoint()));
@@ -1074,6 +1167,9 @@ public class QuickStepDialog extends JFrame {
         if (itemsOn() && itemModeKey() != ItemMode.DEPOSIT_ALL && itemListText().isEmpty()) { errorLabel.setText("Add at least one item, or remove the items section by switching type."); return; }
         if (skillOn() && parseAmount(goalValue.getText()) <= 0) { fail(goalValue, "Enter the goal amount, like 50 or 10k."); return; }
         if (questOn() && questBox.getSelectedItem() == null) { fail(questSearch, "Pick a quest from the list."); return; }
+        if (extraProgress && !progressField.getText().trim().isEmpty() && ProgressCheck.parse(progressField.getText()) == null) {
+            fail(progressField, "Game progress should look like varbit 3185 >= 4, varp 107 >= 5 or varp 1194 bit 6."); return;
+        }
         WorldPoint stairs = extraStairs ? parseTile(stairsField.getText()) : null;
         if (extraStairs && stairs == null && !stairsField.getText().trim().isEmpty()) { fail(stairsField, "The stairs tile should look like 3205, 3209."); return; }
         SailingDocks.Dock dock = extraBoat ? chosenDock() : null;
@@ -1160,6 +1256,10 @@ public class QuickStepDialog extends JFrame {
             s.setQuestComplete(false);
         }
 
+        // Game progress
+        ProgressCheck progress = extraProgress ? ProgressCheck.parse(progressField.getText()) : null;
+        s.setProgressCheck(progress != null ? progress.toString() : null);
+
         // Teleport
         if (teleTouched || (editing == null && hasTeleport())) applyTeleport(s);
 
@@ -1199,6 +1299,14 @@ public class QuickStepDialog extends JFrame {
             step.setTeleportMethod("ITEM");
             step.setTeleportItem(chosenItem.getDisplayName());
             step.setTeleportDestination(chosenItem.getDestination());
+        } else if (FairyRings.METHOD.equals(teleMethod)) {
+            step.setTeleportMethod(FairyRings.METHOD);
+            step.setTeleportNexus(FairyRings.normalize(chosenNexus));
+            step.setTeleportDestination(FairyRings.destination(chosenNexus));
+        } else if (isQuetzal(teleMethod)) {
+            step.setTeleportMethod(teleMethod);
+            step.setTeleportNexus(Quetzals.site(chosenNexus));
+            step.setTeleportDestination(Quetzals.destination(chosenNexus));
         } else {
             step.setTeleportMethod(teleMethod); // NEXUS or PORTAL
             step.setTeleportNexus(chosenNexus);

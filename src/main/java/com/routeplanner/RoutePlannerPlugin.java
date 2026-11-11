@@ -16,6 +16,7 @@ import com.routeplanner.bank.ShopOverlay;
 import com.routeplanner.dialog.DialogHighlighter;
 import com.routeplanner.hub.RouteHubCatalog;
 import com.routeplanner.model.ItemMode;
+import com.routeplanner.model.ProgressCheck;
 import com.routeplanner.model.Route;
 import com.routeplanner.model.RouteSection;
 import com.routeplanner.model.RouteStep;
@@ -119,6 +120,9 @@ public class RoutePlannerPlugin extends Plugin {
     @Inject private DialogHighlighter dialogHighlighter;
     @Inject private StallHighlightOverlay stallHighlightOverlay;
     @Inject private NpcIconOverlay npcIconOverlay;
+    @Inject private com.routeplanner.teleport.FairyRingOverlay fairyRingOverlay;
+    @Inject private com.routeplanner.teleport.FairyRingObjectOverlay fairyRingObjectOverlay;
+    @Inject private com.routeplanner.teleport.QuetzalOverlay quetzalOverlay;
     @Inject private SpellbookOverlay spellbookOverlay;
     @Inject private MinigameTeleportOverlay minigameTeleportOverlay;
     @Inject private QuestListOverlay questListOverlay;
@@ -269,7 +273,7 @@ public class RoutePlannerPlugin extends Plugin {
             netDepthOverlay, minimapArrowOverlay, worldMapPathOverlay, routeHudOverlay, bankOverlay, shopOverlay,
             groundItemOverlay, stallHighlightOverlay, spellbookOverlay, minigameTeleportOverlay,
             questListOverlay, inventoryItemOverlay, teleportItemOverlay, recordingOverlay, nexusTeleportOverlay,
-            areaDrawer, npcIconOverlay);
+            areaDrawer, npcIconOverlay, fairyRingOverlay, fairyRingObjectOverlay, quetzalOverlay);
     }
 
     /** The helpers with their own @Subscribe handlers, registered on start-up and unregistered on shut-down. */
@@ -474,6 +478,20 @@ public class RoutePlannerPlugin extends Plugin {
         saveRoutes();
     }
 
+    /** Whether the game shows the step's progress check met (false without one). */
+    private boolean progressMet(RouteStep step) {
+        ProgressCheck check = step.progress();
+        // A repeatable route would tick itself round forever on a check that stays met
+        if (check == null || client.getGameState() != GameState.LOGGED_IN
+            || (activeRoute != null && activeRoute.isRepeatable())) return false;
+        try {
+            int value = check.kind == ProgressCheck.Kind.VARBIT ? client.getVarbitValue(check.id) : client.getVarpValue(check.id);
+            return check.isMet(value);
+        } catch (RuntimeException e) {
+            return false; // a var the game doesn't have (a typo in the route)
+        }
+    }
+
     private boolean questFinished(RouteStep step) {
         try {
             Quest q = Quest.valueOf(step.getQuestName());
@@ -488,7 +506,9 @@ public class RoutePlannerPlugin extends Plugin {
         if (step.getItemMode() == ItemMode.SELL) {
             return step.isSellArmed() && bankItemManager.hasSoldAll(step.getItemList());
         }
-        if (step.getItemMode() == ItemMode.USE_UP) return bankItemManager.hasNoneUnnoted(step.getItemList());
+        if (step.getItemMode() == ItemMode.USE_UP) {
+            return step.isSellArmed() && bankItemManager.hasNoneUnnoted(step.getItemList());
+        }
         if (step.countsGainedItems()) {
             // Only items picked up / bought since the step started count, never ones already carried.
             return step.getPickupBaseline() != null
@@ -1017,6 +1037,7 @@ public class RoutePlannerPlugin extends Plugin {
             highlightedStep = step;
             skillingNpcHighlighter.rebuild();
         }
+        skillingNpcHighlighter.onGameTick();
         if (activeRoute == null) { pushLive(null); return; }
         pushLive(step);
         if (step == null) { lastDialogStep = null; return; }
@@ -1029,6 +1050,12 @@ public class RoutePlannerPlugin extends Plugin {
         // XP for XP_GAIN (so the very first drop counts). They're saved with the step, so a reload
         // carries on; a reset, an imported route or another account takes fresh ones.
         takeBaselines(step);
+        // The game already shows this step done (a quest stage or diary task): tick it off, one
+        // step a tick, so steps done before the route got to them pass by quickly.
+        if (progressMet(step)) {
+            completeStep(step);
+            return;
+        }
         // Quest steps set to complete with the quest: check now and then (it runs a client script).
         if (step.hasQuest() && step.isQuestComplete() && client.getTickCount() % 3 == 0) tryCompleteStep(step);
         checkItems(step);
@@ -1059,6 +1086,11 @@ public class RoutePlannerPlugin extends Plugin {
         } else {
             // SELL arms once the items are seen in the inventory, and completes only after they're gone.
             if (step.getItemMode() == ItemMode.SELL && !bankItemManager.hasSoldAll(step.getItemList())) {
+                step.setSellArmed(true);
+            }
+            // USE_UP too: with none ever carried (a dead patch gave nothing) it waits to be ticked off,
+            // rather than passing before the harvest even happened
+            if (step.getItemMode() == ItemMode.USE_UP && !bankItemManager.hasNoneUnnoted(step.getItemList())) {
                 step.setSellArmed(true);
             }
             done = itemsSatisfied(step);

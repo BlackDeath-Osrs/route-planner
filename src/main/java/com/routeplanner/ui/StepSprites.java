@@ -2,11 +2,14 @@ package com.routeplanner.ui;
 
 import com.routeplanner.bank.BankItemManager;
 import com.routeplanner.model.RouteStep;
+import com.routeplanner.teleport.FairyRings;
+import com.routeplanner.teleport.Quetzals;
 import com.routeplanner.teleport.TeleportItem;
 import com.routeplanner.teleport.TeleportItems;
 import com.routeplanner.teleport.TeleportSpell;
 import com.routeplanner.teleport.TeleportSpells;
 import net.runelite.api.Skill;
+import net.runelite.api.gameval.ItemID;
 import net.runelite.api.gameval.SpriteID;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.game.SkillIconManager;
@@ -117,6 +120,13 @@ public final class StepSprites {
             if (img != null) return img;
         } else if ("NEXUS".equals(method) || "PORTAL".equals(method)) {
             return sprite(SpriteID.Mapfunction.HOUSE_PORTAL);
+        } else if (FairyRings.METHOD.equals(method)) {
+            // No map icon for fairy rings: the staff that works them
+            BufferedImage img = itemImage(ItemID.DRAMEN_STAFF);
+            if (img != null) return img;
+        } else if (Quetzals.METHOD_RENU.equals(method) || Quetzals.METHOD_WHISTLE.equals(method)) {
+            BufferedImage img = itemImage(ItemID.HG_QUETZALWHISTLE_BASIC);
+            if (img != null) return img;
         }
         return sprite(SpriteID.Mapfunction.TRANSPORTATION);
     }

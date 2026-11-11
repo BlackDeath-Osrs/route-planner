@@ -29,7 +29,7 @@ public class RouteStep {
     // Item/Bank step fields
     private String itemList;  // comma separated, / for alternatives e.g. "Spade,Rune pouch/Divine Rune pouch"
     private ItemMode itemMode = ItemMode.BANK;  // null (left out of older saves) means BANK
-    private transient boolean sellArmed = false;  // SELL: true once items seen in inventory
+    private transient boolean sellArmed = false;  // SELL / USE_UP: true once the items were seen in the inventory
     private Map<String, Long> pickupBaseline;  // PICKUP/SHOP: carried and worn counts when step became active
     // The account the step's baselines (pickupBaseline, skillingStartXp) were taken on when it became
     // active; 0 = not taken yet. Saved, so reloading keeps the progress; an imported route or another
@@ -156,6 +156,23 @@ public class RouteStep {
         return farmPatchId < 0;
     }
 
+    // Game progress: a quest stage or diary task the game records, e.g. "varbit 3185 >= 4" or
+    // "varp 1194 bit 6" (see ProgressCheck). Once the game shows it, the step is done whatever
+    // else it asks for, so steps already done before (or done another way) tick themselves off.
+    private String progressCheck;
+    private transient String parsedCheckText;
+    private transient ProgressCheck parsedCheck;
+
+    /** The step's game progress check, or null when it has none (or it can't be read). */
+    public ProgressCheck progress() {
+        if (progressCheck == null) return null;
+        if (!progressCheck.equals(parsedCheckText)) {
+            parsedCheck = ProgressCheck.parse(progressCheck);
+            parsedCheckText = progressCheck;
+        }
+        return parsedCheck;
+    }
+
     // Note step (informational, not tracked)
     private String noteText;
     private boolean noteAutoComplete; // NOTE step: done on arrival, no manual tick (off = wait for the tick)
@@ -255,6 +272,35 @@ public class RouteStep {
 
     public boolean hasQuest() {
         return questName != null && !questName.trim().isEmpty();
+    }
+
+    /**
+     * Leprechaun-noting and herb-cleaning steps recorded before "use up" existed were saved as
+     * plain item steps, so they completed as soon as the items were carried. Turn them into
+     * use-up steps.
+     */
+    public void migrateUseUp() {
+        if (itemMode != null && itemMode != ItemMode.BANK) return;
+        if (itemList == null || itemList.trim().isEmpty() || name == null) return;
+        boolean noting = "Tool Leprechaun".equalsIgnoreCase(npcHighlight) && name.startsWith("Note ");
+        boolean cleaning = name.startsWith("Clean the grimy herbs") && itemList.trim().equalsIgnoreCase("Grimy *");
+        if (noting || cleaning) itemMode = ItemMode.USE_UP;
+    }
+
+    /** "Harvest and replant the herb patch at ...", "Tend the bush patch": what older recordings named patch steps. */
+    private static final java.util.regex.Pattern OLD_PATCH_STEP =
+        java.util.regex.Pattern.compile("^(Harvest and replant|Tend) the .*patch\\b.*");
+
+    /**
+     * Patch steps recorded before patches were saved on the step carry only their tile, so they
+     * completed on arrival. Mark their patch as unresolved: it's looked up near the tile once in
+     * view, and the step then waits for the patch to be worked.
+     */
+    public void migrateFarmPatch() {
+        if (farmPatchId != 0 || worldPoint == null || name == null) return;
+        if (!OLD_PATCH_STEP.matcher(name).matches()) return;
+        farmPatchId = -1;
+        if (name.startsWith("Harvest and replant")) farmReplant = true;
     }
 
     public boolean hasNote() {

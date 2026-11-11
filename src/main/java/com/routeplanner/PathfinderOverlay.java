@@ -5,6 +5,8 @@ import com.routeplanner.model.StepType;
 import com.routeplanner.model.TileArea;
 import com.routeplanner.sailing.Sailing;
 import com.routeplanner.sailing.SailingDocks;
+import com.routeplanner.teleport.FairyRings;
+import com.routeplanner.teleport.Quetzals;
 import com.routeplanner.teleport.PortalNexus;
 import com.routeplanner.util.ScenePath;
 import com.routeplanner.util.Strokes;
@@ -231,6 +233,27 @@ public class PathfinderOverlay extends Overlay {
         return Objects.equals(a.origin, b.origin) && Objects.equals(a.destination, b.destination);
     }
 
+    /**
+     * For a fairy ring step not yet taken: the ring to walk to (the nearest on the player's
+     * floor); null once the player is at the code's destination, or for any other step.
+     */
+    private FairyRings.Ring fairyRingToTake(RouteStep step) {
+        if (!FairyRings.isFairyRingStep(step) || client.getTopLevelWorldView().isInstance()) return null;
+        WorldPoint player = Sailing.position(client);
+        WorldPoint dest = FairyRings.destination(step.getTeleportNexus());
+        if (player == null || dest == null) return null;
+        if (player.getPlane() == dest.getPlane() && player.distanceTo2D(dest) <= 25) return null;
+        return FairyRings.nearest(player);
+    }
+
+    /** For a Renu quetzal step not yet flown: the nearest landing site where Renu waits, or null. */
+    private WorldPoint renuToTake(RouteStep step) {
+        if (!Quetzals.isRenuStep(step) || client.getTopLevelWorldView().isInstance()) return null;
+        WorldPoint player = Sailing.position(client);
+        if (player == null || Quetzals.arrived(step, player)) return null;
+        return Quetzals.nearestRenu(player);
+    }
+
     /** The places a path jumps (stairs, ladders, teleports), for the bug report log. */
     static String describeJumps(List<WorldPoint> path) {
         StringBuilder sb = new StringBuilder();
@@ -349,6 +372,12 @@ public class PathfinderOverlay extends Overlay {
         // A boarding step goes to the dock first, even when getting on the boat is all it asks.
         boolean boarding = isBoardingPending(step);
         if (boarding) target = step.getBoardPoint();
+        // A fairy ring step goes to the nearest ring first, until the ring has taken the player there.
+        FairyRings.Ring ring = boarding ? null : fairyRingToTake(step);
+        if (ring != null) target = ring.tile;
+        // A Renu quetzal step likewise goes to the nearest landing site first
+        WorldPoint renu = boarding || ring != null ? null : renuToTake(step);
+        if (renu != null) target = renu;
         if (target == null) { cachedPath = new ArrayList<>(); return; }
 
 
@@ -366,6 +395,12 @@ public class PathfinderOverlay extends Overlay {
         if (boarding) {
             activeTransition = new Transport(step.getBoardPoint(), step.getWorldPoint(),
                 sailingDocks.boardingHint(step.getBoardPoint()), step.getBoardObjectId());
+        } else if (ring != null) {
+            activeTransition = new Transport(ring.tile, FairyRings.destination(step.getTeleportNexus()),
+                "Fairy ring " + FairyRings.spaced(step.getTeleportNexus()), ring.objectId, true);
+        } else if (renu != null) {
+            activeTransition = new Transport(renu, Quetzals.destination(step.getTeleportNexus()),
+                "Quetzal to " + Quetzals.site(step.getTeleportNexus()), -1, true);
         } else if (step.getTransitionPoint() != null && otherFloor(player, target)) {
             target = step.getTransitionPoint();
             exactTargetMatch = true; // path to exact tile, not "within 1" which can cut through walls

@@ -2,6 +2,7 @@ package com.routeplanner.util;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Matching NPCs against a step's target text: comma-separated NPCs, each with / for alternatives,
@@ -32,6 +33,31 @@ public final class NpcNames {
         String lower = npcName.toLowerCase();
         for (String t : targets) {
             if (lower.equals(t) || lower.startsWith(t + " ") || lower.startsWith(t + "(")) return true;
+        }
+        return false;
+    }
+
+    /** The parsed target an NPC's name equals (not just starts with), or null. */
+    public static String exactTarget(List<String> targets, String npcName) {
+        if (npcName == null) return null;
+        String lower = npcName.toLowerCase();
+        for (String t : targets) {
+            if (lower.equals(t)) return t;
+        }
+        return null;
+    }
+
+    /**
+     * Like {@link #matches(List, String)}, but a target in {@code exactNearby} (one an NPC nearby is
+     * named exactly) no longer matches longer names: with Shantay standing there, "Shantay" doesn't
+     * also light every "Shantay Guard".
+     */
+    public static boolean matches(List<String> targets, String npcName, Set<String> exactNearby) {
+        if (npcName == null) return false;
+        String lower = npcName.toLowerCase();
+        for (String t : targets) {
+            if (lower.equals(t)) return true;
+            if (!exactNearby.contains(t) && (lower.startsWith(t + " ") || lower.startsWith(t + "("))) return true;
         }
         return false;
     }

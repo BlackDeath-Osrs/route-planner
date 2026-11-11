@@ -8,6 +8,8 @@ import com.routeplanner.model.StepType;
 import com.routeplanner.sailing.CatchMessages;
 import com.routeplanner.sailing.Sailing;
 import com.routeplanner.sailing.SailingDocks;
+import com.routeplanner.teleport.FairyRings;
+import com.routeplanner.teleport.Quetzals;
 import com.routeplanner.teleport.PortalNexus;
 import com.routeplanner.teleport.TeleportItem;
 import com.routeplanner.teleport.TeleportItems;
@@ -33,6 +35,7 @@ import net.runelite.api.events.MenuOptionClicked;
 import com.routeplanner.farming.FarmingTracker;
 import com.routeplanner.util.Herbs;
 import net.runelite.api.events.StatChanged;
+import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.VarbitID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.eventbus.EventBus;
@@ -100,6 +103,11 @@ public class RouteRecorder {
     /** The last Portal Nexus destination picked (menu row or right-click option), and when. */
     private String lastNexusDest;
     private int lastNexusTick;
+    private String lastFairyCode;
+    private int lastFairyTick;
+    /** A click on the quetzal map: Renu's (METHOD_RENU) or the whistle's (METHOD_WHISTLE), and when. */
+    private String lastQuetzalMethod;
+    private int lastQuetzalTick;
     /** The last house portal entered ("Varrock" for Varrock Portal), and when. */
     private String lastPortalDest;
     private int lastPortalTick;
@@ -200,6 +208,8 @@ public class RouteRecorder {
         lastTeleportClick = null;
         lastNexusDest = null;
         lastPortalDest = null;
+        lastFairyCode = null;
+        lastQuetzalMethod = null;
         pendingTransitionTile = null;
         pendingTransitionObjectId = -1;
         wasAboard = Sailing.isSailing(client);
@@ -339,6 +349,29 @@ public class RouteRecorder {
             lastPortalDest = portal;
             lastPortalTick = click.tick;
         }
+        String ring = fairyRingCode(e, click);
+        if (ring != null) {
+            lastFairyCode = ring;
+            lastFairyTick = click.tick;
+            trace("FAIRY RING code " + ring);
+        }
+        int group = e.getParam1() >>> 16;
+        if (group == InterfaceID.QuetzalMenu.UNIVERSE >>> 16 || group == InterfaceID.QuetzalwhistleMenu.UNIVERSE >>> 16) {
+            lastQuetzalMethod = group == InterfaceID.QuetzalwhistleMenu.UNIVERSE >>> 16 ? Quetzals.METHOD_WHISTLE : Quetzals.METHOD_RENU;
+            lastQuetzalTick = click.tick;
+        }
+    }
+
+    /**
+     * The code a click sends a fairy ring to: Teleport in the ring's interface (the dials as they
+     * stand), or "Last-destination (CKR)" / "Zanaris" right-clicked on a ring.
+     */
+    private String fairyRingCode(MenuOptionClicked e, Click click) {
+        if (e.getParam1() == InterfaceID.Fairyrings.CONFIRM) return FairyRings.dialledCode(client);
+        if (!click.isObject() || !FairyRings.isRingName(click.target.toLowerCase())) return null;
+        // The house's spiritual fairy tree prefixes its ring options: "Ring-Zanaris", "Ring-last-destination (CKR)"
+        if ("Zanaris".equalsIgnoreCase(click.option) || "Ring-Zanaris".equalsIgnoreCase(click.option)) return FairyRings.ZANARIS;
+        return FairyRings.lastDestinationCode(click.option);
     }
 
     /**
@@ -504,6 +537,36 @@ public class RouteRecorder {
     private void onJump(WorldPoint from, WorldPoint to, boolean planeChanged) {
         int now = client.getTickCount();
         boolean landedInInstance = inInstance();
+
+        // Quetzal: a site picked on the map, then the flight lands at that site
+        String site = Quetzals.siteAt(to);
+        if (lastQuetzalMethod != null && now - lastQuetzalTick <= TELEPORT_WINDOW_TICKS && site != null) {
+            String method = lastQuetzalMethod;
+            lastQuetzalMethod = null;
+            RouteStep step = newLocationStep(to, (Quetzals.METHOD_WHISTLE.equals(method) ? "Quetzal whistle to " : "Quetzal to ") + site);
+            step.setTeleportMethod(method);
+            step.setTeleportNexus(site);
+            step.setTeleportDestination(Quetzals.destination(site));
+            step.setHighlightEnabled(true);
+            addDraft(step, to);
+            return;
+        }
+
+        // Fairy ring: its right-click teleports are object clicks too.
+        if (lastFairyCode != null && now - lastFairyTick <= TELEPORT_WINDOW_TICKS && !landedInInstance) {
+            // Where it landed decides the code: it's what actually happened, whatever the dials read
+            String landedCode = FairyRings.codeLandingAt(to);
+            String code = landedCode != null ? landedCode : lastFairyCode;
+            lastFairyCode = null;
+            WorldPoint dest = FairyRings.destination(code);
+            RouteStep step = newLocationStep(to, "Fairy ring " + FairyRings.spaced(code) + " to " + LocationNames.describe(to));
+            step.setTeleportMethod(FairyRings.METHOD);
+            step.setTeleportNexus(code);
+            step.setTeleportDestination(dest != null ? dest : to);
+            step.setHighlightEnabled(true); // light the ring (or the house's fairy tree) to step into
+            addDraft(step, to);
+            return;
+        }
 
         // Portal Nexus: checked before objects, since its right-click teleports are object clicks.
         if (lastNexusDest != null && now - lastNexusTick <= TELEPORT_WINDOW_TICKS && !landedInInstance) {

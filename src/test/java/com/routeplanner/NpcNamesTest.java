@@ -24,4 +24,16 @@ public class NpcNamesTest {
         assertFalse(NpcNames.matches("Guard", null));
         assertFalse(NpcNames.matches("", "Guard"));
     }
+
+    @Test
+    public void exactNameNearbyDropsLongerNames() {
+        java.util.List<String> t = NpcNames.parse("Shantay");
+        java.util.Set<String> none = java.util.Collections.emptySet();
+        java.util.Set<String> shantay = java.util.Collections.singleton("shantay");
+        assertEquals("shantay", NpcNames.exactTarget(t, "Shantay"));
+        assertNull(NpcNames.exactTarget(t, "Shantay Guard"));
+        assertTrue(NpcNames.matches(t, "Shantay Guard", none));
+        assertFalse(NpcNames.matches(t, "Shantay Guard", shantay));
+        assertTrue(NpcNames.matches(t, "Shantay", shantay));
+    }
 }

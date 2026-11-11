@@ -77,6 +77,8 @@ public class Route {
             if (sec.getSteps() == null) continue;
             for (RouteStep st : sec.getSteps()) {
                 if (sec.getId() != null && !sec.getId().equals(st.getSectionId())) st.setSectionId(sec.getId());
+                st.migrateUseUp();
+                st.migrateFarmPatch();
             }
         }
         // Agility steps saved with the old StepType.AGILITY load with type==null: turn them into

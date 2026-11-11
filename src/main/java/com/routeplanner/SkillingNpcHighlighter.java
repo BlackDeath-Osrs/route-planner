@@ -3,6 +3,7 @@ package com.routeplanner;
 import com.routeplanner.model.RouteStep;
 import com.routeplanner.model.StepType;
 import com.routeplanner.sailing.Sailing;
+import com.routeplanner.teleport.Quetzals;
 import com.routeplanner.util.NpcNames;
 import net.runelite.api.Client;
 import net.runelite.api.NPC;
@@ -14,7 +15,9 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.awt.Color;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 
 @Singleton
@@ -61,6 +64,49 @@ public class SkillingNpcHighlighter {
         return targetNames;
     }
 
+    /** Targets that an NPC in range is named exactly; their longer-named lookalikes stay dark. */
+    private Set<String> exactNearby = Collections.emptySet();
+
+    /** Once a tick: re-check which targets have an exact-named NPC in range, re-lighting if that changed. */
+    public void onGameTick() {
+        String target = target(activeStep());
+        Set<String> exact = new HashSet<>();
+        WorldPoint at = target == null ? null : Sailing.position(client);
+        if (at != null && client.getTopLevelWorldView() != null) {
+            List<String> names = targetNames(target);
+            int range = range();
+            for (NPC npc : client.getTopLevelWorldView().npcs()) {
+                if (npc == null) continue;
+                String t = NpcNames.exactTarget(names, npc.getName());
+                if (t != null && npc.getWorldLocation().distanceTo(at) <= range) exact.add(t);
+            }
+        }
+        if (!exact.equals(exactNearby)) {
+            exactNearby = exact;
+            rebuild();
+        }
+    }
+
+    private RouteStep activeStep() {
+        return plugin.getActiveRoute() == null ? null : plugin.getActiveRoute().getActiveStep();
+    }
+
+    /** The step's NPC target text, or null when it highlights no NPC. */
+    private static String target(RouteStep step) {
+        if (step == null || !step.isHighlightEnabled()) return null;
+        String t = step.getSkillingTargetNpc() != null ? step.getSkillingTargetNpc() : step.getNpcHighlight();
+        return t == null || t.trim().isEmpty() ? null : t;
+    }
+
+    /** How far from the player NPCs are lit: 30 tiles, or as far as the client draws at sea. */
+    private int range() {
+        int range = 30;
+        if (Sailing.isSailing(client) && client.getTopLevelWorldView() != null) {
+            range = Math.max(range, client.getTopLevelWorldView().getScene().getDrawDistance());
+        }
+        return range;
+    }
+
     private HighlightedNpc shouldHighlight(NPC npc) {
         if (!isHighlighted(npc)) return null;
         return HighlightedNpc.builder()
@@ -73,38 +119,27 @@ public class SkillingNpcHighlighter {
             .build();
     }
 
+    /** On a Renu quetzal step not yet flown: Renu, at any landing site in range. */
+    private boolean isRenuToTake(RouteStep step, NPC npc) {
+        if (!Quetzals.isRenuStep(step) || !Quetzals.RENU.equalsIgnoreCase(npc.getName())) return false;
+        WorldPoint at = Sailing.position(client);
+        return at != null && !Quetzals.arrived(step, at) && npc.getWorldLocation().distanceTo(at) <= range();
+    }
+
     /** Whether the active step highlights this NPC. */
     public boolean isHighlighted(NPC npc) {
-        if (plugin.getActiveRoute() == null) return false;
+        RouteStep step = activeStep();
+        if (isRenuToTake(step, npc)) return true;
+        String targetName = target(step);
+        if (targetName == null) return false;
 
-        RouteStep step = plugin.getActiveRoute().getActiveStep();
-        if (step == null || !step.isHighlightEnabled()) return false;
+        // Comma-separated NPCs with / for alternatives, e.g. "Rommik,Shop assistant/Shop keeper"
+        if (!NpcNames.matches(targetNames(targetName), npc.getName(), exactNearby)) return false;
 
-        String targetName;
-        if (step.getSkillingTargetNpc() != null) {
-            targetName = step.getSkillingTargetNpc();
-        } else if (step.getNpcHighlight() != null) {
-            targetName = step.getNpcHighlight();
-        } else {
-            return false;
-        }
-        if (targetName == null || targetName.trim().isEmpty()) return false;
-
-        // Support multiple NPCs: comma-separated, with / for alternatives
-        // e.g. "Rommik,Shop assistant/Shop keeper"
-        if (!NpcNames.matches(targetNames(targetName), npc.getName())) return false;
-
-        // Only highlight NPCs within 30 tiles of the player; at sea, measured from the boat and out
-        // as far as the client draws (sea creatures are further apart)
+        // Only NPCs in range of the player (at sea, of the boat)
         WorldPoint at = Sailing.position(client);
         if (at == null) return false;
-        int range = 30;
-        if (Sailing.isSailing(client) && client.getTopLevelWorldView() != null) {
-            range = Math.max(range, client.getTopLevelWorldView().getScene().getDrawDistance());
-        }
-        if (npc.getWorldLocation().distanceTo(at) > range) return false;
-        if (!plugin.highlightAllowed(step, npc.getWorldLocation())) return false;
-
-        return true;
+        if (npc.getWorldLocation().distanceTo(at) > range()) return false;
+        return plugin.highlightAllowed(step, npc.getWorldLocation());
     }
 }
