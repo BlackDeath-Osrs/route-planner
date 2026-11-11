@@ -255,7 +255,7 @@ public class PathfinderOverlay extends Overlay {
         WorldPoint dest = SpiritTrees.destination(step.getTeleportNexus());
         if (player == null || dest == null) return null;
         if (!TeleportItems.isHouse(dest) && player.getPlane() == dest.getPlane() && player.distanceTo2D(dest) <= 25) return null;
-        return SpiritTrees.nearest(player);
+        return SpiritTrees.nearest(player, plugin.getPlantedSpiritTrees().grown());
     }
 
     /** For a Renu quetzal step not yet flown: the nearest landing site where Renu waits, or null. */

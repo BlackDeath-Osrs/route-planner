@@ -190,7 +190,7 @@ public class RouteOverlay extends Overlay {
         WorldPoint at;
         String name;
         if (tree) {
-            SpiritTrees.Tree t = SpiritTrees.nearest(player);
+            SpiritTrees.Tree t = SpiritTrees.nearest(player, plugin.getPlantedSpiritTrees().grown());
             at = t == null ? null : t.tileNearest(player);
             name = "Spirit tree";
         } else {

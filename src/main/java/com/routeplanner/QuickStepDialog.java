@@ -552,8 +552,7 @@ public class QuickStepDialog extends JFrame {
             teleportChosen(chosenSpell != null ? chosenSpell.getDestination() : null);
         });
 
-        itemBox.addItem("Choose an item...");
-        for (TeleportItem it : TeleportItems.ALL) itemBox.addItem(it);
+        fillItemBox("");
         itemBox.setMaximumRowCount(14);
         itemBox.setRenderer(new DefaultListCellRenderer() {
             @Override public Component getListCellRendererComponent(JList<?> l, Object v, int i, boolean sel, boolean foc) {
@@ -568,12 +567,53 @@ public class QuickStepDialog extends JFrame {
                 return this;
             }
         });
+        // The box itself is the search: type part of the item or the place to narrow the list
+        itemBox.setEditable(true);
+        itemBox.setEditor(itemEditor);
+        itemEditor.field.setHint(ITEM_PROMPT);
+        itemEditor.field.setToolTipText("Type part of the item or the place, e.g. \"xeric\" or \"slayer tower\"");
+        itemEditor.field.addKeyListener(new java.awt.event.KeyAdapter() {
+            @Override public void keyReleased(java.awt.event.KeyEvent e) {
+                int k = e.getKeyCode();
+                if (k == java.awt.event.KeyEvent.VK_UP || k == java.awt.event.KeyEvent.VK_DOWN
+                    || k == java.awt.event.KeyEvent.VK_ENTER || k == java.awt.event.KeyEvent.VK_ESCAPE
+                    || k == java.awt.event.KeyEvent.VK_LEFT || k == java.awt.event.KeyEvent.VK_RIGHT) return;
+                String typed = itemEditor.field.getText();
+                int caret = itemEditor.field.getCaretPosition();
+                fillItemBox(typed);
+                itemEditor.field.setText(typed);
+                itemEditor.field.setCaretPosition(Math.min(caret, typed.length()));
+                if (itemBox.isShowing() && itemBox.getItemCount() > 0) itemBox.showPopup();
+            }
+        });
+        itemEditor.field.addFocusListener(new java.awt.event.FocusAdapter() {
+            @Override public void focusGained(java.awt.event.FocusEvent e) {
+                itemEditor.field.selectAll();
+                if (itemBox.isShowing()) itemBox.showPopup();
+            }
+            @Override public void focusLost(java.awt.event.FocusEvent e) {
+                // Leaving the box puts back the picked item (or the prompt) and the whole list
+                fillItemBox("");
+            }
+        });
         itemBox.addActionListener(e -> {
-            if (loading) return;
+            if (loading || filteringItems) return;
             Object v = itemBox.getSelectedItem();
-            chosenItem = v instanceof TeleportItem ? (TeleportItem) v : null;
+            TeleportItem picked = null;
+            if (v instanceof TeleportItem) {
+                picked = (TeleportItem) v;
+            } else if (v != null && "comboBoxEdited".equals(e.getActionCommand())) {
+                // Enter on typed text: the item it names, else the first match
+                String typed = v.toString().trim();
+                picked = TeleportItems.getByDisplayName(typed);
+                if (picked == null && !typed.isEmpty() && itemBox.getItemCount() > 0
+                    && itemBox.getItemAt(0) instanceof TeleportItem) picked = (TeleportItem) itemBox.getItemAt(0);
+            }
+            if (picked == null || picked == chosenItem) return;
+            chosenItem = picked;
             teleMethod = "ITEM";
-            teleportChosen(chosenItem != null ? chosenItem.getDestination() : null);
+            itemEditor.setItem(picked);
+            teleportChosen(chosenItem.getDestination());
         });
 
         // The nexus and the house portals share this field: both are named by destination.
@@ -655,6 +695,54 @@ public class QuickStepDialog extends JFrame {
             refresh();
         });
         return p;
+    }
+
+    private static final String ITEM_PROMPT = "Choose an item...";
+    private final ItemEditor itemEditor = new ItemEditor();
+    /** Set while the item list is refilled, so the refill doesn't count as picking an item. */
+    private boolean filteringItems;
+
+    /**
+     * Fill the item list with the teleports whose name has every word of {@code query} (all of
+     * them for an empty query). The box then shows the picked item again, or the prompt.
+     */
+    private void fillItemBox(String query) {
+        String[] words = query == null ? new String[0] : query.trim().toLowerCase().split("\\s+");
+        filteringItems = true;
+        try {
+            itemBox.removeAllItems();
+            for (TeleportItem it : TeleportItems.ALL) {
+                String name = it.getDisplayName().toLowerCase();
+                boolean all = true;
+                for (String w : words) if (!w.isEmpty() && !name.contains(w)) { all = false; break; }
+                if (all) itemBox.addItem(it);
+            }
+            itemBox.setSelectedItem(chosenItem);
+            itemEditor.setItem(chosenItem);
+        } finally {
+            filteringItems = false;
+        }
+    }
+
+    /** The item box's text field: the picked item's name, or empty with the prompt as a hint. */
+    private static final class ItemEditor implements javax.swing.ComboBoxEditor {
+        final HintField field = new HintField();
+
+        @Override public Component getEditorComponent() { return field; }
+
+        @Override public void setItem(Object o) {
+            // Typed text stays put while the list is narrowed; a picked item shows its name
+            if (o instanceof TeleportItem) field.setText(((TeleportItem) o).getDisplayName());
+            else if (o == null) field.setText("");
+        }
+
+        @Override public Object getItem() { return field.getText(); }
+
+        @Override public void selectAll() { field.selectAll(); }
+
+        @Override public void addActionListener(java.awt.event.ActionListener l) { field.addActionListener(l); }
+
+        @Override public void removeActionListener(java.awt.event.ActionListener l) { field.removeActionListener(l); }
     }
 
     /** Point the teleport dropdowns at what was loaded from the step. */

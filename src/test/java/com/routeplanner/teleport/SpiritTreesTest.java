@@ -47,4 +47,14 @@ public class SpiritTreesTest {
         assertTrue(SpiritTrees.isTreeName("spiritual fairy tree"));
         assertFalse(SpiritTrees.isTreeName("fairy ring"));
     }
+
+    @Test
+    public void grownPlantedTreesCount() {
+        java.util.Set<String> grown = new java.util.HashSet<>();
+        for (SpiritTrees.Tree t : SpiritTrees.plantedTrees()) grown.add(t.key());
+        assertEquals(5, SpiritTrees.plantedTrees().size());
+        // By the Farming Guild's patch, with a tree grown there: that one
+        SpiritTrees.Tree guild = SpiritTrees.nearest(new WorldPoint(1253, 3750, 0), grown);
+        assertTrue(guild.planted);
+    }
 }

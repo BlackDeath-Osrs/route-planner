@@ -124,6 +124,7 @@ public class RoutePlannerPlugin extends Plugin {
     @Inject private com.routeplanner.teleport.FairyRingObjectOverlay fairyRingObjectOverlay;
     @Inject private com.routeplanner.teleport.QuetzalOverlay quetzalOverlay;
     @Inject private com.routeplanner.teleport.SpiritTreeOverlay spiritTreeOverlay;
+    @Inject @Getter private com.routeplanner.teleport.PlantedSpiritTrees plantedSpiritTrees;
     @Inject private SpellbookOverlay spellbookOverlay;
     @Inject private MinigameTeleportOverlay minigameTeleportOverlay;
     @Inject private QuestListOverlay questListOverlay;
@@ -1039,6 +1040,7 @@ public class RoutePlannerPlugin extends Plugin {
             skillingNpcHighlighter.rebuild();
         }
         skillingNpcHighlighter.onGameTick();
+        plantedSpiritTrees.onGameTick();
         if (activeRoute == null) { pushLive(null); return; }
         pushLive(step);
         if (step == null) { lastDialogStep = null; return; }

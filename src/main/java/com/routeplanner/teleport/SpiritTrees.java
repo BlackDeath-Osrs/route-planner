@@ -52,6 +52,17 @@ public final class SpiritTrees {
             return best;
         }
 
+        /** The tiles around the tree. */
+        public List<WorldPoint> tiles() {
+            return Collections.unmodifiableList(tiles);
+        }
+
+        /** Names the tree for saving: its first tile, "x,y,plane". */
+        public String key() {
+            WorldPoint t = tiles.get(0);
+            return t.getX() + "," + t.getY() + "," + t.getPlane();
+        }
+
         int distanceTo(WorldPoint from) {
             return tileNearest(from).distanceTo2D(from);
         }
@@ -154,11 +165,16 @@ public final class SpiritTrees {
      * are left out: they only work for whoever planted them, and the route can't tell whose they are.
      */
     public static Tree nearest(WorldPoint from) {
+        return nearest(from, Collections.emptySet());
+    }
+
+    /** Like {@link #nearest(WorldPoint)}, but planted trees in {@code grown} (by key) count too. */
+    public static Tree nearest(WorldPoint from, java.util.Set<String> grown) {
         if (from == null) return null;
         Tree best = null;
         int bestDist = Integer.MAX_VALUE;
         for (Tree t : TREES) {
-            if (t.planted || t.tiles.get(0).getPlane() != from.getPlane()) continue;
+            if ((t.planted && !grown.contains(t.key())) || t.tiles.get(0).getPlane() != from.getPlane()) continue;
             int d = t.distanceTo(from);
             if (d < bestDist) {
                 bestDist = d;
@@ -166,6 +182,13 @@ public final class SpiritTrees {
             }
         }
         return best;
+    }
+
+    /** The trees grown in farming patches. */
+    public static List<Tree> plantedTrees() {
+        List<Tree> out = new ArrayList<>();
+        for (Tree t : TREES) if (t.planted) out.add(t);
+        return out;
     }
 
     public static boolean isSpiritTreeStep(RouteStep step) {
