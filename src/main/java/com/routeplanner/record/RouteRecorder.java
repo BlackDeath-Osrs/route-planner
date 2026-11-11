@@ -10,6 +10,7 @@ import com.routeplanner.sailing.Sailing;
 import com.routeplanner.sailing.SailingDocks;
 import com.routeplanner.teleport.FairyRings;
 import com.routeplanner.teleport.Quetzals;
+import com.routeplanner.teleport.SpiritTrees;
 import com.routeplanner.teleport.PortalNexus;
 import com.routeplanner.teleport.TeleportItem;
 import com.routeplanner.teleport.TeleportItems;
@@ -108,6 +109,8 @@ public class RouteRecorder {
     /** A click on the quetzal map: Renu's (METHOD_RENU) or the whistle's (METHOD_WHISTLE), and when. */
     private String lastQuetzalMethod;
     private int lastQuetzalTick;
+    /** The last Travel on a spirit tree, and when; the menu pick and flight follow. */
+    private int lastSpiritTreeTick = -1000;
     /** The last house portal entered ("Varrock" for Varrock Portal), and when. */
     private String lastPortalDest;
     private int lastPortalTick;
@@ -355,6 +358,12 @@ public class RouteRecorder {
             lastFairyTick = click.tick;
             trace("FAIRY RING code " + ring);
         }
+        // "Travel" on a spirit tree; the house's spiritual fairy tree calls it "Tree" (its fairy
+        // ring options start "Ring-")
+        if (click.isObject() && SpiritTrees.isTreeName(click.target.toLowerCase())
+                && (click.option.toLowerCase().contains("travel") || "Tree".equalsIgnoreCase(click.option))) {
+            lastSpiritTreeTick = click.tick;
+        }
         int group = e.getParam1() >>> 16;
         if (group == InterfaceID.QuetzalMenu.UNIVERSE >>> 16 || group == InterfaceID.QuetzalwhistleMenu.UNIVERSE >>> 16) {
             lastQuetzalMethod = group == InterfaceID.QuetzalwhistleMenu.UNIVERSE >>> 16 ? Quetzals.METHOD_WHISTLE : Quetzals.METHOD_RENU;
@@ -547,6 +556,19 @@ public class RouteRecorder {
             step.setTeleportMethod(method);
             step.setTeleportNexus(site);
             step.setTeleportDestination(Quetzals.destination(site));
+            step.setHighlightEnabled(true);
+            addDraft(step, to);
+            return;
+        }
+
+        // Spirit tree: Travel on a tree, a pick in its menu, then landing at one of its destinations
+        String treeDest = SpiritTrees.destinationAt(to);
+        if (now - lastSpiritTreeTick <= TELEPORT_WINDOW_TICKS && treeDest != null && !landedInInstance) {
+            lastSpiritTreeTick = -1000;
+            RouteStep step = newLocationStep(to, "Spirit tree to " + treeDest);
+            step.setTeleportMethod(SpiritTrees.METHOD);
+            step.setTeleportNexus(treeDest);
+            step.setTeleportDestination(SpiritTrees.destination(treeDest));
             step.setHighlightEnabled(true);
             addDraft(step, to);
             return;

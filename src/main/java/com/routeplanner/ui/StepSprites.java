@@ -4,6 +4,7 @@ import com.routeplanner.bank.BankItemManager;
 import com.routeplanner.model.RouteStep;
 import com.routeplanner.teleport.FairyRings;
 import com.routeplanner.teleport.Quetzals;
+import com.routeplanner.teleport.SpiritTrees;
 import com.routeplanner.teleport.TeleportItem;
 import com.routeplanner.teleport.TeleportItems;
 import com.routeplanner.teleport.TeleportSpell;
@@ -123,6 +124,10 @@ public final class StepSprites {
         } else if (FairyRings.METHOD.equals(method)) {
             // No map icon for fairy rings: the staff that works them
             BufferedImage img = itemImage(ItemID.DRAMEN_STAFF);
+            if (img != null) return img;
+        } else if (SpiritTrees.METHOD.equals(method)) {
+            // No map icon of its own (the map shows the general transport one): a sapling
+            BufferedImage img = itemImage(ItemID.PLANTPOT_SPIRIT_TREE_SAPLING);
             if (img != null) return img;
         } else if (Quetzals.METHOD_RENU.equals(method) || Quetzals.METHOD_WHISTLE.equals(method)) {
             BufferedImage img = itemImage(ItemID.HG_QUETZALWHISTLE_BASIC);

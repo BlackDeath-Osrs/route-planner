@@ -56,7 +56,7 @@ class ObjectRecorder {
     /** Objects that are plain travel or banking whatever the option. */
     private static final Pattern SKIP_OBJECT = Pattern.compile(
         "(?i).*\\b(door|doors|gate|gates|curtain|curtains|trapdoor|staircase|stairs|ladder|bank booth|bank chest|"
-            + "deposit box|portal|gangplank|fairy ring|fairy tree)\\b.*");
+            + "deposit box|portal|gangplank|fairy ring|fairy tree|spirit tree)\\b.*");
 
     private final Client client;
     private final RouteRecorder host;

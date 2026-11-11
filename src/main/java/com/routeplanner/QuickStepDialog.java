@@ -11,6 +11,7 @@ import com.routeplanner.sailing.SailingDocks;
 import com.routeplanner.skilling.RecipeLabels;
 import com.routeplanner.teleport.FairyRings;
 import com.routeplanner.teleport.Quetzals;
+import com.routeplanner.teleport.SpiritTrees;
 import com.routeplanner.teleport.TeleportItem;
 import com.routeplanner.teleport.TeleportItems;
 import com.routeplanner.teleport.TeleportPickers;
@@ -490,8 +491,8 @@ public class QuickStepDialog extends JFrame {
         return p;
     }
 
-    private static final String[] TELE_HOW = {"Spell", "Item", "Portal Nexus", "House portal", "Fairy ring", "Quetzal (Renu)", "Quetzal whistle"};
-    private static final String[] TELE_HOW_KEYS = {"SPELL", "ITEM", "NEXUS", "PORTAL", FairyRings.METHOD, Quetzals.METHOD_RENU, Quetzals.METHOD_WHISTLE};
+    private static final String[] TELE_HOW = {"Spell", "Item", "Portal Nexus", "House portal", "Fairy ring", "Spirit tree", "Quetzal (Renu)", "Quetzal whistle"};
+    private static final String[] TELE_HOW_KEYS = {"SPELL", "ITEM", "NEXUS", "PORTAL", FairyRings.METHOD, SpiritTrees.METHOD, Quetzals.METHOD_RENU, Quetzals.METHOD_WHISTLE};
     private static final String NEXUS_HINT = "Destination as named in your nexus, e.g. Varrock";
     private static final String PORTAL_HINT = "Portal's destination, e.g. Varrock for Varrock Portal";
     private final JComboBox<String> teleHow = combo(TELE_HOW);
@@ -500,6 +501,7 @@ public class QuickStepDialog extends JFrame {
     private final HintField nexusField = new HintField();
     private final JComboBox<String> ringBox = new JComboBox<>();
     private final JComboBox<String> quetzalBox = new JComboBox<>();
+    private final JComboBox<String> treeBox = new JComboBox<>();
     /** The card both quetzal methods share: a landing-site dropdown. */
     private static final String QUETZAL_CARD = "QUETZAL_SITE";
     private final JPanel teleChoice = new JPanel(new CardLayout());
@@ -608,7 +610,19 @@ public class QuickStepDialog extends JFrame {
             teleportChosen(site != null ? Quetzals.destination(site) : null);
         });
 
-        for (JComponent c : new JComponent[]{spellBox, itemBox, ringBox, quetzalBox}) c.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+        // Spirit trees: every place in the trees' menu
+        treeBox.addItem("Choose a destination...");
+        for (String d : SpiritTrees.destinations()) treeBox.addItem(d);
+        treeBox.setMaximumRowCount(14);
+        treeBox.addActionListener(e -> {
+            if (loading) return;
+            String dest = treeBox.getSelectedIndex() > 0 ? String.valueOf(treeBox.getSelectedItem()) : null;
+            chosenNexus = dest;
+            teleMethod = SpiritTrees.METHOD;
+            teleportChosen(dest != null ? SpiritTrees.destination(dest) : null);
+        });
+
+        for (JComponent c : new JComponent[]{spellBox, itemBox, ringBox, quetzalBox, treeBox}) c.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
         teleChoice.setOpaque(false);
         teleChoice.setAlignmentX(Component.LEFT_ALIGNMENT);
         teleChoice.add(spellBox, "SPELL");
@@ -616,6 +630,7 @@ public class QuickStepDialog extends JFrame {
         teleChoice.add(nexusField, "NEXUS");
         teleChoice.add(ringBox, FairyRings.METHOD);
         teleChoice.add(quetzalBox, QUETZAL_CARD);
+        teleChoice.add(treeBox, SpiritTrees.METHOD);
         teleChoice.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
         p.add(teleChoice);
 
@@ -630,6 +645,8 @@ public class QuickStepDialog extends JFrame {
                     ? FairyRings.normalize(String.valueOf(ringBox.getSelectedItem()).split(" - ")[0]) : null;
             } else if (isQuetzal(key)) {
                 chosenNexus = quetzalBox.getSelectedIndex() > 0 ? String.valueOf(quetzalBox.getSelectedItem()) : null;
+            } else if (SpiritTrees.METHOD.equals(key)) {
+                chosenNexus = treeBox.getSelectedIndex() > 0 ? String.valueOf(treeBox.getSelectedItem()) : null;
             } else if ("NEXUS".equals(key) || "PORTAL".equals(key)) {
                 String t = nexusField.getText().trim();
                 chosenNexus = t.isEmpty() ? null : t;
@@ -652,6 +669,9 @@ public class QuickStepDialog extends JFrame {
             for (int i = 1; i < ringBox.getItemCount(); i++) {
                 if (ringBox.getItemAt(i).startsWith(FairyRings.spaced(code) + " - ")) ringBox.setSelectedIndex(i);
             }
+        } else if (chosenNexus != null && SpiritTrees.METHOD.equals(teleMethod)) {
+            String dest = SpiritTrees.destinationName(chosenNexus);
+            if (dest != null) treeBox.setSelectedItem(dest);
         } else if (chosenNexus != null && isQuetzal(teleMethod)) {
             String site = Quetzals.site(chosenNexus);
             if (site != null) quetzalBox.setSelectedItem(site);
@@ -691,7 +711,8 @@ public class QuickStepDialog extends JFrame {
         return ("SPELL".equals(teleMethod) && chosenSpell != null) || ("ITEM".equals(teleMethod) && chosenItem != null)
             || (("NEXUS".equals(teleMethod) || "PORTAL".equals(teleMethod)) && chosenNexus != null)
             || (FairyRings.METHOD.equals(teleMethod) && FairyRings.destination(chosenNexus) != null)
-            || (isQuetzal(teleMethod) && Quetzals.destination(chosenNexus) != null);
+            || (isQuetzal(teleMethod) && Quetzals.destination(chosenNexus) != null)
+            || (SpiritTrees.METHOD.equals(teleMethod) && SpiritTrees.destination(chosenNexus) != null);
     }
 
     private JPanel buildStairs() {
@@ -1045,7 +1066,8 @@ public class QuickStepDialog extends JFrame {
                 chosenItem = TeleportItems.getByDisplayName(s.getTeleportItem());
                 if (chosenItem != null) teleMethod = "ITEM";
             } else if (("NEXUS".equals(s.getTeleportMethod()) || "PORTAL".equals(s.getTeleportMethod())
-                        || FairyRings.METHOD.equals(s.getTeleportMethod()) || isQuetzal(s.getTeleportMethod()))
+                        || FairyRings.METHOD.equals(s.getTeleportMethod()) || isQuetzal(s.getTeleportMethod())
+                        || SpiritTrees.METHOD.equals(s.getTeleportMethod()))
                     && s.getTeleportNexus() != null) {
                 teleMethod = s.getTeleportMethod();
                 chosenNexus = s.getTeleportNexus();
@@ -1303,6 +1325,10 @@ public class QuickStepDialog extends JFrame {
             step.setTeleportMethod(FairyRings.METHOD);
             step.setTeleportNexus(FairyRings.normalize(chosenNexus));
             step.setTeleportDestination(FairyRings.destination(chosenNexus));
+        } else if (SpiritTrees.METHOD.equals(teleMethod)) {
+            step.setTeleportMethod(SpiritTrees.METHOD);
+            step.setTeleportNexus(SpiritTrees.destinationName(chosenNexus));
+            step.setTeleportDestination(SpiritTrees.destination(chosenNexus));
         } else if (isQuetzal(teleMethod)) {
             step.setTeleportMethod(teleMethod);
             step.setTeleportNexus(Quetzals.site(chosenNexus));

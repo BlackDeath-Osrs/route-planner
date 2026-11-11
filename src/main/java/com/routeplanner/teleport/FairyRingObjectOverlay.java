@@ -25,9 +25,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * On a fairy ring step inside an instance (a player-owned house), highlights every fairy ring
- * there, in any of its forms: the plain ring and the spiritual fairy tree. Outside instances the
- * path already leads to, and lights, the nearest ring in the world.
+ * On a fairy ring or spirit tree step inside an instance (a player-owned house), highlights
+ * every ring or tree there, in any of its forms: the plain ring, the spirit tree, and the
+ * spiritual fairy tree that is both. Outside instances the path already leads to, and lights,
+ * the nearest one in the world.
  */
 @Singleton
 public class FairyRingObjectOverlay extends Overlay {
@@ -38,6 +39,7 @@ public class FairyRingObjectOverlay extends Overlay {
     /** The rings found in the scene, looked for again once a tick. */
     private final List<GameObject> rings = new ArrayList<>();
     private int scannedTick = -1;
+    private boolean scannedForRing;
 
     @Inject
     public FairyRingObjectOverlay(Client client, RoutePlannerPlugin plugin) {
@@ -52,17 +54,20 @@ public class FairyRingObjectOverlay extends Overlay {
         if (plugin.getActiveRoute() == null) return null;
         RouteStep step = plugin.getActiveRoute().getActiveStep();
         WorldView wv = client.getTopLevelWorldView();
-        if (!FairyRings.isFairyRingStep(step) || !step.isHighlightEnabled() || wv == null || !wv.isInstance()) return null;
+        if (step == null || !step.isHighlightEnabled() || wv == null || !wv.isInstance()) return null;
+        boolean ring = FairyRings.isFairyRingStep(step);
+        if (!ring && !SpiritTrees.isSpiritTreeStep(step)) return null;
 
-        if (client.getTickCount() != scannedTick) {
+        if (client.getTickCount() != scannedTick || ring != scannedForRing) {
             scannedTick = client.getTickCount();
-            scan(wv);
+            scannedForRing = ring;
+            scan(wv, ring);
         }
-        for (GameObject ring : rings) draw(graphics, ring.getConvexHull());
+        for (GameObject obj : rings) draw(graphics, obj.getConvexHull());
         return null;
     }
 
-    private void scan(WorldView wv) {
+    private void scan(WorldView wv, boolean ring) {
         rings.clear();
         if (wv.getScene() == null) return;
         for (Tile[] column : wv.getScene().getTiles()[wv.getPlane()]) {
@@ -72,7 +77,8 @@ public class FairyRingObjectOverlay extends Overlay {
                     if (!SceneObjects.isObject(obj)) continue;
                     // A big object is listed on each of its tiles: keep it once, from its corner
                     if (!tile.getSceneLocation().equals(obj.getSceneMinLocation())) continue;
-                    if (FairyRings.isRingName(name(obj.getId()))) rings.add(obj);
+                    String name = name(obj.getId());
+                    if (ring ? FairyRings.isRingName(name) : SpiritTrees.isTreeName(name)) rings.add(obj);
                 }
             }
         }

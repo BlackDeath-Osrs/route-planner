@@ -7,6 +7,8 @@ import com.routeplanner.sailing.Sailing;
 import com.routeplanner.sailing.SailingDocks;
 import com.routeplanner.teleport.FairyRings;
 import com.routeplanner.teleport.Quetzals;
+import com.routeplanner.teleport.SpiritTrees;
+import com.routeplanner.teleport.TeleportItems;
 import com.routeplanner.teleport.PortalNexus;
 import com.routeplanner.util.ScenePath;
 import com.routeplanner.util.Strokes;
@@ -246,6 +248,16 @@ public class PathfinderOverlay extends Overlay {
         return FairyRings.nearest(player);
     }
 
+    /** For a spirit tree step not yet taken: the nearest tree that anyone can use, or null. */
+    private SpiritTrees.Tree spiritTreeToTake(RouteStep step) {
+        if (!SpiritTrees.isSpiritTreeStep(step) || client.getTopLevelWorldView().isInstance()) return null;
+        WorldPoint player = Sailing.position(client);
+        WorldPoint dest = SpiritTrees.destination(step.getTeleportNexus());
+        if (player == null || dest == null) return null;
+        if (!TeleportItems.isHouse(dest) && player.getPlane() == dest.getPlane() && player.distanceTo2D(dest) <= 25) return null;
+        return SpiritTrees.nearest(player);
+    }
+
     /** For a Renu quetzal step not yet flown: the nearest landing site where Renu waits, or null. */
     private WorldPoint renuToTake(RouteStep step) {
         if (!Quetzals.isRenuStep(step) || client.getTopLevelWorldView().isInstance()) return null;
@@ -378,6 +390,10 @@ public class PathfinderOverlay extends Overlay {
         // A Renu quetzal step likewise goes to the nearest landing site first
         WorldPoint renu = boarding || ring != null ? null : renuToTake(step);
         if (renu != null) target = renu;
+        // And a spirit tree step to the nearest tree
+        SpiritTrees.Tree tree = boarding || ring != null || renu != null ? null : spiritTreeToTake(step);
+        WorldPoint treeTile = tree == null ? null : tree.tileNearest(Sailing.position(client));
+        if (treeTile != null) target = treeTile;
         if (target == null) { cachedPath = new ArrayList<>(); return; }
 
 
@@ -398,6 +414,9 @@ public class PathfinderOverlay extends Overlay {
         } else if (ring != null) {
             activeTransition = new Transport(ring.tile, FairyRings.destination(step.getTeleportNexus()),
                 "Fairy ring " + FairyRings.spaced(step.getTeleportNexus()), ring.objectId, true);
+        } else if (treeTile != null) {
+            activeTransition = new Transport(treeTile, SpiritTrees.destination(step.getTeleportNexus()),
+                SpiritTrees.TRANSITION_PREFIX + SpiritTrees.destinationName(step.getTeleportNexus()), tree.objectId, true);
         } else if (renu != null) {
             activeTransition = new Transport(renu, Quetzals.destination(step.getTeleportNexus()),
                 "Quetzal to " + Quetzals.site(step.getTeleportNexus()), -1, true);

@@ -1,6 +1,9 @@
 package com.routeplanner;
 
 import com.routeplanner.util.SceneObjects;
+import com.routeplanner.teleport.SpiritTrees;
+import com.routeplanner.teleport.TeleportItems;
+import com.routeplanner.teleport.FairyRings;
 import com.routeplanner.model.RouteStep;
 import com.routeplanner.model.StepType;
 import com.routeplanner.model.TileArea;
@@ -102,6 +105,13 @@ public class RouteOverlay extends Overlay {
                         && transition.actionText.startsWith(SailingDocks.BOARD)) {
                     drewHull = highlightNamedNear(graphics, transOrigin, "Gangplank", 6, pulse);
                 }
+                // Spirit trees: the data's object ids don't all match the game's (the Grand
+                // Exchange tree is 1295), so they're found by name
+                if (!drewHull && transition != null && transition.actionText != null
+                        && transition.actionText.startsWith(SpiritTrees.TRANSITION_PREFIX)) {
+                    drewHull = highlightNamedNear(graphics, transOrigin, "Spirit tree", 6, pulse);
+                    objId = -1;
+                }
                 if (objId > 0) {
                     // Highlight the transition object by drawing its clickbox. Works with HD plugin
                     // unlike ModelOutlineRenderer which requires the standard renderer. Only the
@@ -155,9 +165,44 @@ public class RouteOverlay extends Overlay {
             }
         }
 
-
-
+        highlightTeleportNetwork(graphics, activeStep);
         return null;
+    }
+
+    /** How near the player a spirit tree or fairy ring has to be to light up. */
+    private static final int NETWORK_HIGHLIGHT_RANGE = 15;
+
+    /**
+     * On a spirit tree or fairy ring step not yet taken: lights the nearest public tree or ring,
+     * found by name beside the tile the path leads to. The house's ones have their own overlay.
+     */
+    private void highlightTeleportNetwork(Graphics2D graphics, RouteStep step) {
+        WorldView wv = client.getTopLevelWorldView();
+        if (step == null || wv == null || wv.isInstance()) return;
+        boolean tree = SpiritTrees.isSpiritTreeStep(step);
+        if (!tree && !FairyRings.isFairyRingStep(step)) return;
+        WorldPoint player = Sailing.position(client);
+        if (player == null) return;
+        WorldPoint dest = tree ? SpiritTrees.destination(step.getTeleportNexus()) : FairyRings.destination(step.getTeleportNexus());
+        if (dest != null && !TeleportItems.isHouse(dest) && dest.getPlane() == player.getPlane()
+                && dest.distanceTo2D(player) <= 25) return; // already there
+
+        WorldPoint at;
+        String name;
+        if (tree) {
+            SpiritTrees.Tree t = SpiritTrees.nearest(player);
+            at = t == null ? null : t.tileNearest(player);
+            name = "Spirit tree";
+        } else {
+            FairyRings.Ring r = FairyRings.nearest(player);
+            at = r == null ? null : r.tile;
+            name = "Fairy ring";
+        }
+        if (at == null || at.getPlane() != player.getPlane() || at.distanceTo2D(player) > NETWORK_HIGHLIGHT_RANGE) return;
+        long ms = System.currentTimeMillis();
+        int alpha = 120 + (int) (80 * Math.sin(ms / 400.0));
+        Color pulse = ColorUtil.colorWithAlpha(config.npcHighlightColor(), Math.max(0, Math.min(255, alpha)));
+        highlightNamedNear(graphics, at, name, tree ? 6 : 2, pulse);
     }
 
     /** How far from the climb tile its stairs or ladder can stand (big staircases span 3x3). */

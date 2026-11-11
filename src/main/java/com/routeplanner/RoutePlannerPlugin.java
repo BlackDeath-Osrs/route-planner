@@ -123,6 +123,7 @@ public class RoutePlannerPlugin extends Plugin {
     @Inject private com.routeplanner.teleport.FairyRingOverlay fairyRingOverlay;
     @Inject private com.routeplanner.teleport.FairyRingObjectOverlay fairyRingObjectOverlay;
     @Inject private com.routeplanner.teleport.QuetzalOverlay quetzalOverlay;
+    @Inject private com.routeplanner.teleport.SpiritTreeOverlay spiritTreeOverlay;
     @Inject private SpellbookOverlay spellbookOverlay;
     @Inject private MinigameTeleportOverlay minigameTeleportOverlay;
     @Inject private QuestListOverlay questListOverlay;
@@ -273,7 +274,7 @@ public class RoutePlannerPlugin extends Plugin {
             netDepthOverlay, minimapArrowOverlay, worldMapPathOverlay, routeHudOverlay, bankOverlay, shopOverlay,
             groundItemOverlay, stallHighlightOverlay, spellbookOverlay, minigameTeleportOverlay,
             questListOverlay, inventoryItemOverlay, teleportItemOverlay, recordingOverlay, nexusTeleportOverlay,
-            areaDrawer, npcIconOverlay, fairyRingOverlay, fairyRingObjectOverlay, quetzalOverlay);
+            areaDrawer, npcIconOverlay, fairyRingOverlay, fairyRingObjectOverlay, quetzalOverlay, spiritTreeOverlay);
     }
 
     /** The helpers with their own @Subscribe handlers, registered on start-up and unregistered on shut-down. */
