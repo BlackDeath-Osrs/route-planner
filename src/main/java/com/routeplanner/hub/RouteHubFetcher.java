@@ -1,12 +1,9 @@
 package com.routeplanner.hub;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
-
-import javax.inject.Inject;
-import javax.inject.Singleton;
+import okhttp3.*;
+import javax.inject.*;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
@@ -18,6 +15,7 @@ import java.nio.charset.StandardCharsets;
  */
 @Slf4j
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class RouteHubFetcher {
 
     /** Base raw-content URL for the curated routes repo, branch pinned to avoid surprise changes. */
@@ -30,11 +28,6 @@ public class RouteHubFetcher {
     private static final long MAX_ICON_BYTES = 25_000;       // 20 KB icon cap, some headroom
 
     private final OkHttpClient okHttpClient;
-
-    @Inject
-    public RouteHubFetcher(OkHttpClient okHttpClient) {
-        this.okHttpClient = okHttpClient;
-    }
 
     /** Fetches index.json as raw text. Caller is responsible for JSON parsing + schema validation. */
     public String fetchIndex() throws HubFetchException {

@@ -1,7 +1,6 @@
 package com.routeplanner.util;
 
-import net.runelite.api.Actor;
-import net.runelite.api.GameObject;
+import net.runelite.api.*;
 
 /** Helpers for reading objects out of the scene. */
 public final class SceneObjects {

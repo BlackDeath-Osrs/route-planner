@@ -1,10 +1,7 @@
 package com.routeplanner.record;
 
-import net.runelite.client.ui.overlay.OverlayPanel;
-import net.runelite.client.ui.overlay.OverlayPosition;
-import net.runelite.client.ui.overlay.components.LineComponent;
-import net.runelite.client.ui.overlay.components.TitleComponent;
-
+import net.runelite.client.ui.overlay.*;
+import net.runelite.client.ui.overlay.components.*;
 import javax.inject.Inject;
 import java.awt.*;
 

@@ -1,15 +1,10 @@
 package com.routeplanner.sailing;
 
 import com.routeplanner.RoutePlannerConfig;
-import net.runelite.api.Client;
-import net.runelite.api.WorldEntity;
-import net.runelite.api.WorldEntityConfig;
+import net.runelite.api.*;
 import net.runelite.api.widgets.Widget;
-import net.runelite.client.ui.overlay.Overlay;
-import net.runelite.client.ui.overlay.OverlayLayer;
-import net.runelite.client.ui.overlay.OverlayPosition;
+import net.runelite.client.ui.overlay.*;
 import net.runelite.client.util.ColorUtil;
-
 import javax.inject.Inject;
 import java.awt.*;
 

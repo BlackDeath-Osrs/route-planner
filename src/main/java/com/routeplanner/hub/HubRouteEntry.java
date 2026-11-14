@@ -1,7 +1,6 @@
 package com.routeplanner.hub;
 
 import com.routeplanner.util.RouteTextValidator;
-
 import java.util.List;
 
 /**

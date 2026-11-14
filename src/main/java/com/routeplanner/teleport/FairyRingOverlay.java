@@ -7,17 +7,9 @@ import net.runelite.api.Client;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.util.Text;
-import net.runelite.client.ui.overlay.Overlay;
-import net.runelite.client.ui.overlay.OverlayLayer;
-import net.runelite.client.ui.overlay.OverlayPosition;
-
-import javax.inject.Inject;
-import javax.inject.Singleton;
-import java.awt.BasicStroke;
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.Graphics2D;
-import java.awt.Rectangle;
+import net.runelite.client.ui.overlay.*;
+import javax.inject.*;
+import java.awt.*;
 
 /**
  * In the fairy ring interface, for a fairy ring step: lights the button that turns the next dial
@@ -122,10 +114,6 @@ public class FairyRingOverlay extends Overlay {
         Rectangle b = w.getBounds();
         if (b == null || b.width <= 0) return;
         Color c = plugin.getConfig().npcHighlightColor();
-        graphics.setColor(HighlightColors.fill(c));
-        graphics.fill(b);
-        graphics.setColor(c);
-        graphics.setStroke(new BasicStroke(2));
-        graphics.draw(b);
+        HighlightColors.paint(graphics, b, c);
     }
 }

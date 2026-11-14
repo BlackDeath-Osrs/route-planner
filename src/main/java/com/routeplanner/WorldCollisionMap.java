@@ -1,12 +1,8 @@
 package com.routeplanner;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.BitSet;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
+import java.io.*;
+import java.util.*;
+import java.util.zip.*;
 
 /**
  * Reads collision-map.zip in the format of Skretzo/shortest-path's SplitFlagMap.

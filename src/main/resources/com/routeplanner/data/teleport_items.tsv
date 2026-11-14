@@ -1,0 +1,64 @@
+# name (saved routes refer to it)	item	charge ids	icon id	destination (x y plane, or house)
+# Amulet of glory (icon 11978)
+Glory: Edgeville	Amulet of glory	1706,1708,1710,1712,11976,11978	11978	3087 3496 0
+Glory: Karamja	Amulet of glory	1706,1708,1710,1712,11976,11978	11978	2918 3176 0
+Glory: Draynor Village	Amulet of glory	1706,1708,1710,1712,11976,11978	11978	3105 3251 0
+Glory: Al Kharid	Amulet of glory	1706,1708,1710,1712,11976,11978	11978	3293 3163 0
+# Games necklace (icon 3853)
+Games necklace: Burthorpe	Games necklace	3867,3865,3863,3861,3859,3857,3855,3853	3853	2898 3553 0
+Games necklace: Barbarian Outpost	Games necklace	3867,3865,3863,3861,3859,3857,3855,3853	3853	2519 3571 0
+Games necklace: Corp Beast Cave	Games necklace	3867,3865,3863,3861,3859,3857,3855,3853	3853	2967 4383 2
+Games necklace: Wintertodt	Games necklace	3867,3865,3863,3861,3859,3857,3855,3853	3853	1630 3937 0
+# Ring of dueling (icon 2552)
+Ring of dueling: PvP Arena	Ring of dueling	2561,2560,2559,2558,2557,2556,2555,2552	2552	3315 3235 0
+Ring of dueling: Castle Wars	Ring of dueling	2561,2560,2559,2558,2557,2556,2555,2552	2552	2440 3090 0
+Ring of dueling: Ferox Enclave	Ring of dueling	2561,2560,2559,2558,2557,2556,2555,2552	2552	3151 3635 0
+# Ring of wealth (icon 11980)
+Ring of wealth: Grand Exchange	Ring of wealth	11988,11986,11984,11982,11980	11980	3163 3478 0
+Ring of wealth: Falador Park	Ring of wealth	11988,11986,11984,11982,11980	11980	2995 3375 0
+Ring of wealth: Miscellania	Ring of wealth	11988,11986,11984,11982,11980	11980	2531 3861 0
+# Chronicle (icon 13660)
+Chronicle: Champions Guild	Chronicle	13660	13660	3202 3354 0
+# Ectophial (full 4251, empty 4252)
+Ectophial: Ectofuntus	Ectophial	4251,4252	4251	3659 3523 0
+# Skills necklace (charges 1-6: 11105,11107,11109,11111,11970,11968 + uncharged 11113)
+Skills necklace: Fishing Guild	Skills necklace	11105,11107,11109,11111,11113,11968,11970	11105	2611 3391 0
+Skills necklace: Mining Guild	Skills necklace	11105,11107,11109,11111,11113,11968,11970	11105	3013 3341 0
+Skills necklace: Crafting Guild	Skills necklace	11105,11107,11109,11111,11113,11968,11970	11105	2933 3295 0
+Skills necklace: Cooks Guild	Skills necklace	11105,11107,11109,11111,11113,11968,11970	11105	3144 3443 0
+Skills necklace: WC Guild	Skills necklace	11105,11107,11109,11111,11113,11968,11970	11105	1659 3505 0
+Skills necklace: Farming Guild	Skills necklace	11105,11107,11109,11111,11113,11968,11970	11105	1248 3718 0
+# Combat bracelet (charges 1-6: 11118,11120,11122,11124,11972,11974 + uncharged 11126)
+Combat bracelet: Warriors Guild	Combat bracelet	11118,11120,11122,11124,11126,11972,11974	11118	2882 3546 0
+Combat bracelet: Champions Guild	Combat bracelet	11118,11120,11122,11124,11126,11972,11974	11118	3191 3365 0
+Combat bracelet: Monastery	Combat bracelet	11118,11120,11122,11124,11126,11972,11974	11118	3052 3485 0
+Combat bracelet: Ranging Guild	Combat bracelet	11118,11120,11122,11124,11126,11972,11974	11118	2655 3441 0
+# Ardougne cloak 1-4 (1:13121, 2:13122, 3:13123, 4:13124)
+Ardy cloak: Monastery	Ardougne cloak	13121,13122,13123,13124	13121	2606 3211 0
+Ardy cloak 2+: Farm patch	Ardougne cloak	13122,13123,13124	13122	2678 3374 0
+# Explorer's ring 2-4 (2:13126, 3:13127, 4:13128)
+Explorer's ring: Cabbage patch	Explorer's ring	13126,13127,13128	13128	3055 3293 0
+# Farming cape (9810, trimmed 9811)
+Farming cape: Farming Guild	Farming cape	9810,9811	9811	1247 3726 0
+# Slayer ring (charges 1-8: 11866-11873, eternal: 21268)
+Slayer ring: Stronghold Slayer Cave	Slayer ring	11866,11867,11868,11869,11870,11871,11872,11873,21268	11866	2428 3423 0
+Slayer ring: Slayer Tower	Slayer ring	11866,11867,11868,11869,11870,11871,11872,11873,21268	11866	3428 3535 0
+Slayer ring: Fremennik Slayer Dungeon	Slayer ring	11866,11867,11868,11869,11870,11871,11872,11873,21268	11866	2799 3615 0
+Slayer ring: Tarn's Lair	Slayer ring	11866,11867,11868,11869,11870,11871,11872,11873,21268	11866	2660 5168 0
+Slayer ring: Dark Beasts	Slayer ring	11866,11867,11868,11869,11870,11871,11872,11873,21268	11866	2023 4635 0
+# Digsite pendant (charges 1-5: 11190-11194)
+Digsite pendant: Digsite	Digsite pendant	11190,11191,11192,11193,11194	11194	3341 3445 0
+Digsite pendant: Fossil Island	Digsite pendant	11190,11191,11192,11193,11194	11194	3764 3869 0
+Digsite pendant: Lithkren	Digsite pendant	11190,11191,11192,11193,11194	11194	3550 4000 0
+# Necklace of passage (charges 1-5: 21146,21149,21151,21153,21155)
+Necklace of passage: Wizards Tower	Necklace of passage	21146,21149,21151,21153,21155	21146	3113 3179 0
+Necklace of passage: Outpost	Necklace of passage	21146,21149,21151,21153,21155	21146	2430 3347 0
+Necklace of passage: Eagles Eyrie	Necklace of passage	21146,21149,21151,21153,21155	21146	2395 3481 0
+# Burning amulet (charges 1-5: 21166,21169,21171,21173,21175)
+Burning amulet: Lava Maze	Burning amulet	21166,21169,21171,21173,21175	21166	3028 3840 0
+Burning amulet: Chaos Temple	Burning amulet	21166,21169,21171,21173,21175	21166	2859 3679 0
+Burning amulet: Bandit Camp	Burning amulet	21166,21169,21171,21173,21175	21166	3038 3703 0
+# Player-owned house (destination HOUSE: an instance, so no fixed tile)
+Construction cape: House	Construction cape	9789,9790	9790	house
+Construction cape: Hosidius	Construction cape	9789,9790	9790	1744 3517 0
+House tab: House	Teleport to house	8013	8013	house

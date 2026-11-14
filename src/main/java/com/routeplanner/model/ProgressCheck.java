@@ -1,8 +1,8 @@
 package com.routeplanner.model;
 
+import lombok.RequiredArgsConstructor;
 import java.util.Locale;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.regex.*;
 
 /**
  * A value the game keeps that shows a step is done, written the way it's saved on the step:
@@ -14,6 +14,7 @@ import java.util.regex.Pattern;
  *   varplayer).</li>
  * </ul>
  */
+@RequiredArgsConstructor
 public final class ProgressCheck {
 
     public enum Kind { VARBIT, VARP }
@@ -27,13 +28,6 @@ public final class ProgressCheck {
     public final int bit;
     /** The value the var must reach, when not a bit. */
     public final int atLeast;
-
-    private ProgressCheck(Kind kind, int id, int bit, int atLeast) {
-        this.kind = kind;
-        this.id = id;
-        this.bit = bit;
-        this.atLeast = atLeast;
-    }
 
     /** The check written in {@code text}, or null if it isn't one. */
     public static ProgressCheck parse(String text) {

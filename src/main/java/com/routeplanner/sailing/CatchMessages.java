@@ -1,11 +1,9 @@
 package com.routeplanner.sailing;
 
+import lombok.RequiredArgsConstructor;
 import net.runelite.client.util.Text;
-
-import java.util.HashMap;
-import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.*;
+import java.util.regex.*;
 
 /**
  * Reads deep sea trawling catches from chat (Sailing): "You catch three giant krill." for the
@@ -15,14 +13,11 @@ import java.util.regex.Pattern;
  */
 public final class CatchMessages {
 
+    @RequiredArgsConstructor
     public static final class Catch {
         public final String fish;
         public final int count;
 
-        Catch(String fish, int count) {
-            this.fish = fish;
-            this.count = count;
-        }
     }
 
     private static final Pattern CATCH = Pattern.compile("^(?:You catch|.+? catches) (\\S+) (.+?)[.!]?$");

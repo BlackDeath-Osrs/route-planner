@@ -1,11 +1,9 @@
 package com.routeplanner.ui;
 
 import net.runelite.client.game.SpriteManager;
-
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Consumer;
 
 /**

@@ -1,6 +1,6 @@
 package com.routeplanner.teleport;
 
-import lombok.Getter;
+import lombok.*;
 import net.runelite.api.coords.WorldPoint;
 
 /**
@@ -11,20 +11,13 @@ import net.runelite.api.coords.WorldPoint;
  * Highlight only: the plugin never clicks or operates the item.
  */
 @Getter
+@RequiredArgsConstructor
 public class TeleportItem {
     private final String displayName;   // e.g. "Amulet of glory: Edgeville"
     private final String itemName;      // e.g. "Amulet of glory" (base item, for grouping)
     private final int[] chargeIds;      // all item ids to match in inventory (any charge)
     private final int iconId;           // item id to render as the picker icon
     private final WorldPoint destination;
-
-    public TeleportItem(String displayName, String itemName, int[] chargeIds, int iconId, WorldPoint destination) {
-        this.displayName = displayName;
-        this.itemName = itemName;
-        this.chargeIds = chargeIds;
-        this.iconId = iconId;
-        this.destination = destination;
-    }
 
     /** True if the given inventory item id is one of this teleport's charge states. */
     public boolean matchesItemId(int id) {

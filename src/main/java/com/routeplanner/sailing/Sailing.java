@@ -1,13 +1,7 @@
 package com.routeplanner.sailing;
 
-import net.runelite.api.Client;
-import net.runelite.api.Perspective;
-import net.runelite.api.Player;
-import net.runelite.api.WorldEntity;
-import net.runelite.api.WorldEntityConfig;
-import net.runelite.api.WorldView;
-import net.runelite.api.coords.LocalPoint;
-import net.runelite.api.coords.WorldPoint;
+import net.runelite.api.*;
+import net.runelite.api.coords.*;
 
 /**
  * Where the player really is while sailing. On a boat the player stands in the boat's own world
@@ -18,7 +12,6 @@ import net.runelite.api.coords.WorldPoint;
 public final class Sailing {
 
     private Sailing() {}
-
 
     /** The boat the player is on, or null when they're not on one. */
     public static WorldEntity boat(Client client) {

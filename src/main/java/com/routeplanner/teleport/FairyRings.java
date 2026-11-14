@@ -1,31 +1,19 @@
 package com.routeplanner.teleport;
 
+import lombok.RequiredArgsConstructor;
+import com.routeplanner.util.DataFiles;
 import com.routeplanner.model.RouteStep;
-import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.gameval.VarbitID;
-
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.*;
+import java.util.regex.*;
 
 /**
  * Fairy rings: where the rings stand, where each three-letter code lands, and the interface's
  * dials. Read from the pathfinder's fairy_rings.tsv (rings are rows with an origin, codes are rows
  * with a destination and the code in the last column).
  */
-@Slf4j
 public final class FairyRings {
 
     /** The teleport method saved on a step; its code (e.g. "CKR") is kept in teleportNexus. */
@@ -45,14 +33,11 @@ public final class FairyRings {
     private static final Pattern LAST_DESTINATION = Pattern.compile("(?i)last-destination\\s*\\(([a-z]{3})\\)");
 
     /** A ring the player can step into. */
+    @RequiredArgsConstructor
     public static final class Ring {
         public final WorldPoint tile;
         public final int objectId;
 
-        Ring(WorldPoint tile, int objectId) {
-            this.tile = tile;
-            this.objectId = objectId;
-        }
     }
 
     private static final Map<String, WorldPoint> DESTINATIONS = new LinkedHashMap<>();
@@ -65,28 +50,16 @@ public final class FairyRings {
     private FairyRings() {}
 
     private static void load() {
-        try (InputStream is = FairyRings.class.getResourceAsStream("/com/routeplanner/transports/fairy_rings.tsv")) {
-            if (is == null) {
-                log.warn("Route Planner: fairy_rings.tsv missing");
-                return;
+        for (String[] cols : DataFiles.rowsAt("/com/routeplanner/transports/fairy_rings.tsv")) {
+            if (cols.length < 2) continue;
+            WorldPoint origin = DataFiles.point(cols[0]);
+            WorldPoint dest = DataFiles.point(cols[1]);
+            if (origin != null) {
+                RINGS.add(new Ring(origin, objectId(cols.length > 2 ? cols[2] : "")));
+            } else if (dest != null && cols.length > 1) {
+                String code = normalize(cols[cols.length - 1]);
+                if (code != null) DESTINATIONS.putIfAbsent(code, dest);
             }
-            BufferedReader br = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
-            String line;
-            while ((line = br.readLine()) != null) {
-                if (line.isEmpty() || line.startsWith("#")) continue;
-                String[] cols = line.split("\t", -1);
-                if (cols.length < 2) continue;
-                WorldPoint origin = point(cols[0]);
-                WorldPoint dest = point(cols[1]);
-                if (origin != null) {
-                    RINGS.add(new Ring(origin, objectId(cols.length > 2 ? cols[2] : "")));
-                } else if (dest != null && cols.length > 1) {
-                    String code = normalize(cols[cols.length - 1]);
-                    if (code != null) DESTINATIONS.putIfAbsent(code, dest);
-                }
-            }
-        } catch (IOException e) {
-            log.warn("Route Planner: couldn't read fairy_rings.tsv", e);
         }
     }
 
@@ -211,18 +184,8 @@ public final class FairyRings {
         return LOG_FIRST_ENTRY + index * 2;
     }
 
-    private static WorldPoint point(String s) {
-        String[] p = s.trim().split("\\s+");
-        if (p.length != 3) return null;
-        try {
-            return new WorldPoint(Integer.parseInt(p[0]), Integer.parseInt(p[1]), Integer.parseInt(p[2]));
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
-    /** The object id at the end of "Configure Fairy ring 29495", or -1. */
-    private static int objectId(String menu) {
+    /** The object id at the end of a menu entry such as "Configure Fairy ring 29495", or -1. */
+    static int objectId(String menu) {
         String[] parts = menu.trim().split("\\s+");
         try {
             return parts.length == 0 ? -1 : Integer.parseInt(parts[parts.length - 1]);

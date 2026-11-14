@@ -32,8 +32,4 @@ public class Transport {
         this.teleport = teleport;
     }
 
-    /** A short, human-readable hint built from the row's own data, e.g. "Climb-up the Staircase". */
-    public String hintText() {
-        return actionText != null ? actionText : "Use the transition";
-    }
 }

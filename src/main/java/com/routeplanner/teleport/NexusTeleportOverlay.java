@@ -3,20 +3,15 @@ package com.routeplanner.teleport;
 import com.routeplanner.RoutePlannerPlugin;
 import com.routeplanner.model.RouteStep;
 import com.routeplanner.util.HighlightColors;
-import net.runelite.api.Client;
-import net.runelite.api.GameObject;
+import net.runelite.api.*;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
-import net.runelite.client.ui.overlay.Overlay;
-import net.runelite.client.ui.overlay.OverlayLayer;
-import net.runelite.client.ui.overlay.OverlayPosition;
-
-import javax.inject.Inject;
-import javax.inject.Singleton;
+import net.runelite.client.ui.overlay.*;
+import javax.inject.*;
 import java.awt.*;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.function.Predicate;
+import java.util.List;
 
 /**
  * For a Portal Nexus teleport step: highlights the nexus in the player's house, then the
@@ -76,11 +71,7 @@ public class NexusTeleportOverlay extends Overlay {
             Rectangle r = rows.getBounds();
             b = new Rectangle(r.x, b.y, r.width, b.height);
         }
-        graphics.setColor(HighlightColors.fill(plugin.getConfig().npcHighlightColor()));
-        graphics.fill(b);
-        graphics.setColor(plugin.getConfig().npcHighlightColor());
-        graphics.setStroke(new BasicStroke(2));
-        graphics.draw(b);
+        HighlightColors.paint(graphics, b, plugin.getConfig().npcHighlightColor());
     }
 
     private void highlightObjects(Graphics2D graphics, RouteStep step, Predicate<String> nameMatches) {
@@ -92,11 +83,7 @@ public class NexusTeleportOverlay extends Overlay {
         for (GameObject obj : found) {
             Shape hull = obj.getConvexHull();
             if (hull == null) continue;
-            graphics.setColor(HighlightColors.fill(plugin.getConfig().npcHighlightColor()));
-            graphics.fill(hull);
-            graphics.setColor(plugin.getConfig().npcHighlightColor());
-            graphics.setStroke(new BasicStroke(2));
-            graphics.draw(hull);
+            HighlightColors.paint(graphics, hull, plugin.getConfig().npcHighlightColor());
         }
     }
 }

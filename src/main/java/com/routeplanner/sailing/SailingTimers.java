@@ -1,34 +1,19 @@
 package com.routeplanner.sailing;
 
+import lombok.RequiredArgsConstructor;
 import com.routeplanner.util.SceneObjects;
 import com.routeplanner.RoutePlannerConfig;
-import net.runelite.api.Client;
-import net.runelite.api.GameObject;
-import net.runelite.api.ObjectComposition;
-import net.runelite.api.Perspective;
-import net.runelite.api.Point;
-import net.runelite.api.Skill;
-import net.runelite.api.Tile;
-import net.runelite.api.WorldEntity;
-import net.runelite.api.WorldView;
-import net.runelite.api.coords.LocalPoint;
-import net.runelite.api.coords.WorldPoint;
-import net.runelite.api.events.MenuOptionClicked;
-import net.runelite.api.events.StatChanged;
+import net.runelite.api.*;
+import net.runelite.api.coords.*;
+import net.runelite.api.events.*;
 import net.runelite.api.gameval.VarbitID;
 import net.runelite.client.Notifier;
 import net.runelite.client.audio.AudioPlayer;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.util.Text;
-
-import javax.inject.Inject;
-import javax.inject.Singleton;
+import javax.inject.*;
 import java.awt.Toolkit;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Countdowns and the voyage time for the HUD while sailing:
@@ -44,6 +29,7 @@ import java.util.Set;
  * Each counts down second by second from when it will end, rather than jumping a tick at a time.
  */
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class SailingTimers {
 
     /** Only things this close to the boat get a countdown. */
@@ -82,15 +68,6 @@ public class SailingTimers {
     private double measured;   // tiles per tick, over the last few ticks
     /** The expected arrival, in wall-clock milliseconds; re-estimated only when it's clearly off. */
     private long arrivalAt = -1;
-
-    @Inject
-    public SailingTimers(Client client, RoutePlannerConfig config, AudioPlayer audioPlayer,
-                         Notifier notifier) {
-        this.client = client;
-        this.config = config;
-        this.audioPlayer = audioPlayer;
-        this.notifier = notifier;
-    }
 
     /** Once a tick, from the plugin: follows the nearest shoal, the wreck being salvaged and the boat's speed. */
     public void onGameTick() {

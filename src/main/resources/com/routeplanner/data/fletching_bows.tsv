@@ -1,0 +1,42 @@
+# name	level	xp	materials
+# Cut unstrung bow (knife on log)
+Shortbow (u)	5	5.0	Logs, Knife/Fletching knife
+Longbow (u)	10	10.0	Logs, Knife/Fletching knife
+Oak shortbow (u)	20	16.5	Oak logs, Knife/Fletching knife
+Oak longbow (u)	25	25.0	Oak logs, Knife/Fletching knife
+Willow shortbow (u)	35	33.3	Willow logs, Knife/Fletching knife
+Willow longbow (u)	40	41.5	Willow logs, Knife/Fletching knife
+Maple shortbow (u)	50	50.0	Maple logs, Knife/Fletching knife
+Maple longbow (u)	55	58.3	Maple logs, Knife/Fletching knife
+Yew shortbow (u)	65	67.5	Yew logs, Knife/Fletching knife
+Yew longbow (u)	70	75.0	Yew logs, Knife/Fletching knife
+Magic shortbow (u)	80	83.3	Magic logs, Knife/Fletching knife
+Magic longbow (u)	85	91.5	Magic logs, Knife/Fletching knife
+# String bow (bow string on unstrung)
+Shortbow	5	5.0	Shortbow (u), Bow string
+Longbow	10	10.0	Longbow (u), Bow string
+Oak shortbow	20	16.5	Oak shortbow (u), Bow string
+Oak longbow	25	25.0	Oak longbow (u), Bow string
+Willow shortbow	35	33.3	Willow shortbow (u), Bow string
+Willow longbow	40	41.5	Willow longbow (u), Bow string
+Maple shortbow	50	50.0	Maple shortbow (u), Bow string
+Maple longbow	55	58.3	Maple longbow (u), Bow string
+Yew shortbow	65	67.5	Yew shortbow (u), Bow string
+Yew longbow	70	75.0	Yew longbow (u), Bow string
+Magic shortbow	80	83.3	Magic shortbow (u), Bow string
+Magic longbow	85	91.5	Magic longbow (u), Bow string
+# Crossbow stocks (knife on log) - stock XP, verify if you train these
+Wooden stock	9	6.0	Logs, Knife/Fletching knife
+Oak stock	24	16.0	Oak logs, Knife/Fletching knife
+Willow stock	39	22.0	Willow logs, Knife/Fletching knife
+Teak stock	46	27.0	Teak logs, Knife/Fletching knife
+Maple stock	54	32.0	Maple logs, Knife/Fletching knife
+Mahogany stock	61	41.0	Mahogany logs, Knife/Fletching knife
+Yew stock	69	46.0	Yew logs, Knife/Fletching knife
+# Wooden shields (knife on 2 logs) - XP = full longbow of that wood
+Oak shield	27	50.0	Oak logs, Knife/Fletching knife
+Willow shield	42	83.0	Willow logs, Knife/Fletching knife
+Maple shield	57	116.6	Maple logs, Knife/Fletching knife
+Yew shield	72	150.0	Yew logs, Knife/Fletching knife
+Magic shield	87	183.0	Magic logs, Knife/Fletching knife
+Redwood shield	90	216.0	Redwood logs, Knife/Fletching knife

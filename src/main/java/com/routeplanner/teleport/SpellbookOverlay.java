@@ -5,17 +5,9 @@ import com.routeplanner.model.RouteStep;
 import com.routeplanner.util.HighlightColors;
 import net.runelite.api.Client;
 import net.runelite.api.widgets.Widget;
-import net.runelite.client.ui.overlay.Overlay;
-import net.runelite.client.ui.overlay.OverlayLayer;
-import net.runelite.client.ui.overlay.OverlayPosition;
-
-import javax.inject.Inject;
-import javax.inject.Singleton;
-import java.awt.BasicStroke;
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.Graphics2D;
-import java.awt.Rectangle;
+import net.runelite.client.ui.overlay.*;
+import javax.inject.*;
+import java.awt.*;
 
 /**
  * Highlights the teleport spell in the open spellbook for the active step,

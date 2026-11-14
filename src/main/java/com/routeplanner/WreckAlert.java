@@ -1,6 +1,9 @@
 package com.routeplanner;
 
+import lombok.RequiredArgsConstructor;
+
 /** What plays when every wreck by the boat has sunk (Sailing). */
+@RequiredArgsConstructor
 public enum WreckAlert {
     BOSUNS_CALL("Bosun's call"),
     SYSTEM("System sound"),
@@ -8,10 +11,6 @@ public enum WreckAlert {
     OFF("Off");
 
     private final String label;
-
-    WreckAlert(String label) {
-        this.label = label;
-    }
 
     @Override
     public String toString() {

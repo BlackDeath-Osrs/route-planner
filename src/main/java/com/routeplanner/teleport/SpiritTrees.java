@@ -1,27 +1,15 @@
 package com.routeplanner.teleport;
 
+import com.routeplanner.util.DataFiles;
 import com.routeplanner.model.RouteStep;
-import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.coords.WorldPoint;
-
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Spirit trees: where they stand, and where each of them can send you. Read from the pathfinder's
  * spirit_trees.tsv: rows with an origin are the tiles around a tree (with its object id), rows
  * with a destination name a place in the trees' menu ("4: Grand Exchange").
  */
-@Slf4j
 public final class SpiritTrees {
 
     /** The teleport method saved on a step; the destination's name is kept in teleportNexus. */
@@ -78,29 +66,17 @@ public final class SpiritTrees {
     private SpiritTrees() {}
 
     private static void load() {
-        try (InputStream is = SpiritTrees.class.getResourceAsStream("/com/routeplanner/transports/spirit_trees.tsv")) {
-            if (is == null) {
-                log.warn("Route Planner: spirit_trees.tsv missing");
-                return;
+        for (String[] cols : DataFiles.rowsAt("/com/routeplanner/transports/spirit_trees.tsv")) {
+            if (cols.length < 2) continue;
+            WorldPoint origin = DataFiles.point(cols[0]);
+            WorldPoint dest = DataFiles.point(cols[1]);
+            if (origin != null && cols.length > 2) {
+                addTreeTile(origin, FairyRings.objectId(cols[2]));
+            } else if (dest != null && cols.length > 6) {
+                String name = menuName(cols[6]);
+                // The house is an instance: its tree's row has no tile worth walking to
+                if (name != null) DESTINATIONS.putIfAbsent(name, HOUSE.equalsIgnoreCase(name) ? TeleportItems.HOUSE : dest);
             }
-            BufferedReader br = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
-            String line;
-            while ((line = br.readLine()) != null) {
-                if (line.isEmpty() || line.startsWith("#")) continue;
-                String[] cols = line.split("\t", -1);
-                if (cols.length < 2) continue;
-                WorldPoint origin = point(cols[0]);
-                WorldPoint dest = point(cols[1]);
-                if (origin != null && cols.length > 2) {
-                    addTreeTile(origin, objectId(cols[2]));
-                } else if (dest != null && cols.length > 6) {
-                    String name = menuName(cols[6]);
-                    // The house is an instance: its tree's row has no tile worth walking to
-                    if (name != null) DESTINATIONS.putIfAbsent(name, HOUSE.equalsIgnoreCase(name) ? TeleportItems.HOUSE : dest);
-                }
-            }
-        } catch (IOException e) {
-            log.warn("Route Planner: couldn't read spirit_trees.tsv", e);
         }
     }
 
@@ -200,23 +176,4 @@ public final class SpiritTrees {
         return lowerName != null && (lowerName.contains("spirit tree") || lowerName.contains("spiritual fairy tree"));
     }
 
-    private static WorldPoint point(String s) {
-        String[] p = s.trim().split("\\s+");
-        if (p.length != 3) return null;
-        try {
-            return new WorldPoint(Integer.parseInt(p[0]), Integer.parseInt(p[1]), Integer.parseInt(p[2]));
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
-    /** The object id at the end of "Travel Spirit tree 26261", or -1. */
-    private static int objectId(String menu) {
-        String[] parts = menu.trim().split("\\s+");
-        try {
-            return parts.length == 0 ? -1 : Integer.parseInt(parts[parts.length - 1]);
-        } catch (NumberFormatException e) {
-            return -1;
-        }
-    }
 }

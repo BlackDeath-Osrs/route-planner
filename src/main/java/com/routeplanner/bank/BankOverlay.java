@@ -3,26 +3,16 @@ package com.routeplanner.bank;
 import com.routeplanner.RoutePlannerPlugin;
 import com.routeplanner.model.RouteStep;
 import com.routeplanner.skilling.PotionRecipes;
-import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.Client;
-import net.runelite.api.InventoryID;
-import net.runelite.api.Item;
-import net.runelite.api.ItemContainer;
+import net.runelite.api.*;
 import net.runelite.api.gameval.InterfaceID;
-import net.runelite.api.widgets.ComponentID;
-import net.runelite.api.widgets.Widget;
+import net.runelite.api.widgets.*;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.overlay.*;
-
-import javax.inject.Inject;
-import javax.inject.Singleton;
+import javax.inject.*;
 import java.awt.*;
-import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.*;
 import java.util.List;
-import java.util.Map;
 
-@Slf4j
 @Singleton
 public class BankOverlay extends Overlay {
 

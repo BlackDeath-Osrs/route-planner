@@ -1,11 +1,8 @@
 package com.routeplanner.ui;
 
 import net.runelite.client.ui.ColorScheme;
-
 import javax.swing.JComponent;
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.Graphics;
+import java.awt.*;
 
 /** A slim progress bar (route progress, item counts, kills). */
 public class ThinBar extends JComponent {

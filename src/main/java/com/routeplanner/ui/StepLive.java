@@ -1,14 +1,15 @@
 package com.routeplanner.ui;
 
+import lombok.RequiredArgsConstructor;
 import com.routeplanner.bank.BankItemManager;
 import com.routeplanner.model.RouteStep;
-
 import java.util.List;
 
 /**
  * Live progress for the active step, read on the client thread each tick and handed to the
  * side panel's step card, which only repaints when {@link #signature()} changes.
  */
+@RequiredArgsConstructor
 public final class StepLive {
 
     /** Distance values that aren't a tile count. */
@@ -23,18 +24,6 @@ public final class StepLive {
     public final long skillHave;
     public final long skillNeed;
     public final int dialogDone;
-
-    public StepLive(RouteStep step, int distance, String itemHeader, List<BankItemManager.ItemProgress> items,
-                    String skillLabel, long skillHave, long skillNeed, int dialogDone) {
-        this.step = step;
-        this.distance = distance;
-        this.itemHeader = itemHeader;
-        this.items = items;
-        this.skillLabel = skillLabel;
-        this.skillHave = skillHave;
-        this.skillNeed = skillNeed;
-        this.dialogDone = dialogDone;
-    }
 
     /** Everything shown except the distance, so the card rebuilds only when progress moves. */
     public String signature() {

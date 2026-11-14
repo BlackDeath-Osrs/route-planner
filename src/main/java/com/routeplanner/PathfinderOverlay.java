@@ -1,44 +1,25 @@
 package com.routeplanner;
 
-import com.routeplanner.model.RouteStep;
-import com.routeplanner.model.StepType;
-import com.routeplanner.model.TileArea;
-import com.routeplanner.sailing.Sailing;
-import com.routeplanner.sailing.SailingDocks;
-import com.routeplanner.teleport.FairyRings;
-import com.routeplanner.teleport.Quetzals;
-import com.routeplanner.teleport.SpiritTrees;
-import com.routeplanner.teleport.TeleportItems;
-import com.routeplanner.teleport.PortalNexus;
-import com.routeplanner.util.ScenePath;
-import com.routeplanner.util.Strokes;
+import com.routeplanner.model.*;
+import com.routeplanner.sailing.*;
+import com.routeplanner.teleport.*;
+import com.routeplanner.util.*;
 import com.routeplanner.transport.Transport;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.Client;
-import net.runelite.api.GameObject;
-import net.runelite.api.Player;
-import net.runelite.api.Perspective;
-import net.runelite.api.Point;
-import net.runelite.api.Scene;
-import net.runelite.api.WorldEntity;
-import net.runelite.api.coords.LocalPoint;
-import net.runelite.api.coords.WorldPoint;
+import net.runelite.api.*;
+import net.runelite.api.coords.*;
 import net.runelite.client.ui.overlay.*;
 import net.runelite.client.util.ColorUtil;
-
-import javax.inject.Inject;
-import javax.inject.Singleton;
+import javax.inject.*;
 import java.awt.*;
 import java.awt.geom.Path2D;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.util.*;
-import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.concurrent.*;
 import java.util.function.Predicate;
+import java.util.List;
+import net.runelite.api.Point;
 
 @Slf4j
 @Singleton   // one route for everything that shows it (the scene, the world map, the HUD)
@@ -63,8 +44,6 @@ public class PathfinderOverlay extends Overlay {
     /** Returns the transition the player should climb/use next, or null if none. */
     public Transport getActiveTransition() { return activeTransition; }
 
-    /** Returns the loaded collision map, or null if not yet loaded. */
-    public WorldCollisionMap getCollisionMap() { return collisionMap; }
     /** The transition currently committed to, persisted across ticks so the lookup can apply
      *  every tick, which is what caused visible flip-flopping between near-equal candidates. */
     private static final int TRANSPORT_COST = 5 * 2; // five tiles of walking (WALK_STEP)
@@ -170,7 +149,6 @@ public class PathfinderOverlay extends Overlay {
     }
 
     private int tickCount = 0;
-
 
     public void onGameTick() {
         sailingDocks.onGameTick();
@@ -396,7 +374,6 @@ public class PathfinderOverlay extends Overlay {
         if (treeTile != null) target = treeTile;
         if (target == null) { cachedPath = new ArrayList<>(); return; }
 
-
         WorldPoint player = Sailing.position(client);
         if (player == null) return;
         boolean sailing = Sailing.isSailing(client);
@@ -545,7 +522,6 @@ public class PathfinderOverlay extends Overlay {
                 return;
             }
             collisionMap = new WorldCollisionMap(is);
-            log.info("Route Planner: collision map loaded ok={}", collisionMap.isLoaded());
             transports = TransportLoader.load();
 
         } catch (IOException e) {
@@ -854,14 +830,6 @@ public class PathfinderOverlay extends Overlay {
         return new BasicStroke(t, cap, BasicStroke.JOIN_ROUND, 10f, dash, offset);
     }
 
-    private boolean isOnPath(WorldPoint player) {
-        if (cachedPath.isEmpty()) return false;
-        for (WorldPoint wp : cachedPath) {
-            if (wp.distanceTo(player) <= 3) return true;
-        }
-        return false;
-    }
-
     /**
      * If the player is standing within {@code tolerance} tiles of a tile in the current cachedPath,
      * return that tile's index; otherwise -1 (meaning we've left the route and need a fresh path).
@@ -1158,7 +1126,6 @@ public class PathfinderOverlay extends Overlay {
     private static final int NEAR_ENOUGH = 10;
     /** Tiles searched without getting any nearer before settling for the nearest one. */
     private static final int GIVE_UP_AFTER = 40000;
-
 
     /** A step to (x, y); at sea only where the hull fits, and dearer the closer it is to the shore. */
     private void offerMove(SearchGraph graph, int node, int x, int y, int cplane, int rplane, int cost,

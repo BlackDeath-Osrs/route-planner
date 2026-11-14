@@ -1,12 +1,9 @@
 package com.routeplanner.skilling;
 
-import com.routeplanner.agility.AgilityCourse;
-import com.routeplanner.agility.AgilityCoursePresets;
+import com.routeplanner.agility.*;
 import com.routeplanner.model.RouteStep;
 import net.runelite.api.coords.WorldPoint;
-
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 /** The step editor's recipe/method choices per skill, and the targets each one puts on a step. */
 public final class RecipeLabels {
@@ -20,23 +17,10 @@ public final class RecipeLabels {
         out.add("(none)");
         if (skill == null) return out.toArray(new String[0]);
         switch (skill) {
-            case "Cooking": for (CookingFoods.Food f : CookingFoods.FOODS) out.add(f.toString()); break;
             case "Smithing": for (SmithingBars.Bar b : SmithingBars.BARS) out.add(b.toString()); break;
-            case "Firemaking": for (FiremakingLogs.Log l : FiremakingLogs.LOGS) out.add(l.toString()); break;
-            case "Mining": for (MiningRocks.Rock r : MiningRocks.ROCKS) out.add(r.toString()); break;
-            case "Woodcutting": for (WoodcuttingTrees.Tree t : WoodcuttingTrees.TREES) out.add(t.toString()); break;
             case "Herblore": for (PotionRecipes.Potion p : PotionRecipes.POTIONS) out.add(p.toString()); break;
             case "Fishing": for (FishingMethods.Method m : FishingMethods.METHODS) out.add(m.toString()); break;
             case "Construction": for (ConstructionMethods.Method m : ConstructionMethods.METHODS) out.add(m.toString()); break;
-            case "Crafting":
-                for (CraftingData.Item i : CraftingData.JEWELRY) out.add(i.toString());
-                for (CraftingData.Item i : CraftingData.GLASS) out.add(i.toString());
-                for (CraftingData.Item i : CraftingData.LEATHER) out.add(i.toString());
-                break;
-            case "Fletching":
-                for (FletchingData.Item i : FletchingData.AMMO) out.add(i.toString());
-                for (FletchingData.Item i : FletchingData.BOWS) out.add(i.toString());
-                break;
             case "Agility":
                 for (AgilityCourse ac : AgilityCoursePresets.ALL) out.add(ac.getName());
                 break;
@@ -44,7 +28,9 @@ public final class RecipeLabels {
                 for (SkillingNpc n : ThievingNpcs.PICKPOCKET_NPCS) out.add(n.toString());
                 for (SkillingNpc s : ThievingStalls.STALLS) out.add(s.toString());
                 break;
-            default: break;
+            default:
+                for (Recipes.Recipe r : recipes(skill)) out.add(r.toString());
+                break;
         }
         return out.toArray(new String[0]);
     }
@@ -63,14 +49,8 @@ public final class RecipeLabels {
         if (none) return;
         if (skill == null) return;
         switch (skill) {
-            case "Cooking": { CookingFoods.Food f = CookingFoods.getByLabel(label); if (f != null) step.setBankHighlightItems(f.rawItem); break; }
             case "Smithing": { SmithingBars.Bar b = SmithingBars.getByLabel(label); if (b != null) step.setBankHighlightItems(b.ores); break; }
-            case "Firemaking": { FiremakingLogs.Log l = FiremakingLogs.getByLabel(label); if (l != null) step.setBankHighlightItems(l.item); break; }
-            case "Mining": { MiningRocks.Rock r = MiningRocks.getByLabel(label); if (r != null) step.setSkillingTargetObject(r.objectName); break; }
-            case "Woodcutting": { WoodcuttingTrees.Tree t = WoodcuttingTrees.getByLabel(label); if (t != null) step.setSkillingTargetObject(t.objectName); break; }
             case "Herblore": { step.setHerblorePotion(labelName(label)); break; }
-            case "Crafting": { String mats = craftingMaterials(label); if (mats != null) step.setBankHighlightItems(mats); break; }
-            case "Fletching": { String mats = fletchingMaterials(label); if (mats != null) step.setBankHighlightItems(mats); break; }
             case "Agility": {
                 WorldPoint loc = AgilityCoursePresets.startLocation(label);
                 if (loc != null) step.setWorldPoint(loc); // course start -> Location tile
@@ -88,7 +68,14 @@ public final class RecipeLabels {
                 }
                 break;
             }
-            default: break; // Fishing/Construction: informational only (use Items component to bring gear)
+            default: {
+                // Fishing/Construction have no recipe list here: informational only
+                Recipes.Recipe r = Recipes.byLabel(recipes(skill), label);
+                if (r == null) break;
+                if (skill.equals("Mining") || skill.equals("Woodcutting")) step.setSkillingTargetObject(r.target);
+                else step.setBankHighlightItems(r.target);
+                break;
+            }
         }
     }
 
@@ -97,16 +84,15 @@ public final class RecipeLabels {
         return i > 0 ? label.substring(0, i) : label;
     }
 
-    private static String craftingMaterials(String label) {
-        for (CraftingData.Item i : CraftingData.JEWELRY) if (i.toString().equals(label)) return i.materials;
-        for (CraftingData.Item i : CraftingData.GLASS) if (i.toString().equals(label)) return i.materials;
-        for (CraftingData.Item i : CraftingData.LEATHER) if (i.toString().equals(label)) return i.materials;
-        return null;
-    }
-
-    private static String fletchingMaterials(String label) {
-        for (FletchingData.Item i : FletchingData.AMMO) if (i.toString().equals(label)) return i.materials;
-        for (FletchingData.Item i : FletchingData.BOWS) if (i.toString().equals(label)) return i.materials;
-        return null;
+    private static List<Recipes.Recipe> recipes(String skill) {
+        switch (skill) {
+            case "Cooking": return Recipes.COOKING;
+            case "Firemaking": return Recipes.FIREMAKING;
+            case "Mining": return Recipes.MINING;
+            case "Woodcutting": return Recipes.WOODCUTTING;
+            case "Crafting": return Recipes.CRAFTING;
+            case "Fletching": return Recipes.FLETCHING;
+            default: return java.util.Collections.emptyList();
+        }
     }
 }

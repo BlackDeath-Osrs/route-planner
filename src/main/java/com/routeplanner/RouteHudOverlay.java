@@ -1,26 +1,19 @@
 package com.routeplanner;
 
 import com.routeplanner.bank.BankItemManager;
-import com.routeplanner.model.ItemMode;
-import com.routeplanner.model.Route;
-import com.routeplanner.model.RouteStep;
-import com.routeplanner.model.SkillGoalType;
+import com.routeplanner.model.*;
 import com.routeplanner.sailing.SailingDocks;
 import com.routeplanner.transport.Transport;
-import net.runelite.api.Client;
-import net.runelite.api.Skill;
+import net.runelite.api.*;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.ui.overlay.*;
-
 import javax.inject.Inject;
 import java.awt.*;
 import java.awt.geom.AffineTransform;
-import java.util.ArrayList;
-import java.util.Collections;
+import java.util.*;
 import java.util.List;
-import java.util.Map;
 
 public class RouteHudOverlay extends Overlay {
 

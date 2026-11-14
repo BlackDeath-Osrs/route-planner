@@ -1,34 +1,16 @@
 package com.routeplanner.skilling;
 
 import com.routeplanner.util.SceneObjects;
-import com.routeplanner.HighlightIcon;
-import com.routeplanner.RoutePlannerPlugin;
+import com.routeplanner.*;
 import com.routeplanner.model.RouteStep;
-import com.routeplanner.model.StepType;
 import com.routeplanner.sailing.Sailing;
-import net.runelite.api.Client;
-import net.runelite.api.DecorativeObject;
-import net.runelite.api.GameObject;
-import net.runelite.api.GroundObject;
-import net.runelite.api.ObjectComposition;
-import net.runelite.api.Scene;
-import net.runelite.api.Tile;
-import net.runelite.api.WallObject;
-import net.runelite.api.WorldView;
+import net.runelite.api.*;
 import net.runelite.api.coords.WorldPoint;
-import net.runelite.client.ui.overlay.Overlay;
-import net.runelite.client.ui.overlay.OverlayLayer;
-import net.runelite.client.ui.overlay.OverlayPosition;
+import net.runelite.client.ui.overlay.*;
 import net.runelite.client.util.ColorUtil;
-
-import javax.inject.Inject;
-import javax.inject.Singleton;
-import java.awt.BasicStroke;
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.Graphics2D;
-import java.awt.Shape;
-import java.util.ArrayList;
+import javax.inject.*;
+import java.awt.*;
+import java.util.*;
 import java.util.List;
 
 /**
@@ -194,8 +176,8 @@ public class StallHighlightOverlay extends Overlay {
 
     /** A tree of another woodcutting tier: "tree" means regular trees, not "Oak tree" or "Willow tree". */
     private static boolean isOtherTree(String lowerName, String target) {
-        for (WoodcuttingTrees.Tree t : WoodcuttingTrees.TREES) {
-            String tier = t.objectName.toLowerCase();
+        for (Recipes.Recipe t : Recipes.WOODCUTTING) {
+            String tier = t.target.toLowerCase();
             if (!tier.equals("tree") && lowerName.startsWith(tier + " ") && !target.startsWith(tier)) return true;
         }
         return false;

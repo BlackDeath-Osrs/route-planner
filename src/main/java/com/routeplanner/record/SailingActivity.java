@@ -1,25 +1,12 @@
 package com.routeplanner.record;
 
-import com.routeplanner.util.SceneObjects;
+import lombok.RequiredArgsConstructor;
+import com.routeplanner.util.*;
 import com.routeplanner.model.RouteStep;
-import com.routeplanner.sailing.CatchMessages;
-import com.routeplanner.sailing.Sailing;
-import com.routeplanner.sailing.ShoalRoutes;
-import com.routeplanner.util.LocationNames;
-import net.runelite.api.Client;
-import net.runelite.api.GameObject;
-import net.runelite.api.InventoryID;
-import net.runelite.api.Item;
-import net.runelite.api.ItemContainer;
-import net.runelite.api.ObjectComposition;
-import net.runelite.api.Skill;
-import net.runelite.api.Tile;
-import net.runelite.api.WorldView;
-import net.runelite.api.coords.LocalPoint;
-import net.runelite.api.coords.WorldPoint;
-
-import java.util.IdentityHashMap;
-import java.util.Map;
+import com.routeplanner.sailing.*;
+import net.runelite.api.*;
+import net.runelite.api.coords.*;
+import java.util.*;
 
 /**
  * The Sailing half of the activity recorder: activities that pay out long after the click that
@@ -34,6 +21,7 @@ import java.util.Map;
  * own two steps and the XP goes back to the right one. Sailing XP from travelling (wind motes, the helm,
  * the sails) isn't training; only a recent click on a wreck counts outside these sessions.
  */
+@RequiredArgsConstructor
 final class SailingActivity {
 
     /** Step targets: labels, not things in the world to highlight. */
@@ -70,11 +58,6 @@ final class SailingActivity {
     /** This wreck's Salvage and Sort steps, the trawl's step, and the XP on each so far. */
     private RouteStep salvageStep, sortStep, trawlStep;
     private final Map<RouteStep, Long> sessionXp = new IdentityHashMap<>();
-
-    SailingActivity(Client client, RouteRecorder host) {
-        this.client = client;
-        this.host = host;
-    }
 
     void start() {
         salvageAt = null;

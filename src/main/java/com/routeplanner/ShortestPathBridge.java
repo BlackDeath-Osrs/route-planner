@@ -1,20 +1,15 @@
 package com.routeplanner;
 
+import lombok.RequiredArgsConstructor;
 import com.routeplanner.transport.Transport;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.coords.WorldPoint;
-import net.runelite.client.eventbus.EventBus;
-import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.eventbus.*;
 import net.runelite.client.events.PluginMessage;
-import net.runelite.client.plugins.Plugin;
-import net.runelite.client.plugins.PluginDescriptor;
-import net.runelite.client.plugins.PluginManager;
-
-import javax.inject.Inject;
-import javax.inject.Singleton;
+import net.runelite.client.plugins.*;
+import javax.inject.*;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.regex.*;
 
 /**
  * Optional bridge to the Shortest Path plugin's cross-plugin API
@@ -31,6 +26,7 @@ import java.util.regex.Pattern;
  */
 @Slf4j
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class ShortestPathBridge {
 
     private static final String NAMESPACE = "shortestpath";
@@ -42,6 +38,7 @@ public class ShortestPathBridge {
     private static final int RETRY_AFTER_TIMEOUT_UPDATES = 100;
 
     /** An answer to one of our queries, already converted to plain route-planner types. */
+    @RequiredArgsConstructor
     public static final class Result {
         final String id;
         final List<WorldPoint> path;
@@ -50,14 +47,6 @@ public class ShortestPathBridge {
         /** Shortest Path's own description of each jump on the path (stairs, teleports...). */
         final List<Transport> jumps;
 
-        Result(String id, List<WorldPoint> path, boolean reached, boolean cancelled,
-               List<Transport> jumps) {
-            this.id = id;
-            this.path = path;
-            this.reached = reached;
-            this.cancelled = cancelled;
-            this.jumps = jumps;
-        }
     }
 
     private final EventBus eventBus;
@@ -70,13 +59,6 @@ public class ShortestPathBridge {
     private int updatesWaiting;
     private int timeoutCooldown;
     private volatile Result latest;
-
-    @Inject
-    public ShortestPathBridge(EventBus eventBus, PluginManager pluginManager, RoutePlannerConfig config) {
-        this.eventBus = eventBus;
-        this.pluginManager = pluginManager;
-        this.config = config;
-    }
 
     /** True when the user picked Shortest Path and it's installed, enabled and answering. */
     public boolean isActive() {
@@ -103,7 +85,6 @@ public class ShortestPathBridge {
         if (timeoutCooldown > 0) timeoutCooldown--;
         if (pendingId == null) return false;
         if (++updatesWaiting <= RESPONSE_TIMEOUT_UPDATES) return false;
-        log.info("Route Planner: Shortest Path didn't answer a path query, using built-in pathfinder");
         reset();
         timeoutCooldown = RETRY_AFTER_TIMEOUT_UPDATES;
         return true;

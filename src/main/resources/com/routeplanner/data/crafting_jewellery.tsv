@@ -1,0 +1,69 @@
+# name	level	xp	materials
+# Gold (no gem)
+Gold ring	5	15.0	Gold bar, Ring mould
+Gold necklace	6	22.5	Gold bar, Necklace mould
+Gold bracelet	7	25.0	Gold bar, Bracelet mould
+Gold amulet	8	30.0	Gold bar, Amulet mould
+# Opal (silver)
+Cut opal	1	15.0	Uncut opal, Chisel
+Opal ring	1	10.0	Silver bar, Ring mould, Opal
+Opal necklace	16	35.0	Silver bar, Necklace mould, Opal
+Opal bracelet	22	45.0	Silver bar, Bracelet mould, Opal
+Opal amulet	27	55.0	Silver bar, Amulet mould, Opal
+# Jade (silver)
+Cut jade	13	20.0	Uncut jade, Chisel
+Jade ring	13	32.0	Silver bar, Ring mould, Jade
+Jade necklace	25	54.0	Silver bar, Necklace mould, Jade
+Jade bracelet	29	60.0	Silver bar, Bracelet mould, Jade
+Jade amulet	34	70.0	Silver bar, Amulet mould, Jade
+# Red topaz (silver)
+Cut red topaz	16	25.0	Uncut red topaz, Chisel
+Topaz ring	16	35.0	Silver bar, Ring mould, Red topaz
+Topaz necklace	32	70.0	Silver bar, Necklace mould, Red topaz
+Topaz bracelet	38	75.0	Silver bar, Bracelet mould, Red topaz
+Topaz amulet	45	80.0	Silver bar, Amulet mould, Red topaz
+# Sapphire (gold)
+Cut sapphire	20	50.0	Uncut sapphire, Chisel
+Sapphire ring	20	40.0	Gold bar, Ring mould, Sapphire
+Sapphire necklace	22	55.0	Gold bar, Necklace mould, Sapphire
+Sapphire bracelet	23	60.0	Gold bar, Bracelet mould, Sapphire
+Sapphire amulet	24	65.0	Gold bar, Amulet mould, Sapphire
+# Emerald (gold)
+Cut emerald	27	67.5	Uncut emerald, Chisel
+Emerald ring	27	55.0	Gold bar, Ring mould, Emerald
+Emerald necklace	29	60.0	Gold bar, Necklace mould, Emerald
+Emerald bracelet	30	65.0	Gold bar, Bracelet mould, Emerald
+Emerald amulet	31	70.0	Gold bar, Amulet mould, Emerald
+# Ruby (gold)
+Cut ruby	34	85.0	Uncut ruby, Chisel
+Ruby ring	34	70.0	Gold bar, Ring mould, Ruby
+Ruby necklace	40	75.0	Gold bar, Necklace mould, Ruby
+Ruby bracelet	42	80.0	Gold bar, Bracelet mould, Ruby
+Ruby amulet	50	85.0	Gold bar, Amulet mould, Ruby
+# Diamond (gold)
+Cut diamond	43	107.5	Uncut diamond, Chisel
+Diamond ring	43	85.0	Gold bar, Ring mould, Diamond
+Diamond necklace	56	90.0	Gold bar, Necklace mould, Diamond
+Diamond bracelet	58	95.0	Gold bar, Bracelet mould, Diamond
+Diamond amulet	70	100.0	Gold bar, Amulet mould, Diamond
+# Dragonstone (gold)
+Cut dragonstone	55	137.5	Uncut dragonstone, Chisel
+Dragonstone ring	55	100.0	Gold bar, Ring mould, Dragonstone
+Dragon necklace	72	105.0	Gold bar, Necklace mould, Dragonstone
+Dragonstone bracelet	74	110.0	Gold bar, Bracelet mould, Dragonstone
+Dragonstone amulet	80	150.0	Gold bar, Amulet mould, Dragonstone
+# Onyx (gold)
+Cut onyx	67	167.5	Uncut onyx, Chisel
+Onyx ring	67	115.0	Gold bar, Ring mould, Onyx
+Onyx necklace	82	120.0	Gold bar, Necklace mould, Onyx
+Onyx bracelet	84	125.0	Gold bar, Bracelet mould, Onyx
+Onyx amulet	90	165.0	Gold bar, Amulet mould, Onyx
+# Zenyte (gold)
+Cut zenyte	89	50.0	Uncut zenyte, Chisel
+Zenyte ring	89	150.0	Gold bar, Ring mould, Zenyte
+Zenyte necklace	92	165.0	Gold bar, Necklace mould, Zenyte
+Zenyte bracelet	95	180.0	Gold bar, Bracelet mould, Zenyte
+Zenyte amulet	98	200.0	Gold bar, Amulet mould, Zenyte
+# Silver misc
+Unstrung symbol	16	50.0	Silver bar, Holy mould
+Tiara	23	52.5	Silver bar, Tiara mould

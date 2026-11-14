@@ -7,18 +7,10 @@ import com.routeplanner.util.HighlightColors;
 import net.runelite.api.Client;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
-import net.runelite.client.ui.overlay.Overlay;
-import net.runelite.client.ui.overlay.OverlayLayer;
-import net.runelite.client.ui.overlay.OverlayPosition;
+import net.runelite.client.ui.overlay.*;
 import net.runelite.client.util.Text;
-
-import javax.inject.Inject;
-import javax.inject.Singleton;
-import java.awt.BasicStroke;
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.Graphics2D;
-import java.awt.Rectangle;
+import javax.inject.*;
+import java.awt.*;
 import java.util.Locale;
 
 /**
@@ -98,10 +90,6 @@ public class QuetzalOverlay extends Overlay {
     private void highlight(Graphics2D graphics, Rectangle b) {
         if (b == null || b.width <= 0) return;
         Color c = plugin.getConfig().npcHighlightColor();
-        graphics.setColor(HighlightColors.fill(c));
-        graphics.fill(b);
-        graphics.setColor(c);
-        graphics.setStroke(new BasicStroke(2));
-        graphics.draw(b);
+        HighlightColors.paint(graphics, b, c);
     }
 }

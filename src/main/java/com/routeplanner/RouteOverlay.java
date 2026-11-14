@@ -1,37 +1,20 @@
 package com.routeplanner;
 
 import com.routeplanner.util.SceneObjects;
-import com.routeplanner.teleport.SpiritTrees;
-import com.routeplanner.teleport.TeleportItems;
-import com.routeplanner.teleport.FairyRings;
-import com.routeplanner.model.RouteStep;
-import com.routeplanner.model.StepType;
-import com.routeplanner.model.TileArea;
-import com.routeplanner.sailing.Sailing;
-import com.routeplanner.sailing.SailingDocks;
+import com.routeplanner.teleport.*;
+import com.routeplanner.model.*;
+import com.routeplanner.sailing.*;
 import com.routeplanner.transport.Transport;
-import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.Client;
-import net.runelite.api.GameObject;
-import net.runelite.api.NPC;
-import net.runelite.api.ObjectComposition;
-import net.runelite.api.Perspective;
-import net.runelite.api.Tile;
-import net.runelite.api.TileObject;
-import net.runelite.api.WorldView;
-import net.runelite.api.coords.LocalPoint;
-import net.runelite.api.coords.WorldPoint;
+import net.runelite.api.*;
+import net.runelite.api.coords.*;
 import net.runelite.client.ui.overlay.*;
 import net.runelite.client.ui.overlay.outline.ModelOutlineRenderer;
 import net.runelite.client.util.ColorUtil;
-
 import javax.inject.Inject;
 import java.awt.*;
-import java.awt.Color;
-import java.util.ArrayList;
+import java.util.*;
 import java.util.List;
 
-@Slf4j
 public class RouteOverlay extends Overlay {
 
     private final Client client;

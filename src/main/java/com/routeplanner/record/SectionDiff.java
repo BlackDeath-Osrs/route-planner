@@ -1,18 +1,9 @@
 package com.routeplanner.record;
 
-import com.routeplanner.model.ItemMode;
-import com.routeplanner.model.RouteStep;
-import com.routeplanner.model.TileArea;
+import lombok.RequiredArgsConstructor;
+import com.routeplanner.model.*;
 import net.runelite.api.coords.WorldPoint;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.function.BiConsumer;
 
 /**
@@ -48,18 +39,13 @@ public final class SectionDiff {
         }
     }
 
+    @RequiredArgsConstructor
     public static final class Row {
         public final Kind kind;
         public final RouteStep step;     // the section's step (null for NEW)
         public final RouteStep recorded; // the recorded step (null for SAME-without-partner and UNSEEN)
         public final List<FieldChange> changes;
 
-        Row(Kind kind, RouteStep step, RouteStep recorded, List<FieldChange> changes) {
-            this.kind = kind;
-            this.step = step;
-            this.recorded = recorded;
-            this.changes = changes;
-        }
     }
 
     /** Below this a pair isn't trusted; the two are shown as one unseen and one new step. */

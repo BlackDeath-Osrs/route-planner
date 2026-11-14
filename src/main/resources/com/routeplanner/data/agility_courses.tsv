@@ -1,0 +1,108 @@
+# course	name	level	xp per lap	region id (to recognise it)	start tile (x y plane)
+# obstacle	name	object ids	location (x y plane, optional)
+course	Gnome Stronghold	1	86.5	10553	
+obstacle	Log Balance	23145
+obstacle	Obstacle Net 1	23134
+obstacle	Tree Branch Up	23559
+obstacle	Balancing Rope	23557
+obstacle	Tree Branch Down	23560
+obstacle	Obstacle Net 2	23135
+obstacle	Obstacle Pipe	23138,23139
+course	Draynor Village	1	120	12338	3103 3279 0
+obstacle	Rough Wall	11404
+obstacle	Tightrope 1	11405
+obstacle	Tightrope 2	11406
+obstacle	Narrow Wall	11430
+obstacle	Wall	11630
+obstacle	Gap	11631
+obstacle	Crate	11632
+course	Al Kharid	20	216	13105	3273 3196 0
+obstacle	Rough Wall	11633
+obstacle	Tightrope 1	14398
+obstacle	Cable	14402
+obstacle	Zip Line	14403
+obstacle	Tropical Tree	14404
+obstacle	Roof Top Beams	11634
+obstacle	Tightrope 2	14409
+obstacle	Gap	14399
+course	Varrock	30	238	12597	3221 3414 0
+obstacle	Rough Wall	14412
+obstacle	Clothes Line	14413
+obstacle	Gap 1	14414
+obstacle	Wall	14832
+obstacle	Gap 2	14833
+obstacle	Gap 3	14834
+obstacle	Leap	14835
+obstacle	Ledge	14836
+obstacle	Edge	14841
+course	Canifis	40	240	13878	3505 3488 0
+obstacle	Tall Tree	14843
+obstacle	Gap 1	14844
+obstacle	Gap 2	14845
+obstacle	Gap 3	14848
+obstacle	Gap 4	14846
+obstacle	Polevault	14894
+obstacle	Gap 5	14847
+obstacle	Gap 6	14897
+course	Falador	50	340	11828	3036 3341 0
+obstacle	Rough Wall	14898
+obstacle	Tightrope 1	14899
+obstacle	Cross Wall	14901
+obstacle	Gap 1	14903
+obstacle	Gap 2	14904
+obstacle	Tightrope 1	14905
+obstacle	Tightrope 2	14911
+obstacle	Gap 3	14919
+obstacle	Ledge	14920
+obstacle	Ledge 2	14921
+obstacle	Ledge 3	14922,14923
+obstacle	Ledge 4	14924
+obstacle	Edge	14925
+course	Seers Village	60	570	10806	2729 3485 0
+obstacle	Wall	14927
+obstacle	Gap 1	14928
+obstacle	Tightrope	14932
+obstacle	Gap 2	14929
+obstacle	Gap 3	14930
+obstacle	Edge	14931
+course	Rellekka	80	780	10297	2626 3676 0
+obstacle	Rough Wall	14946
+obstacle	Gap 1	14947
+obstacle	Tightrope 1	14987
+obstacle	Gap 2	14990
+obstacle	Gap 3	14991
+obstacle	Tightrope 2	14992
+obstacle	Pile of Fish	14994	2654 3676 3
+course	Ardougne	90	793	10547	2673 3320 0
+obstacle	Wooden Beams	15608
+obstacle	Gap 1	15609
+obstacle	Plank	26635
+obstacle	Gap 2	15610
+obstacle	Jump	15611
+obstacle	Steep Roof	28912
+obstacle	Gap 3	15612,28913
+course	Pollnivneach	70	890		
+obstacle	Basket	14935
+obstacle	Market Stall	14936
+obstacle	Banner	14937
+obstacle	Gap	14938
+obstacle	Tree	14939
+obstacle	Rough Wall	14940
+obstacle	Monkeybars	14941
+obstacle	Tree 2	14944
+obstacle	Drying Line	14945
+course	Prifddinas	75	1337		
+obstacle	Ladder	36221
+obstacle	Tightrope 1	36225
+obstacle	Chimney	36227
+obstacle	Roof Edge	36228
+obstacle	Dark Hole	36229
+obstacle	Ladder 2	36231,36232
+obstacle	Rope Bridge 1	36233
+obstacle	Tightrope 2	36234
+obstacle	Rope Bridge 2	36235
+obstacle	Tightrope 3	36236
+obstacle	Tightrope 4	36237
+obstacle	Dark Hole 2	36238
+# Shortcut portals appear at random and skip part of the lap.
+obstacle	Portal	36240,36241,36242,36243,36244,36245,36246

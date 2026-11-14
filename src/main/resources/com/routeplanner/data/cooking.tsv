@@ -1,0 +1,29 @@
+# name	level	xp	raw item
+Shrimps	1	30.0	Raw shrimps
+Chicken	1	30.0	Raw chicken
+Meat	1	30.0	Raw beef
+Sardine	1	40.0	Raw sardine
+Herring	5	50.0	Raw herring
+Trout	15	70.0	Raw trout
+Pike	20	80.0	Raw pike
+Salmon	25	90.0	Raw salmon
+Tuna	30	100.0	Raw tuna
+Karambwan	30	190.0	Raw karambwan
+Lobster	40	120.0	Raw lobster
+Swordfish	45	140.0	Raw swordfish
+Monkfish	62	150.0	Raw monkfish
+Shark	80	210.0	Raw shark
+Anglerfish	84	230.0	Raw anglerfish
+# Hunter meats (Varlamore) - require Hunters' Rumours to cook
+Graahk	41	124.0	Raw graahk
+Kyatt	51	143.0	Raw kyatt
+Pyre fox	59	154.0	Raw pyre fox
+Sunlight antelope	68	175.0	Raw sunlight antelope
+Dashing kebbit	82	215.0	Raw dashing kebbit
+Moonlight antelope	92	220.0	Raw moonlight antelope
+# Sailing fish (deep sea trawling)
+Haddock	73	180.0	Raw haddock
+Yellowfin	79	200.0	Raw yellowfin
+Halibut	83	212.5	Raw halibut
+Bluefin	87	215.0	Raw bluefin
+Marlin	90	225.0	Raw marlin

@@ -1,8 +1,6 @@
 package com.routeplanner.util;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Matching NPCs against a step's target text: comma-separated NPCs, each with / for alternatives,

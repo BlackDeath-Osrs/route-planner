@@ -3,33 +3,17 @@ package com.routeplanner.bank;
 import com.routeplanner.RoutePlannerPlugin;
 import com.routeplanner.model.RouteStep;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.Client;
-import net.runelite.api.ScriptID;
-import net.runelite.api.SpritePixels;
-import net.runelite.api.events.GameTick;
-import net.runelite.api.events.MenuOptionClicked;
-import net.runelite.api.events.ScriptPostFired;
-import net.runelite.api.events.WidgetClosed;
-import net.runelite.api.events.WidgetLoaded;
+import net.runelite.api.*;
+import net.runelite.api.events.*;
 import net.runelite.api.gameval.InterfaceID;
-import net.runelite.api.widgets.JavaScriptCallback;
-import net.runelite.api.widgets.Widget;
-import net.runelite.api.widgets.WidgetType;
+import net.runelite.api.widgets.*;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.plugins.bank.BankSearch;
-import net.runelite.client.util.ImageUtil;
-import net.runelite.client.util.Text;
-
-import javax.inject.Inject;
-import javax.inject.Singleton;
+import net.runelite.client.util.*;
+import javax.inject.*;
 import java.awt.image.BufferedImage;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * The Route Planner tab in the bank: a game-style square button with the plugin's icon, at the
@@ -235,7 +219,6 @@ public class BankFilterButton {
     }
 
     private void toggle() {
-        log.debug("Route Planner bank tab clicked, filter was {}", filterActive ? "on" : "off");
         client.playSoundEffect(TAB_SOUND);
         if (filterActive) {
             turnOff(true);
@@ -277,7 +260,6 @@ public class BankFilterButton {
         if (title != null && savedTitle != null) title.setText(savedTitle);
         saved.clear();
         savedTitle = null;
-        log.debug("Route Planner bank tab: bank view restored");
     }
 
     private void applyItemFilter() {

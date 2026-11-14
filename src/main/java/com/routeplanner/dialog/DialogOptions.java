@@ -4,9 +4,7 @@ import net.runelite.api.Client;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.util.Text;
-
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 /**
  * Reading the chat options menu ("Select an Option"). Shared by the highlight overlay and the

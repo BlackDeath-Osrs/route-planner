@@ -1,22 +1,13 @@
 package com.routeplanner.teleport;
 
+import lombok.RequiredArgsConstructor;
 import com.routeplanner.RoutePlannerConfig;
 import com.routeplanner.util.SceneObjects;
-import net.runelite.api.Client;
-import net.runelite.api.GameObject;
-import net.runelite.api.GameState;
-import net.runelite.api.ObjectComposition;
-import net.runelite.api.Tile;
-import net.runelite.api.WorldView;
-import net.runelite.api.coords.LocalPoint;
-import net.runelite.api.coords.WorldPoint;
+import net.runelite.api.*;
+import net.runelite.api.coords.*;
 import net.runelite.client.config.ConfigManager;
-
-import javax.inject.Inject;
-import javax.inject.Singleton;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
+import javax.inject.*;
+import java.util.*;
 
 /**
  * Remembers, per character, which spirit tree patches have a grown tree the player can travel
@@ -24,6 +15,7 @@ import java.util.Set;
  * the player's. Checked whenever a patch is in view, and kept between sessions.
  */
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class PlantedSpiritTrees {
 
     private static final String KEY = "plantedSpiritTrees";
@@ -36,12 +28,6 @@ public class PlantedSpiritTrees {
     /** The grown trees' keys ({@link SpiritTrees.Tree#key()}); null until read for this character. */
     private Set<String> grown;
     private String loadedFor;
-
-    @Inject
-    public PlantedSpiritTrees(Client client, ConfigManager configManager) {
-        this.client = client;
-        this.configManager = configManager;
-    }
 
     /** The trees grown in the player's patches, as far as the player has seen. */
     public Set<String> grown() {
@@ -66,32 +52,36 @@ public class PlantedSpiritTrees {
         }
     }
 
-    /** Whether the patch's tree can be travelled from now; null when the patch isn't in the scene. */
+    /**
+     * Whether the patch's tree can be travelled from now; null when the patch isn't in the scene.
+     * Each patch has its own object id (the data names them all 8355), so the patch is found as
+     * the farming-patch object (one that changes with the player's crop) around the tree's tiles.
+     */
     private Boolean treeReady(WorldView wv, SpiritTrees.Tree tree) {
         Tile[][] plane = wv.getScene().getTiles()[wv.getPlane()];
-        for (WorldPoint wp : tree.tiles()) {
-            if (wp.getPlane() != wv.getPlane()) return null;
-            LocalPoint lp = LocalPoint.fromWorld(wv, wp);
-            if (lp == null) return null;
-            // The patch stands in the middle of the tiles around it: look a few tiles in
-            for (int dx = -3; dx <= 3; dx++) {
-                for (int dy = -3; dy <= 3; dy++) {
-                    int x = lp.getSceneX() + dx, y = lp.getSceneY() + dy;
-                    if (x < 0 || y < 0 || x >= plane.length || y >= plane[x].length || plane[x][y] == null) continue;
-                    for (GameObject obj : plane[x][y].getGameObjects()) {
-                        if (!SceneObjects.isObject(obj) || obj.getId() != tree.objectId) continue;
-                        return canTravel(obj.getId());
-                    }
+        WorldPoint wp = tree.tiles().get(0);
+        if (wp.getPlane() != wv.getPlane()) return null;
+        LocalPoint lp = LocalPoint.fromWorld(wv, wp);
+        if (lp == null) return null;
+        boolean patchSeen = false;
+        // The patch stands in the middle of the tiles around it: look a few tiles in
+        for (int dx = -3; dx <= 3; dx++) {
+            for (int dy = -3; dy <= 3; dy++) {
+                int x = lp.getSceneX() + dx, y = lp.getSceneY() + dy;
+                if (x < 0 || y < 0 || x >= plane.length || y >= plane[x].length || plane[x][y] == null) continue;
+                for (GameObject obj : plane[x][y].getGameObjects()) {
+                    if (!SceneObjects.isObject(obj)) continue;
+                    ObjectComposition comp = client.getObjectDefinition(obj.getId());
+                    if (comp == null || comp.getImpostorIds() == null) continue;
+                    patchSeen = true;
+                    if (canTravel(comp.getImpostor())) return true;
                 }
             }
-            return null;
         }
-        return null;
+        return patchSeen ? false : null;
     }
 
-    private boolean canTravel(int id) {
-        ObjectComposition comp = client.getObjectDefinition(id);
-        if (comp != null && comp.getImpostorIds() != null) comp = comp.getImpostor();
+    private static boolean canTravel(ObjectComposition comp) {
         if (comp == null || comp.getActions() == null) return false;
         for (String a : comp.getActions()) if (a != null && a.equalsIgnoreCase("Travel")) return true;
         return false;

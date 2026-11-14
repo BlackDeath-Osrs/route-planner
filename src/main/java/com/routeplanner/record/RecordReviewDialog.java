@@ -1,26 +1,16 @@
 package com.routeplanner.record;
 
-import com.routeplanner.QuickStepDialog;
-import com.routeplanner.RoutePlannerPlugin;
-import com.routeplanner.model.Route;
-import com.routeplanner.model.RouteSection;
-import com.routeplanner.model.RouteStep;
-import com.routeplanner.util.RouteTextValidator;
+import com.routeplanner.util.*;
+import com.routeplanner.*;
+import com.routeplanner.model.*;
 import net.runelite.client.ui.ColorScheme;
-
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
-import java.awt.event.ActionListener;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
+import java.awt.event.*;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Date;
+import java.util.*;
 import java.util.List;
-import java.util.UUID;
 
 /**
  * Review screen shown when a recording stops. Drafts are edited here (with the normal step
@@ -52,7 +42,7 @@ public class RecordReviewDialog extends JDialog {
         root.setBackground(ColorScheme.DARK_GRAY_COLOR);
 
         JLabel header = new JLabel("<html>" + drafts.size() + " recorded steps for <b>"
-            + escape(route.getName()) + "</b>. Edit or remove anything before saving.</html>");
+            + HighlightColors.escapeHtml(route.getName()) + "</b>. Edit or remove anything before saving.</html>");
         header.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
         root.add(header, BorderLayout.NORTH);
 
@@ -161,10 +151,6 @@ public class RecordReviewDialog extends JDialog {
             if (choice != JOptionPane.YES_OPTION) return;
         }
         dispose();
-    }
-
-    private static String escape(String s) {
-        return s == null ? "" : s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 
     /** One line per draft: its name plus tags for the components it carries. */

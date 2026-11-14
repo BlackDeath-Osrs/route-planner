@@ -1,24 +1,16 @@
 package com.routeplanner.bank;
 
 import com.routeplanner.RoutePlannerPlugin;
-import com.routeplanner.model.ItemMode;
-import com.routeplanner.model.RouteStep;
-import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.Client;
-import net.runelite.api.InventoryID;
-import net.runelite.api.Item;
-import net.runelite.api.ItemContainer;
+import com.routeplanner.model.*;
+import net.runelite.api.*;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.overlay.*;
-
-import javax.inject.Inject;
-import javax.inject.Singleton;
+import javax.inject.*;
 import java.awt.*;
 import java.util.List;
 
-@Slf4j
 @Singleton
 public class ShopOverlay extends Overlay {
 

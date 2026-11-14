@@ -2,22 +2,14 @@ package com.routeplanner;
 
 import com.routeplanner.model.TileArea;
 import com.routeplanner.util.Strokes;
-import net.runelite.api.Client;
-import net.runelite.api.Perspective;
-import net.runelite.api.Point;
-import net.runelite.api.WorldView;
+import net.runelite.api.*;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.util.ColorUtil;
-
-import java.awt.Color;
-import java.awt.Graphics2D;
-import java.awt.Polygon;
-import java.awt.Rectangle;
-import java.awt.Shape;
-import java.awt.geom.Ellipse2D;
-import java.awt.geom.Path2D;
+import java.awt.*;
+import java.awt.geom.*;
+import net.runelite.api.Point;
 
 /** Draws a step's area: an outline with a faint fill, on the ground and on the minimap. */
 final class AreaGraphics {

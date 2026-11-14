@@ -1,17 +1,13 @@
 package com.routeplanner;
 
-import com.routeplanner.model.RouteStep;
-import com.routeplanner.model.TileArea;
-import net.runelite.api.Client;
-import net.runelite.api.Point;
+import com.routeplanner.model.*;
+import net.runelite.api.*;
 import net.runelite.api.coords.WorldPoint;
-import net.runelite.client.ui.overlay.Overlay;
-import net.runelite.client.ui.overlay.OverlayLayer;
-import net.runelite.client.ui.overlay.OverlayPosition;
+import net.runelite.client.ui.overlay.*;
 import net.runelite.client.ui.overlay.worldmap.WorldMapOverlay;
-
 import javax.inject.Inject;
 import java.awt.*;
+import net.runelite.api.Point;
 
 public class MinimapOverlay extends Overlay {
 

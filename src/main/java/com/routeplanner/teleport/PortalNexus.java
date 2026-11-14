@@ -2,20 +2,13 @@ package com.routeplanner.teleport;
 
 import com.routeplanner.util.SceneObjects;
 import com.routeplanner.model.RouteStep;
-import net.runelite.api.Client;
-import net.runelite.api.GameObject;
-import net.runelite.api.ObjectComposition;
-import net.runelite.api.Scene;
-import net.runelite.api.Tile;
+import net.runelite.api.*;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.util.Text;
-
 import java.awt.Rectangle;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.function.Consumer;
-import java.util.function.Predicate;
+import java.util.*;
+import java.util.function.*;
 
 /**
  * Reading the Portal Nexus teleport menu. Each row is a clickable background with its text

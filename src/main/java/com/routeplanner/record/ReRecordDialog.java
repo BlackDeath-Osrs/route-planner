@@ -1,38 +1,17 @@
 package com.routeplanner.record;
 
-import com.routeplanner.QuickStepDialog;
-import com.routeplanner.RoutePlannerPlugin;
-import com.routeplanner.model.RouteSection;
-import com.routeplanner.model.RouteStep;
-import net.runelite.client.ui.ColorScheme;
-import net.runelite.client.ui.FontManager;
+import static com.routeplanner.ui.Ui.*;
 
-import javax.swing.BorderFactory;
-import javax.swing.Box;
-import javax.swing.BoxLayout;
-import javax.swing.JButton;
-import javax.swing.JCheckBox;
-import javax.swing.JDialog;
-import javax.swing.JLabel;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.SwingConstants;
+import com.routeplanner.util.HighlightColors;
+import com.routeplanner.*;
+import com.routeplanner.model.*;
+import net.runelite.client.ui.*;
+import javax.swing.*;
 import javax.swing.border.EmptyBorder;
-import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Cursor;
-import java.awt.Dimension;
-import java.awt.FlowLayout;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
-import java.util.ArrayList;
-import java.util.IdentityHashMap;
+import java.awt.*;
+import java.awt.event.*;
+import java.util.*;
 import java.util.List;
-import java.util.Map;
 
 /**
  * After re-recording a section: the section and the recording side by side as one list. New
@@ -76,10 +55,9 @@ public class ReRecordDialog extends JDialog {
             else if (r.kind == SectionDiff.Kind.CHANGED) changed++;
             else if (r.kind == SectionDiff.Kind.UNSEEN) unseen++;
         }
-        JPanel head = new JPanel();
+        JPanel head = bare(new JPanel());
         head.setLayout(new BoxLayout(head, BoxLayout.Y_AXIS));
-        head.setOpaque(false);
-        JLabel title = new JLabel("<html><b>" + esc(section.getName()) + "</b></html>");
+        JLabel title = new JLabel("<html><b>" + HighlightColors.escapeHtml(section.getName()) + "</b></html>");
         title.setForeground(Color.WHITE);
         head.add(title);
         JLabel legend = new JLabel("<html>"
@@ -104,8 +82,7 @@ public class ReRecordDialog extends JDialog {
         scroll.setBorder(BorderFactory.createEmptyBorder());
         root.add(scroll, BorderLayout.CENTER);
 
-        JPanel bottom = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
-        bottom.setOpaque(false);
+        JPanel bottom = bare(new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0)));
         JButton discard = new JButton("Discard");
         discard.addActionListener(e -> onDiscard());
         JButton apply = new JButton("Apply to section");
@@ -121,10 +98,8 @@ public class ReRecordDialog extends JDialog {
     }
 
     private JPanel rowPanel(SectionDiff.Row r, int number) {
-        JPanel p = new JPanel();
+        JPanel p = bareLeft(new JPanel());
         p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
-        p.setOpaque(false);
-        p.setAlignmentX(Component.LEFT_ALIGNMENT);
         Color color = colorOf(r.kind);
         p.setBorder(BorderFactory.createCompoundBorder(
             BorderFactory.createMatteBorder(0, 3, 0, 0, color == null ? ColorScheme.DARKER_GRAY_COLOR : color),
@@ -153,9 +128,7 @@ public class ReRecordDialog extends JDialog {
             }
             top = box;
         } else {
-            JLabel l = new JLabel(text);
-            l.setForeground(color != null ? color : ColorScheme.LIGHT_GRAY_COLOR);
-            l.setFont(FontManager.getRunescapeSmallFont());
+            JLabel l = smallText(new JLabel(text), color != null ? color : ColorScheme.LIGHT_GRAY_COLOR);
             l.setBorder(new EmptyBorder(2, 0, 2, 0));
             top = l;
         }
@@ -163,8 +136,8 @@ public class ReRecordDialog extends JDialog {
         p.add(top);
 
         for (SectionDiff.FieldChange c : r.changes) {
-            String change = "<html><span style='color:#cccccc'>" + esc(c.label) + ":</span> "
-                + (c.fill ? "<i>none</i>" : esc(clip(c.oldText))) + " &rarr; " + esc(clip(c.newText)) + "</html>";
+            String change = "<html><span style='color:#cccccc'>" + HighlightColors.escapeHtml(c.label) + ":</span> "
+                + (c.fill ? "<i>none</i>" : HighlightColors.escapeHtml(clip(c.oldText))) + " &rarr; " + HighlightColors.escapeHtml(clip(c.newText)) + "</html>";
             JCheckBox box = new JCheckBox(change, c.fill);
             box.setToolTipText(c.fill ? "The step had nothing here; the recording fills it in."
                 : "Different from what the step had. Tick to replace it with the recorded value.");
@@ -228,10 +201,8 @@ public class ReRecordDialog extends JDialog {
     }
 
     private static void style(JCheckBox box, Color fg) {
-        box.setOpaque(false);
+        smallText(bare(box), fg);
         box.setFocusPainted(false);
-        box.setForeground(fg);
-        box.setFont(FontManager.getRunescapeSmallFont());
         box.setHorizontalAlignment(SwingConstants.LEFT);
     }
 
@@ -260,7 +231,4 @@ public class ReRecordDialog extends JDialog {
         return s.length() > 60 ? s.substring(0, 57) + "..." : s;
     }
 
-    private static String esc(String s) {
-        return s == null ? "" : s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
-    }
 }

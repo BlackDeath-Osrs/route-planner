@@ -1,27 +1,15 @@
 package com.routeplanner.farming;
 
+import lombok.RequiredArgsConstructor;
 import com.routeplanner.util.SceneObjects;
 import com.routeplanner.RoutePlannerPlugin;
-import com.routeplanner.model.Route;
-import com.routeplanner.model.RouteStep;
-import net.runelite.api.ChatMessageType;
-import net.runelite.api.Client;
-import net.runelite.api.GameObject;
-import net.runelite.api.Tile;
-import net.runelite.api.WorldView;
+import com.routeplanner.model.*;
+import net.runelite.api.*;
 import net.runelite.api.coords.WorldPoint;
-import net.runelite.api.MenuAction;
-import net.runelite.api.ObjectComposition;
-import net.runelite.api.Skill;
-import net.runelite.api.events.ChatMessage;
-import net.runelite.api.events.GameTick;
-import net.runelite.api.events.MenuOptionClicked;
-import net.runelite.api.events.StatChanged;
+import net.runelite.api.events.*;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.util.Text;
-
-import javax.inject.Inject;
-import javax.inject.Singleton;
+import javax.inject.*;
 
 /**
  * Completes farming patch steps. A patch is known by its own object id, which stays the same
@@ -34,6 +22,7 @@ import javax.inject.Singleton;
  *    pick, harvest or check, or once a dead crop was cleared from it.
  */
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class FarmingTracker {
 
     /** Farming XP counts for a patch clicked this many ticks before (walking over to it first). */
@@ -47,12 +36,6 @@ public class FarmingTracker {
     private int lastFarmingXp = -1;
     /** The step that got Farming XP from its patch (a tended patch is then done once it has no work left). */
     private RouteStep tendedStep;
-
-    @Inject
-    public FarmingTracker(Client client, RoutePlannerPlugin plugin) {
-        this.client = client;
-        this.plugin = plugin;
-    }
 
     @Subscribe
     public void onMenuOptionClicked(MenuOptionClicked e) {
@@ -173,7 +156,6 @@ public class FarmingTracker {
         int arrow = target.indexOf("->");
         return arrow < 0 ? null : target.substring(0, arrow).trim();
     }
-
 
     private static boolean isObjectAction(MenuAction a) {
         switch (a) {

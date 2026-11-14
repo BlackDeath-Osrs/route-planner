@@ -1,16 +1,7 @@
 package com.routeplanner.model;
 
-import net.runelite.api.coords.WorldArea;
-import net.runelite.api.coords.WorldPoint;
-
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.TreeSet;
+import net.runelite.api.coords.*;
+import java.util.*;
 
 /**
  * A step's area: any set of tiles on one floor, a plain rectangle or a painted room shape.

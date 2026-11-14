@@ -3,23 +3,13 @@ package com.routeplanner.teleport;
 import com.routeplanner.RoutePlannerPlugin;
 import com.routeplanner.model.RouteStep;
 import com.routeplanner.util.HighlightColors;
-import net.runelite.api.Client;
-import net.runelite.api.Item;
-import net.runelite.api.ItemContainer;
-import net.runelite.api.gameval.InterfaceID;
-import net.runelite.api.gameval.InventoryID;
+import net.runelite.api.*;
+import net.runelite.api.gameval.*;
 import net.runelite.api.widgets.Widget;
-import net.runelite.client.ui.overlay.Overlay;
-import net.runelite.client.ui.overlay.OverlayLayer;
-import net.runelite.client.ui.overlay.OverlayPosition;
-
-import javax.inject.Inject;
-import javax.inject.Singleton;
-import java.awt.BasicStroke;
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.Graphics2D;
-import java.awt.Rectangle;
+import net.runelite.client.ui.overlay.*;
+import javax.inject.*;
+import java.awt.*;
+import net.runelite.api.gameval.InventoryID;
 
 /**
  * Highlights a teleport item in the inventory, or in the equipment tab when it's worn (e.g. a
@@ -94,13 +84,7 @@ public class TeleportItemOverlay extends Overlay {
     }
 
     private void highlight(Graphics2D graphics, Rectangle b) {
-        if (b == null) return;
-        Color outline = plugin.getConfig().npcHighlightColor();
-        graphics.setColor(outline);
-        graphics.setStroke(new BasicStroke(2));
-        graphics.drawRect(b.x, b.y, b.width, b.height);
-        graphics.setColor(HighlightColors.fill(outline));
-        graphics.fillRect(b.x, b.y, b.width, b.height);
+        HighlightColors.paintSlot(graphics, b, plugin.getConfig().npcHighlightColor());
     }
 
     /** Inventory item slots live as dynamic children of the inventory widget. */

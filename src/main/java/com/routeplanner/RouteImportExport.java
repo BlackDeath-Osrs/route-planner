@@ -1,33 +1,23 @@
 package com.routeplanner;
 
-import com.routeplanner.model.Route;
-import com.routeplanner.model.RouteSection;
-import com.routeplanner.model.RouteStep;
+import lombok.RequiredArgsConstructor;
+import com.routeplanner.model.*;
 import com.routeplanner.util.RouteSerializer;
 import lombok.extern.slf4j.Slf4j;
-
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 @Slf4j
+@RequiredArgsConstructor
 public class RouteImportExport {
 
     private final RoutePlannerPlugin plugin;
     private final RoutePlannerPanel panel;
-
-    public RouteImportExport(RoutePlannerPlugin plugin, RoutePlannerPanel panel) {
-        this.plugin = plugin;
-        this.panel = panel;
-    }
 
     public void exportRoute(Route route) {
         JFileChooser chooser = new JFileChooser();
@@ -49,39 +39,8 @@ public class RouteImportExport {
             JOptionPane.showMessageDialog(null,
                 "Route exported to:\n" + file.getAbsolutePath(),
                 "Export Successful", JOptionPane.INFORMATION_MESSAGE);
-            log.info("Exported route {} to {}", route.getName(), file.getAbsolutePath());
         } catch (IOException e) {
             log.error("Failed to export route", e);
-            JOptionPane.showMessageDialog(null,
-                "Export failed: " + e.getMessage(),
-                "Export Error", JOptionPane.ERROR_MESSAGE);
-        }
-    }
-
-    public void exportAllRoutes() {
-        JFileChooser chooser = new JFileChooser();
-        chooser.setDialogTitle("Export All Routes");
-        chooser.setSelectedFile(new File("routes_export.json"));
-        chooser.setFileFilter(new FileNameExtensionFilter("JSON files", "json"));
-
-        int result = chooser.showSaveDialog(null);
-        if (result != JFileChooser.APPROVE_OPTION) return;
-
-        File file = chooser.getSelectedFile();
-        if (!file.getName().endsWith(".json")) {
-            file = new File(file.getAbsolutePath() + ".json");
-        }
-
-        try {
-            List<Route> copies = new ArrayList<>();
-            for (Route r : plugin.getRoutes()) copies.add(RouteSerializer.shareableCopy(r, plugin.getRouteGson()));
-            String json = plugin.getExportGson().toJson(copies);
-            Files.write(file.toPath(), json.getBytes(StandardCharsets.UTF_8));
-            JOptionPane.showMessageDialog(null,
-                "All routes exported to:\n" + file.getAbsolutePath(),
-                "Export Successful", JOptionPane.INFORMATION_MESSAGE);
-        } catch (IOException e) {
-            log.error("Failed to export routes", e);
             JOptionPane.showMessageDialog(null,
                 "Export failed: " + e.getMessage(),
                 "Export Error", JOptionPane.ERROR_MESSAGE);
@@ -162,7 +121,6 @@ public class RouteImportExport {
                             JOptionPane.showMessageDialog(null,
                                 "Route \"" + route.getName() + "\" updated!",
                                 "Import Successful", JOptionPane.INFORMATION_MESSAGE);
-                            log.info("Replaced route: {}", route.getName());
                             return;
                         }
                         route.setName(name + " (imported)");
@@ -173,12 +131,9 @@ public class RouteImportExport {
                     JOptionPane.showMessageDialog(null,
                         "Route \"" + route.getName() + "\" imported!",
                         "Import Successful", JOptionPane.INFORMATION_MESSAGE);
-                    log.info("Imported route: {}", route.getName());
                     return;
                 }
-            } catch (Exception e) {
-                log.debug("Import: not a single route, trying a list of routes: {}", e.toString());
-            }
+            } catch (Exception ignored) {}
 
             // Try list of routes
             Route[] routes = plugin.getRouteGson().fromJson(json, Route[].class);

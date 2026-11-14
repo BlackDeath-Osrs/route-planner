@@ -1,24 +1,18 @@
 package com.routeplanner;
 
-import com.routeplanner.model.RouteStep;
-import com.routeplanner.model.TileArea;
+import com.routeplanner.model.*;
 import com.routeplanner.sailing.Sailing;
-import net.runelite.api.Client;
-import net.runelite.api.Point;
+import net.runelite.api.*;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.widgets.Widget;
-import net.runelite.client.ui.overlay.Overlay;
-import net.runelite.client.ui.overlay.OverlayLayer;
-import net.runelite.client.ui.overlay.OverlayPosition;
+import net.runelite.client.ui.overlay.*;
 import net.runelite.client.ui.overlay.worldmap.WorldMapOverlay;
-
 import javax.inject.Inject;
 import java.awt.*;
-import java.awt.geom.AffineTransform;
-import java.awt.geom.Ellipse2D;
-import java.awt.geom.Path2D;
-import java.util.ArrayList;
+import java.awt.geom.*;
+import java.util.*;
 import java.util.List;
+import net.runelite.api.Point;
 
 public class WorldMapPathOverlay extends Overlay {
 

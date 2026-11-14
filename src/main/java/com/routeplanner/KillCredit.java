@@ -1,7 +1,6 @@
 package com.routeplanner;
 
-import java.util.Map;
-import java.util.WeakHashMap;
+import java.util.*;
 
 /**
  * Which NPCs the player has been hitting. An NPC counts as the player's kill if one of their

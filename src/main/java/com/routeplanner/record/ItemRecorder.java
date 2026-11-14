@@ -1,24 +1,16 @@
 package com.routeplanner.record;
 
-import com.routeplanner.model.ItemMode;
+import lombok.RequiredArgsConstructor;
+import com.routeplanner.model.*;
 import com.routeplanner.bank.BankItemManager;
-import com.routeplanner.model.RouteStep;
 import com.routeplanner.util.LocationNames;
-import net.runelite.api.Client;
-import net.runelite.api.InventoryID;
-import net.runelite.api.Item;
-import net.runelite.api.ItemContainer;
+import net.runelite.api.*;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.gameval.InterfaceID;
-import net.runelite.api.widgets.ComponentID;
-import net.runelite.api.widgets.Widget;
-import net.runelite.client.game.ItemManager;
-import net.runelite.client.game.ItemStats;
-import net.runelite.client.game.ItemVariationMapping;
-
+import net.runelite.api.widgets.*;
+import net.runelite.client.game.*;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.regex.*;
 
 /**
  * The item half of Record mode: turns inventory changes into item steps.
@@ -32,6 +24,7 @@ import java.util.regex.Pattern;
  * what you ended up holding; SHOP and PICKUP check what you gained, so they record that.
  * Read-only like the rest of the recorder: it only looks at the inventory and interfaces.
  */
+@RequiredArgsConstructor
 class ItemRecorder {
 
     /** A "Take" click counts for the item that arrives within this many ticks (walking to it). */
@@ -65,12 +58,6 @@ class ItemRecorder {
         final Map<String, Long> qty = new LinkedHashMap<>();
         boolean isEmpty() { return qty.isEmpty(); }
         long get(String name) { return qty.getOrDefault(name, 0L); }
-    }
-
-    ItemRecorder(Client client, ItemManager itemManager, RouteRecorder host) {
-        this.client = client;
-        this.itemManager = itemManager;
-        this.host = host;
     }
 
     void start() {

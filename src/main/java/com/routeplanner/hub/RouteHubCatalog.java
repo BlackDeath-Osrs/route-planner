@@ -1,13 +1,10 @@
 package com.routeplanner.hub;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonSyntaxException;
+import lombok.RequiredArgsConstructor;
+import com.google.gson.*;
 import lombok.extern.slf4j.Slf4j;
-
-import javax.inject.Inject;
-import javax.inject.Singleton;
-import java.util.ArrayList;
-import java.util.List;
+import javax.inject.*;
+import java.util.*;
 
 /**
  * Fetches and parses the Route Hub catalog. Entries that fail {@link HubRouteEntry#validate()} are
@@ -16,16 +13,11 @@ import java.util.List;
  */
 @Slf4j
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class RouteHubCatalog {
 
     private final RouteHubFetcher fetcher;
     private final Gson gson;
-
-    @Inject
-    public RouteHubCatalog(RouteHubFetcher fetcher, Gson gson) {
-        this.fetcher = fetcher;
-        this.gson = gson;
-    }
 
     /** Fetches, parses, and validates the catalog. Never returns null; returns an empty list on
      *  total failure so the panel can show "couldn't load" rather than crash. */

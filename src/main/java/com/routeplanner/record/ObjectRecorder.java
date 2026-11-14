@@ -1,18 +1,11 @@
 package com.routeplanner.record;
 
-import com.routeplanner.model.ItemMode;
-import com.routeplanner.model.RouteStep;
+import lombok.RequiredArgsConstructor;
+import com.routeplanner.model.*;
 import com.routeplanner.util.LocationNames;
-import net.runelite.api.Client;
-import net.runelite.api.Skill;
+import net.runelite.api.*;
 import net.runelite.api.coords.WorldPoint;
-
-import java.util.ArrayList;
-import java.util.EnumMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.regex.Pattern;
 
 /**
@@ -37,6 +30,7 @@ import java.util.regex.Pattern;
  *    banking, boarding, teleports and agility course obstacles are left to the rest of the
  *    recorder.
  */
+@RequiredArgsConstructor
 class ObjectRecorder {
 
     /** Give up on a click if the player hasn't reached the object within this many ticks. */
@@ -73,11 +67,6 @@ class ObjectRecorder {
     private int stepTick = -1000;
     private boolean stepHadItems;
     private final Map<Skill, Integer> xp = new EnumMap<>(Skill.class);
-
-    ObjectRecorder(Client client, RouteRecorder host) {
-        this.client = client;
-        this.host = host;
-    }
 
     void start() {
         option = null;

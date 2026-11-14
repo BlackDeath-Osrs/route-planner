@@ -1,54 +1,28 @@
 package com.routeplanner;
 
-import com.routeplanner.model.ItemMode;
-import com.routeplanner.model.ProgressCheck;
-import com.routeplanner.model.Route;
-import com.routeplanner.model.RouteStep;
-import com.routeplanner.model.SkillGoalType;
-import com.routeplanner.model.StepType;
-import com.routeplanner.model.TileArea;
+import static com.routeplanner.ui.Ui.*;
+
+import lombok.RequiredArgsConstructor;
+import com.routeplanner.model.*;
 import com.routeplanner.sailing.SailingDocks;
 import com.routeplanner.skilling.RecipeLabels;
-import com.routeplanner.teleport.FairyRings;
-import com.routeplanner.teleport.Quetzals;
-import com.routeplanner.teleport.SpiritTrees;
-import com.routeplanner.teleport.TeleportItem;
-import com.routeplanner.teleport.TeleportItems;
-import com.routeplanner.teleport.TeleportPickers;
-import com.routeplanner.teleport.TeleportSpell;
-import com.routeplanner.teleport.TeleportSpells;
+import com.routeplanner.teleport.*;
 import com.routeplanner.ui.StepIcon;
-import com.routeplanner.util.LocationNames;
-import com.routeplanner.util.RouteTextValidator;
-import net.runelite.api.Quest;
-import net.runelite.api.Skill;
-import net.runelite.api.coords.WorldArea;
-import net.runelite.api.coords.WorldPoint;
-import net.runelite.client.ui.ColorScheme;
-import net.runelite.client.ui.FontManager;
+import com.routeplanner.util.*;
+import net.runelite.api.*;
+import net.runelite.api.coords.*;
+import net.runelite.client.ui.*;
 import net.runelite.client.util.AsyncBufferedImage;
 import net.runelite.http.api.item.ItemPrice;
-
 import javax.swing.*;
-import javax.swing.border.CompoundBorder;
-import javax.swing.border.EmptyBorder;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
+import javax.swing.border.*;
+import javax.swing.event.*;
 import java.awt.*;
-import java.awt.event.ComponentAdapter;
-import java.awt.event.ComponentEvent;
-import java.awt.event.KeyEvent;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.EnumMap;
-import java.util.HashMap;
+import java.awt.event.*;
+import java.util.*;
+import java.util.regex.*;
 import java.util.List;
-import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import javax.swing.Timer;
 
 /**
  * The step editor: pick what kind of step it is, and only that kind's fields show.
@@ -60,6 +34,7 @@ import java.util.regex.Pattern;
  */
 public class QuickStepDialog extends JFrame {
 
+    @RequiredArgsConstructor
     enum Type {
         WALK("Go somewhere", StepIcon.Kind.WALK), ITEMS("Get items", StepIcon.Kind.BUY), TALK("Talk to", StepIcon.Kind.TALK),
         KILL("Kill", StepIcon.Kind.KILL), SKILL("Train a skill", StepIcon.Kind.SKILL), QUEST("Quest", StepIcon.Kind.QUEST),
@@ -67,7 +42,6 @@ public class QuickStepDialog extends JFrame {
 
         final String label;
         final StepIcon.Kind icon;
-        Type(String label, StepIcon.Kind icon) { this.label = label; this.icon = icon; }
     }
 
     private static final Color ORANGE = ColorScheme.BRAND_ORANGE;
@@ -115,7 +89,7 @@ public class QuickStepDialog extends JFrame {
     private final List<Integer> chatPicks = new ArrayList<>();
     private final JPanel chatChips = flow();
     private final JComboBox<String> itemMode = combo(ITEM_MODES);
-    private final JPanel itemRows = vbox();
+    private final JPanel itemRows = RoutePlannerPanel.vbox();
     private final List<ItemRow> items = new ArrayList<>();
     private final JComboBox<String> skillBox = combo(skillNames());
     private final JComboBox<String> goalBox = combo(GOALS);
@@ -167,7 +141,7 @@ public class QuickStepDialog extends JFrame {
         });
         setLocationRelativeTo(null);
 
-        JPanel root = vbox();
+        JPanel root = RoutePlannerPanel.vbox();
         root.setBorder(new EmptyBorder(10, 10, 10, 10));
         root.add(label("What kind of step?"));
         root.add(Box.createVerticalStrut(4));
@@ -235,9 +209,7 @@ public class QuickStepDialog extends JFrame {
     // ------------------------------------------------------------------ layout
 
     private JPanel buildTypes() {
-        JPanel grid = new JPanel(new GridLayout(2, 4, 4, 4));
-        grid.setOpaque(false);
-        grid.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JPanel grid = bareLeft(new JPanel(new GridLayout(2, 4, 4, 4)));
         ButtonGroup group = new ButtonGroup();
         for (Type t : Type.values()) {
             JToggleButton b = new JToggleButton(t.label, new StepIcon(t.icon, 20, false));
@@ -258,9 +230,7 @@ public class QuickStepDialog extends JFrame {
     private JPanel buildWhere() {
         JPanel p = section();
         p.add(label("Where"));
-        JPanel row = new JPanel(new BorderLayout(6, 0));
-        row.setOpaque(false);
-        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JPanel row = bareLeft(new JPanel(new BorderLayout(6, 0)));
         tileField.setToolTipText("x, y (and plane if not the ground floor). Blank = anywhere.");
         row.add(tileField, BorderLayout.CENTER);
         JButton mine = button("My tile");
@@ -274,9 +244,7 @@ public class QuickStepDialog extends JFrame {
         p.add(row);
         p.add(Box.createVerticalStrut(5));
 
-        JPanel areaRow = new JPanel(new BorderLayout(6, 0));
-        areaRow.setOpaque(false);
-        areaRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JPanel areaRow = bareLeft(new JPanel(new BorderLayout(6, 0)));
         areaField.setHint("Area (optional)");
         areaField.setToolTipText("<html>Arrive anywhere in this area instead of next to the tile.<br>"
             + "Paint it with Draw area, or type two corners, like 3200, 3200 to 3245, 3235. Blank = just the tile.</html>");
@@ -318,16 +286,13 @@ public class QuickStepDialog extends JFrame {
         p.add(whoLabel);
         whoField.setHint("NPC name, e.g. Hans");
         listen(whoField);
-        killRow = new JPanel(new BorderLayout(6, 0));
-        killRow.setOpaque(false);
+        killRow = bare(new JPanel(new BorderLayout(6, 0)));
         JLabel how = small("How many");
         killCount.setColumns(4);
         killRow.add(how, BorderLayout.WEST);
         killRow.add(killCount, BorderLayout.CENTER);
         listen(killCount);
-        JPanel row = new JPanel(new BorderLayout(8, 0));
-        row.setOpaque(false);
-        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JPanel row = bareLeft(new JPanel(new BorderLayout(8, 0)));
         row.add(whoField, BorderLayout.CENTER);
         row.add(killRow, BorderLayout.EAST);
         row.setMaximumSize(new Dimension(Integer.MAX_VALUE, row.getPreferredSize().height));
@@ -350,11 +315,9 @@ public class QuickStepDialog extends JFrame {
         for (int i = 0; i < chatPicks.size(); i++) {
             final int idx = i;
             int n = chatPicks.get(i);
-            JLabel chip = new JLabel(n == 0 ? "?" : String.valueOf(n));
+            JLabel chip = boldText(new JLabel(n == 0 ? "?" : String.valueOf(n)), ORANGE);
             chip.setOpaque(true);
             chip.setBackground(new Color(20, 20, 20));
-            chip.setForeground(ORANGE);
-            chip.setFont(FontManager.getRunescapeBoldFont());
             chip.setBorder(new CompoundBorder(BorderFactory.createLineBorder(new Color(70, 70, 70)), new EmptyBorder(2, 8, 2, 8)));
             chip.setToolTipText(n == 0 ? "Recorded but not readable: any option. Click to remove." : "Option " + n + ". Click to remove.");
             chip.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
@@ -370,9 +333,7 @@ public class QuickStepDialog extends JFrame {
             JPopupMenu menu = new JPopupMenu();
             for (int n = 1; n <= 5; n++) {
                 final int pick = n;
-                JMenuItem mi = new JMenuItem("Option " + n);
-                mi.addActionListener(ev -> { chatPicks.add(pick); rebuildChips(); refresh(); });
-                menu.add(mi);
+                menu.add("Option " + n).addActionListener(ev -> { chatPicks.add(pick); rebuildChips(); refresh(); });
             }
             menu.show(add, 0, add.getHeight());
         });
@@ -383,17 +344,14 @@ public class QuickStepDialog extends JFrame {
 
     private JPanel buildItems() {
         JPanel p = section();
-        JPanel head = new JPanel(new BorderLayout(6, 0));
-        head.setOpaque(false);
-        head.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JPanel head = bareLeft(new JPanel(new BorderLayout(6, 0)));
         head.add(label("Items"), BorderLayout.WEST);
         head.add(itemMode, BorderLayout.EAST);
         head.setMaximumSize(new Dimension(Integer.MAX_VALUE, head.getPreferredSize().height));
         itemMode.addActionListener(e -> { itemRows.setVisible(itemModeKey() != ItemMode.DEPOSIT_ALL); refresh(); });
         p.add(head);
         p.add(Box.createVerticalStrut(5));
-        itemRows.setOpaque(false);
-        itemRows.setAlignmentX(Component.LEFT_ALIGNMENT);
+        bareLeft(itemRows);
         p.add(itemRows);
         JButton add = button("+ Item");
         add.addActionListener(e -> { addItemRow("", "1"); refresh(); });
@@ -413,9 +371,7 @@ public class QuickStepDialog extends JFrame {
 
     private JPanel buildSkill() {
         JPanel p = section();
-        JPanel row = new JPanel(new GridLayout(2, 3, 6, 2));
-        row.setOpaque(false);
-        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JPanel row = bareLeft(new JPanel(new GridLayout(2, 3, 6, 2)));
         row.add(small("Skill"));
         row.add(small("Goal"));
         row.add(small("Amount (e.g. 50, 10k, 1m)"));
@@ -472,9 +428,7 @@ public class QuickStepDialog extends JFrame {
     private JPanel buildHighlight() {
         JPanel p = section();
         p.add(label("Highlight"));
-        JPanel row = new JPanel(new GridLayout(2, 2, 6, 2));
-        row.setOpaque(false);
-        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JPanel row = bareLeft(new JPanel(new GridLayout(2, 2, 6, 2)));
         row.add(small("NPC"));
         row.add(small("Object"));
         hlNpc.setHint("e.g. Fishing spot");
@@ -510,9 +464,7 @@ public class QuickStepDialog extends JFrame {
         JPanel p = section();
         p.add(label("Teleport"));
 
-        JPanel top = new JPanel(new BorderLayout(6, 0));
-        top.setOpaque(false);
-        top.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JPanel top = bareLeft(new JPanel(new BorderLayout(6, 0)));
         top.add(small("Using"), BorderLayout.WEST);
         top.add(teleHow, BorderLayout.CENTER);
         JButton remove = button("Remove");
@@ -663,8 +615,7 @@ public class QuickStepDialog extends JFrame {
         });
 
         for (JComponent c : new JComponent[]{spellBox, itemBox, ringBox, quetzalBox, treeBox}) c.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
-        teleChoice.setOpaque(false);
-        teleChoice.setAlignmentX(Component.LEFT_ALIGNMENT);
+        bareLeft(teleChoice);
         teleChoice.add(spellBox, "SPELL");
         teleChoice.add(itemBox, "ITEM");
         teleChoice.add(nexusField, "NEXUS");
@@ -806,9 +757,7 @@ public class QuickStepDialog extends JFrame {
     private JPanel buildStairs() {
         JPanel p = section();
         p.add(label("Stairs or ladder"));
-        JPanel row = new JPanel(new BorderLayout(6, 0));
-        row.setOpaque(false);
-        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JPanel row = bareLeft(new JPanel(new BorderLayout(6, 0)));
         row.add(stairsField, BorderLayout.CENTER);
         JButton mine = button("My tile");
         mine.addActionListener(e -> {
@@ -845,9 +794,7 @@ public class QuickStepDialog extends JFrame {
         for (SailingDocks.Dock d : plugin.getSailingDocks().getDocks()) names.add(d.name);
         Collections.sort(names);
         for (String n : names) boatDock.addItem(n);
-        JPanel row = new JPanel(new BorderLayout(6, 0));
-        row.setOpaque(false);
-        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JPanel row = bareLeft(new JPanel(new BorderLayout(6, 0)));
         row.add(boatDock, BorderLayout.CENTER);
         JButton nearest = button("Nearest");
         nearest.addActionListener(e -> {
@@ -858,8 +805,7 @@ public class QuickStepDialog extends JFrame {
         JButton remove = button("Remove");
         remove.setToolTipText("No boat on this step");
         remove.addActionListener(e -> { extraBoat = false; refresh(); });
-        JPanel buttons = new JPanel(new GridLayout(1, 2, 4, 0));
-        buttons.setOpaque(false);
+        JPanel buttons = bare(new JPanel(new GridLayout(1, 2, 4, 0)));
         buttons.add(nearest);
         buttons.add(remove);
         row.add(buttons, BorderLayout.EAST);
@@ -889,9 +835,8 @@ public class QuickStepDialog extends JFrame {
         noteArea.setForeground(Color.WHITE);
         noteArea.setCaretColor(Color.WHITE);
         noteArea.setBorder(new EmptyBorder(4, 6, 4, 6));
-        JScrollPane sp = new JScrollPane(noteArea);
+        JScrollPane sp = left(new JScrollPane(noteArea));
         sp.setBorder(BorderFactory.createLineBorder(new Color(17, 17, 17)));
-        sp.setAlignmentX(Component.LEFT_ALIGNMENT);
         sp.setMaximumSize(new Dimension(Integer.MAX_VALUE, 70));
         p.add(sp);
         p.add(Box.createVerticalStrut(4));
@@ -903,9 +848,7 @@ public class QuickStepDialog extends JFrame {
     }
 
     private JPanel highlightRow() {
-        JPanel p = new JPanel(new BorderLayout());
-        p.setOpaque(false);
-        p.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JPanel p = bareLeft(new JPanel(new BorderLayout()));
         highlight.setToolTipText("Light up this step's NPCs and objects in the game");
         p.add(highlight, BorderLayout.WEST);
         p.setMaximumSize(new Dimension(Integer.MAX_VALUE, p.getPreferredSize().height));
@@ -913,13 +856,10 @@ public class QuickStepDialog extends JFrame {
     }
 
     private JPanel buildAddMore() {
-        JPanel p = vbox();
-        p.setOpaque(false);
+        JPanel p = bare(RoutePlannerPanel.vbox());
         p.add(label("Add more"));
         p.add(Box.createVerticalStrut(4));
-        addMoreRow = new JPanel(new GridLayout(0, 3, 4, 4));
-        addMoreRow.setOpaque(false);
-        addMoreRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        addMoreRow = bareLeft(new JPanel(new GridLayout(0, 3, 4, 4)));
         addItemsBtn = button("+ Items");
         addItemsBtn.addActionListener(e -> { extraItems = true; if (items.isEmpty()) addItemRow("", "1"); refresh(); });
         addSkillBtn = button("+ Skill goal");
@@ -945,7 +885,7 @@ public class QuickStepDialog extends JFrame {
     }
 
     private JPanel buildFooter() {
-        JPanel f = vbox();
+        JPanel f = RoutePlannerPanel.vbox();
         f.setBorder(new CompoundBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(26, 26, 26)), new EmptyBorder(8, 10, 8, 10)));
         f.setBackground(new Color(36, 36, 36));
 
@@ -966,9 +906,7 @@ public class QuickStepDialog extends JFrame {
         f.add(Box.createVerticalStrut(4));
         f.add(errorLabel);
 
-        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
-        buttons.setOpaque(false);
-        buttons.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JPanel buttons = bareLeft(new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0)));
         JButton cancel = button("Cancel");
         cancel.addActionListener(e -> dispose());
         JButton save = button("Save step");
@@ -1562,48 +1500,31 @@ public class QuickStepDialog extends JFrame {
         f.getDocument().addDocumentListener(new Doc(this::refresh));
     }
 
-    private static JPanel vbox() {
-        JPanel p = new JPanel();
-        p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
-        p.setBackground(ColorScheme.DARK_GRAY_COLOR);
-        return p;
-    }
-
     private static JPanel flow() {
-        JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 2));
-        p.setOpaque(false);
+        JPanel p = bare(new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 2)));
         return p;
     }
 
     private static JPanel section() {
-        JPanel p = vbox();
+        JPanel p = left(RoutePlannerPanel.vbox());
         p.setBackground(SECTION_BG);
         p.setBorder(new CompoundBorder(BorderFactory.createLineBorder(new Color(26, 26, 26)), new EmptyBorder(7, 9, 9, 9)));
-        p.setAlignmentX(Component.LEFT_ALIGNMENT);
         return p;
     }
 
     private static JLabel label(String text) {
-        JLabel l = new JLabel(text);
-        l.setForeground(Color.WHITE);
-        l.setFont(FontManager.getRunescapeBoldFont());
-        l.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JLabel l = boldText(left(new JLabel(text)), Color.WHITE);
         l.setBorder(new EmptyBorder(0, 0, 4, 0));
         return l;
     }
 
     private static JLabel small(String text) {
-        JLabel l = new JLabel(text);
-        l.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-        l.setFont(FontManager.getRunescapeSmallFont());
-        l.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JLabel l = smallText(left(new JLabel(text)), ColorScheme.LIGHT_GRAY_COLOR);
         return l;
     }
 
     private static JPanel labeled(String text, JComponent c) {
-        JPanel p = vbox();
-        p.setOpaque(false);
-        p.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JPanel p = bareLeft(RoutePlannerPanel.vbox());
         p.add(small(text));
         p.add(Box.createVerticalStrut(3));
         c.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -1627,11 +1548,9 @@ public class QuickStepDialog extends JFrame {
     }
 
     private static JCheckBox check(String text, boolean on) {
-        JCheckBox c = new JCheckBox(text, on);
-        c.setOpaque(false);
+        JCheckBox c = bareLeft(new JCheckBox(text, on));
         c.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
         c.setFocusPainted(false);
-        c.setAlignmentX(Component.LEFT_ALIGNMENT);
         return c;
     }
 
@@ -1643,15 +1562,12 @@ public class QuickStepDialog extends JFrame {
     }
 
     private static JButton button(String text) {
-        JButton b = new JButton(text);
+        JButton b = boldText(left(new JButton(text)), ColorScheme.LIGHT_GRAY_COLOR);
         b.setBackground(new Color(40, 40, 40));
-        b.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-        b.setFont(FontManager.getRunescapeBoldFont());
         b.setFocusPainted(false);
         b.setBorderPainted(false);
         b.setMargin(new Insets(4, 9, 4, 9));
         b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        b.setAlignmentX(Component.LEFT_ALIGNMENT);
         return b;
     }
 
@@ -1666,8 +1582,7 @@ public class QuickStepDialog extends JFrame {
         private boolean settingText;
 
         ItemRow(String n, String q) {
-            panel.setOpaque(false);
-            panel.setAlignmentX(Component.LEFT_ALIGNMENT);
+            bareLeft(panel);
             panel.setBorder(new EmptyBorder(0, 0, 4, 0));
             icon.setPreferredSize(new Dimension(30, 26));
             icon.setHorizontalAlignment(SwingConstants.CENTER);
@@ -1687,8 +1602,7 @@ public class QuickStepDialog extends JFrame {
                 itemRows.revalidate();
                 refresh();
             });
-            JPanel right = new JPanel(new BorderLayout(4, 0));
-            right.setOpaque(false);
+            JPanel right = bare(new JPanel(new BorderLayout(4, 0)));
             right.add(qty, BorderLayout.CENTER);
             right.add(remove, BorderLayout.EAST);
             panel.add(icon, BorderLayout.WEST);
@@ -1720,15 +1634,13 @@ public class QuickStepDialog extends JFrame {
             int shown = 0;
             for (ItemPrice p : found) {
                 if (p.getName().equalsIgnoreCase(text)) { setIcon(p.getId()); continue; }
-                JMenuItem mi = new JMenuItem(p.getName());
-                mi.addActionListener(e -> {
+                suggest.add(p.getName()).addActionListener(e -> {
                     settingText = true;
                     name.setText(p.getName());
                     settingText = false;
                     setIcon(p.getId());
                     refresh();
                 });
-                suggest.add(mi);
                 if (++shown >= 8) break;
             }
             if (shown > 0) suggest.show(name, 0, name.getHeight());
@@ -1785,9 +1697,9 @@ public class QuickStepDialog extends JFrame {
         @Override public boolean getScrollableTracksViewportHeight() { return false; }
     }
 
+    @RequiredArgsConstructor
     private static final class Doc implements DocumentListener {
         private final Runnable r;
-        Doc(Runnable r) { this.r = r; }
         @Override public void insertUpdate(DocumentEvent e) { r.run(); }
         @Override public void removeUpdate(DocumentEvent e) { r.run(); }
         @Override public void changedUpdate(DocumentEvent e) { r.run(); }

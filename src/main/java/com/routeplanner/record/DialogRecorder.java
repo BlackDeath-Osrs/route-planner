@@ -1,17 +1,15 @@
 package com.routeplanner.record;
 
+import lombok.RequiredArgsConstructor;
 import com.routeplanner.dialog.DialogOptions;
 import com.routeplanner.model.RouteStep;
 import com.routeplanner.util.LocationNames;
-import net.runelite.api.Client;
-import net.runelite.api.Quest;
+import net.runelite.api.*;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.util.Text;
-
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 /**
  * The conversation half of Record mode: dialogue choices and finished quests.
@@ -26,6 +24,7 @@ import java.util.List;
  *
  * Like the rest of the recorder it only reads what's on screen; it never answers for the player.
  */
+@RequiredArgsConstructor
 class DialogRecorder {
 
     /** A Talk-to click explains a conversation that opens within this many ticks (walking there). */
@@ -57,11 +56,6 @@ class DialogRecorder {
     private boolean menuOpen;
     private boolean picked;
     private int closedTick = -1;
-
-    DialogRecorder(Client client, RouteRecorder host) {
-        this.client = client;
-        this.host = host;
-    }
 
     void start() {
         talkNpc = null;

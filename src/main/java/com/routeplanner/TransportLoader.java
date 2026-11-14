@@ -1,12 +1,8 @@
 package com.routeplanner;
 
+import com.routeplanner.util.DataFiles;
 import com.routeplanner.transport.Transport;
-import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.coords.WorldPoint;
-
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.util.*;
 
 /**
@@ -15,7 +11,6 @@ import java.util.*;
  * which naturally includes doors, stairs, dungeon entrances, agility shortcuts,
  * boats, ships and minecarts, and skips "from anywhere" teleports / hub types.
  */
-@Slf4j
 public class TransportLoader {
 
     // Files that contain simple origin->destination edges
@@ -56,30 +51,18 @@ public class TransportLoader {
         int total = 0;
         for (String f : FILES) {
             int count = 0;
-            try (InputStream is = TransportLoader.class.getResourceAsStream(
-                    "/com/routeplanner/transports/" + f)) {
-                if (is == null) { log.warn("Transport file missing: {}", f); continue; }
-                BufferedReader br = new BufferedReader(new InputStreamReader(is));
-                String line;
-                while ((line = br.readLine()) != null) {
-                    if (line.isEmpty() || line.startsWith("#")) continue;
-                    String[] cols = line.split("\t");
-                    if (cols.length < 2) continue;
-                    WorldPoint origin = parsePoint(cols[0]);
-                    WorldPoint dest = parsePoint(cols[1]);
-                    if (origin == null || dest == null) continue;
-                    edges.computeIfAbsent(origin, k -> new ArrayList<>()).add(dest);
-                    if (TRAVEL_FILES.contains(f)) TRAVEL.computeIfAbsent(origin, k -> new HashSet<>()).add(dest);
-                    DETAILS.computeIfAbsent(origin, k -> new ArrayList<>()).add(detail(origin, dest, cols.length > 2 ? cols[2] : ""));
-                    count++;
-                }
-            } catch (Exception e) {
-                log.warn("Failed to load transport file {}: {}", f, e.toString());
+            for (String[] cols : DataFiles.rowsAt("/com/routeplanner/transports/" + f)) {
+                if (cols.length < 2) continue;
+                WorldPoint origin = DataFiles.point(cols[0]);
+                WorldPoint dest = DataFiles.point(cols[1]);
+                if (origin == null || dest == null) continue;
+                edges.computeIfAbsent(origin, k -> new ArrayList<>()).add(dest);
+                if (TRAVEL_FILES.contains(f)) TRAVEL.computeIfAbsent(origin, k -> new HashSet<>()).add(dest);
+                DETAILS.computeIfAbsent(origin, k -> new ArrayList<>()).add(detail(origin, dest, DataFiles.col(cols, 2)));
+                count++;
             }
-            log.info("TransportLoader: {} edges from {}", count, f);
             total += count;
         }
-        log.info("TransportLoader: {} total edges across {} origins", total, edges.size());
         return edges;
     }
 
@@ -95,19 +78,5 @@ public class TransportLoader {
             } catch (NumberFormatException ignored) {}
         }
         return new Transport(origin, dest, text.isEmpty() ? null : text, id);
-    }
-
-    private static WorldPoint parsePoint(String s) {
-        if (s == null) return null;
-        s = s.trim();
-        if (s.isEmpty()) return null;
-        String[] parts = s.split("\\s+");
-        if (parts.length < 3) return null;
-        try {
-            return new WorldPoint(Integer.parseInt(parts[0]),
-                Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
-        } catch (NumberFormatException e) {
-            return null;
-        }
     }
 }

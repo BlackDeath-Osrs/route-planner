@@ -2,25 +2,14 @@ package com.routeplanner.ui;
 
 import com.routeplanner.bank.BankItemManager;
 import com.routeplanner.model.RouteStep;
-import com.routeplanner.teleport.FairyRings;
-import com.routeplanner.teleport.Quetzals;
-import com.routeplanner.teleport.SpiritTrees;
-import com.routeplanner.teleport.TeleportItem;
-import com.routeplanner.teleport.TeleportItems;
-import com.routeplanner.teleport.TeleportSpell;
-import com.routeplanner.teleport.TeleportSpells;
+import com.routeplanner.teleport.*;
 import net.runelite.api.Skill;
-import net.runelite.api.gameval.ItemID;
-import net.runelite.api.gameval.SpriteID;
-import net.runelite.client.game.ItemManager;
-import net.runelite.client.game.SkillIconManager;
-import net.runelite.client.game.SpriteManager;
+import net.runelite.api.gameval.*;
+import net.runelite.client.game.*;
 import net.runelite.client.util.AsyncBufferedImage;
-
 import javax.swing.SwingUtilities;
 import java.awt.image.BufferedImage;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**

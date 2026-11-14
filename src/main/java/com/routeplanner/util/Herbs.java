@@ -1,8 +1,6 @@
 package com.routeplanner.util;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 /** Herb names, so a step can say "Any herb" instead of naming the one that was grown. */
 public final class Herbs {

@@ -1,19 +1,11 @@
 package com.routeplanner.ui;
 
-import com.routeplanner.model.ItemMode;
-import com.routeplanner.model.RouteStep;
+import lombok.RequiredArgsConstructor;
+import com.routeplanner.model.*;
 import net.runelite.client.util.ColorUtil;
-
 import javax.swing.Icon;
-import java.awt.AlphaComposite;
-import java.awt.BasicStroke;
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
-import java.awt.geom.Ellipse2D;
-import java.awt.geom.Path2D;
+import java.awt.*;
+import java.awt.geom.*;
 import java.awt.image.BufferedImage;
 
 /**
@@ -22,6 +14,7 @@ import java.awt.image.BufferedImage;
  */
 public final class StepIcon implements Icon {
 
+    @RequiredArgsConstructor
     public enum Kind {
         TALK(new Color(143, 193, 255)), BUY(new Color(255, 211, 77)), SELL(new Color(255, 211, 77)),
         GATHER(new Color(111, 214, 196)), PICKUP(new Color(111, 214, 196)), BANK(new Color(214, 180, 120)),
@@ -30,7 +23,6 @@ public final class StepIcon implements Icon {
         WALK(new Color(201, 160, 255));
 
         public final Color color;
-        Kind(Color color) { this.color = color; }
     }
 
     private static final Color TILE = new Color(20, 20, 20);

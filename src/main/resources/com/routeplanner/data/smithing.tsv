@@ -1,0 +1,9 @@
+# name	level	smelt xp	smith xp	ores
+Bronze bar	1	6.2	12.5	Copper ore, Tin ore
+Iron bar	15	12.5	25.0	Iron ore
+Silver bar	20	13.7	0.0	Silver ore
+Steel bar	30	17.5	37.5	Iron ore, Coal
+Gold bar	40	22.5	0.0	Gold ore
+Mithril bar	50	30.0	50.0	Mithril ore, Coal
+Adamantite bar	70	37.5	62.5	Adamantite ore, Coal
+Runite bar	85	50.0	75.0	Runite ore, Coal

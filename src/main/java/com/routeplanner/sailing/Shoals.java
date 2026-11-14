@@ -1,15 +1,10 @@
 package com.routeplanner.sailing;
 
-import net.runelite.api.Client;
-import net.runelite.api.NPC;
-import net.runelite.api.WorldEntity;
-import net.runelite.api.WorldEntityConfig;
-import net.runelite.api.WorldView;
-import net.runelite.api.coords.LocalPoint;
-import net.runelite.api.coords.WorldPoint;
+import net.runelite.api.*;
+import net.runelite.api.coords.*;
+import net.runelite.api.gameval.*;
 import net.runelite.api.gameval.AnimationID;
 import net.runelite.api.gameval.NpcID;
-import net.runelite.api.gameval.VarbitID;
 
 /**
  * Trawling shoals (Sailing): finding the one being fished, how deep it swims, and how deep the nets

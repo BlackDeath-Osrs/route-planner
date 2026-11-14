@@ -1,29 +1,16 @@
 package com.routeplanner.sailing;
 
-import com.routeplanner.util.SceneObjects;
-import com.routeplanner.LineStyle;
-import com.routeplanner.PathfinderOverlay;
-import com.routeplanner.RoutePlannerConfig;
-import com.routeplanner.util.Strokes;
-import net.runelite.api.Client;
-import net.runelite.api.GameObject;
-import net.runelite.api.ObjectComposition;
-import net.runelite.api.Perspective;
-import net.runelite.api.Point;
-import net.runelite.api.Tile;
-import net.runelite.api.WorldEntity;
-import net.runelite.api.WorldView;
-import net.runelite.api.coords.LocalPoint;
-import net.runelite.api.coords.WorldPoint;
-import net.runelite.client.ui.overlay.Overlay;
-import net.runelite.client.ui.overlay.OverlayLayer;
-import net.runelite.client.ui.overlay.OverlayPosition;
+import com.routeplanner.util.*;
+import com.routeplanner.*;
+import net.runelite.api.*;
+import net.runelite.api.coords.*;
+import net.runelite.client.ui.overlay.*;
 import net.runelite.client.util.ColorUtil;
-
 import javax.inject.Inject;
 import java.awt.*;
 import java.awt.geom.Path2D;
 import java.util.List;
+import net.runelite.api.Point;
 
 /**
  * While trawling (a net lowered), draws the nearest shoal's route in the waypoint line's style, its

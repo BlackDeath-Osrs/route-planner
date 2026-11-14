@@ -1,8 +1,6 @@
 package com.routeplanner.farming;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 /**
  * The object ids of every farming patch (gameval FARMING_*_PATCH and the Troll Stronghold and Weiss

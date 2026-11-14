@@ -1,16 +1,11 @@
 package com.routeplanner;
 
+import lombok.RequiredArgsConstructor;
 import com.google.gson.Gson;
 import com.routeplanner.model.Route;
 import com.routeplanner.util.RouteSerializer;
 import lombok.extern.slf4j.Slf4j;
-
-import java.util.ArrayDeque;
-import java.util.Collections;
-import java.util.Deque;
-import java.util.IdentityHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Snapshot-based undo/redo for structural edits to a route (delete step, reorder step).
@@ -24,10 +19,10 @@ import java.util.Map;
 public class RouteHistory {
     private static final int MAX_DEPTH = 30;
 
+    @RequiredArgsConstructor
     private static final class Entry {
         final String label;
         final String json;
-        Entry(String label, String json) { this.label = label; this.json = json; }
     }
 
     private final Map<Route, Deque<Entry>> undo = new IdentityHashMap<>();
@@ -43,9 +38,6 @@ public class RouteHistory {
         while (stack.size() > MAX_DEPTH) stack.removeLast();
         stack(redo, route).clear();
     }
-
-    public boolean canUndo(Route route) { return !isEmpty(undo, route); }
-    public boolean canRedo(Route route) { return !isEmpty(redo, route); }
 
     public String peekUndoLabel(Route route) { return peekLabel(undo, route); }
     public String peekRedoLabel(Route route) { return peekLabel(redo, route); }

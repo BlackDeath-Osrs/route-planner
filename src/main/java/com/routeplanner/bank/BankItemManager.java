@@ -1,22 +1,14 @@
 package com.routeplanner.bank;
 
-import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.Client;
-import net.runelite.api.InventoryID;
-import net.runelite.api.Item;
-import net.runelite.api.ItemContainer;
+import lombok.RequiredArgsConstructor;
+import net.runelite.api.*;
 import com.routeplanner.util.Herbs;
 import net.runelite.client.game.ItemManager;
 import net.runelite.http.api.item.ItemPrice;
-
-import javax.inject.Inject;
-import javax.inject.Singleton;
+import javax.inject.*;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.regex.*;
 
-@Slf4j
 @Singleton
 public class BankItemManager {
 
@@ -106,9 +98,7 @@ public class BankItemManager {
                 double num = Double.parseDouble(m.group(1));
                 String suffix = m.group(2) == null ? "" : m.group(2).toLowerCase();
                 return suffixMultiply(num, suffix);
-            } catch (Exception e) {
-                log.debug("Bad item quantity in '{}', counting 1: {}", input, e.toString());
-            }
+            } catch (Exception ignored) {}
         }
         return 1;
     }
@@ -183,17 +173,6 @@ public class BankItemManager {
     // PICKUP: true once enough of each group's item has been gained since the baseline
 
     // PICKUP: how many gained so far (summed across groups, best alternative each), for the HUD
-
-    // PICKUP: total required across groups (largest alternative each), for the HUD
-    public long pickupRequired(String itemListStr) {
-        long total = 0;
-        for (List<String> group : parseItemList(itemListStr)) {
-            long req = 0;
-            for (String alt : group) req = Math.max(req, parseQuantityValue(alt));
-            total += req;
-        }
-        return total;
-    }
 
     /**
      * Counts of the items referenced in itemListStr, carried or worn, when the step starts.
@@ -378,18 +357,13 @@ public class BankItemManager {
     }
 
     /** One line of an item list with live counts, for the side panel's step card. */
+    @RequiredArgsConstructor
     public static final class ItemProgress {
         public final String name;
         public final long have;
         public final long need;
         public final int itemId; // -1 when the item couldn't be identified
 
-        ItemProgress(String name, long have, long need, int itemId) {
-            this.name = name;
-            this.have = have;
-            this.need = need;
-            this.itemId = itemId;
-        }
     }
 
     /**
@@ -456,29 +430,4 @@ public class BankItemManager {
         return id;
     }
 
-    // Get list of missing items with quantities
-    public List<String> getMissingItems(String itemListStr) {
-        List<List<String>> groups = parseItemList(itemListStr);
-        List<String> missing = new ArrayList<>();
-        if (groups.isEmpty()) return missing;
-
-        Map<String, Long> inventoryQtys = carriedQtys(true);
-
-        for (List<String> group : groups) {
-            boolean found = false;
-            for (String alt : group) {
-                String itemName = parseItemName(alt).toLowerCase();
-                long required = parseQuantityValue(alt);
-                long have = countOf(inventoryQtys, itemName);
-                if (have >= required) {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                missing.add(String.join("/", group));
-            }
-        }
-        return missing;
-    }
 }

@@ -1,9 +1,11 @@
 package com.routeplanner;
 
+import lombok.RequiredArgsConstructor;
 import java.awt.Font;
 import net.runelite.client.ui.FontManager;
 
 /** Font family choices for the HUD. RS fonts come from RuneLite's FontManager; others are system fonts. */
+@RequiredArgsConstructor
 public enum HudFont {
     RUNESCAPE("RuneScape"),
     RUNESCAPE_BOLD("RuneScape Bold"),
@@ -14,10 +16,6 @@ public enum HudFont {
     MONOSPACED("Monospaced");
 
     private final String label;
-
-    HudFont(String label) {
-        this.label = label;
-    }
 
     /** Resolve to an actual Font at the given size/style. RS fonts ignore size/style (fixed bitmap fonts). */
     public Font toFont(int size, int style) {

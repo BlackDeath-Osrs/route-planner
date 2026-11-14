@@ -1,33 +1,20 @@
 package com.routeplanner.bank;
 
 import com.routeplanner.RoutePlannerPlugin;
-import com.routeplanner.model.ItemMode;
-import com.routeplanner.model.RouteStep;
-import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.Client;
-import net.runelite.api.ItemLayer;
-import net.runelite.api.Perspective;
-import net.runelite.api.Point;
-import net.runelite.api.Scene;
-import net.runelite.api.Tile;
-import net.runelite.api.TileItem;
+import com.routeplanner.model.*;
+import net.runelite.api.*;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.overlay.*;
-
-import javax.inject.Inject;
-import javax.inject.Singleton;
+import javax.inject.*;
 import java.awt.*;
-import java.util.Collections;
-import java.util.HashSet;
+import java.util.*;
 import java.util.List;
-import java.util.Objects;
-import java.util.Set;
+import net.runelite.api.Point;
 
 /**
  * Highlights matching ground items on tiles for an ITEM step in PICKUP mode.
  */
-@Slf4j
 @Singleton
 public class GroundItemOverlay extends Overlay {
 

@@ -2,9 +2,7 @@ package com.routeplanner.model;
 
 import lombok.Data;
 import net.runelite.api.Skill;
-import net.runelite.api.coords.WorldArea;
-import net.runelite.api.coords.WorldPoint;
-
+import net.runelite.api.coords.*;
 import java.util.Map;
 
 @Data
@@ -231,14 +229,6 @@ public class RouteStep {
     @Override
     public int hashCode() {
         return System.identityHashCode(this);
-    }
-
-    // --- Component presence helpers ---
-    // A component is a view over fields the step already carries.
-    // Descriptive only; nothing branches on these yet.
-
-    public boolean hasLocation() {
-        return worldPoint != null || teleportMethod != null;
     }
 
     public boolean hasItems() {

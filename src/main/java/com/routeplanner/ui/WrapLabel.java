@@ -1,15 +1,9 @@
 package com.routeplanner.ui;
 
-import javax.swing.JComponent;
-import javax.swing.UIManager;
-import java.awt.Dimension;
-import java.awt.FontMetrics;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.Toolkit;
-import java.util.ArrayList;
+import javax.swing.*;
+import java.awt.*;
+import java.util.*;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Word-wrapped text at a fixed width, drawn directly: much cheaper than an HTML JLabel, which

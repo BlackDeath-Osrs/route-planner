@@ -1,56 +1,25 @@
 package com.routeplanner.record;
 
-import com.routeplanner.KillCredit;
-import com.routeplanner.RoutePlannerConfig;
-import com.routeplanner.model.Route;
-import com.routeplanner.model.RouteStep;
-import com.routeplanner.model.StepType;
-import com.routeplanner.sailing.CatchMessages;
-import com.routeplanner.sailing.Sailing;
-import com.routeplanner.sailing.SailingDocks;
-import com.routeplanner.teleport.FairyRings;
-import com.routeplanner.teleport.Quetzals;
-import com.routeplanner.teleport.SpiritTrees;
-import com.routeplanner.teleport.PortalNexus;
-import com.routeplanner.teleport.TeleportItem;
-import com.routeplanner.teleport.TeleportItems;
-import com.routeplanner.teleport.TeleportSpell;
-import com.routeplanner.teleport.TeleportSpells;
-import com.routeplanner.util.LocationNames;
+import com.routeplanner.*;
+import com.routeplanner.model.*;
+import com.routeplanner.sailing.*;
+import com.routeplanner.teleport.*;
+import com.routeplanner.util.*;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.ChatMessageType;
-import net.runelite.api.Client;
-import net.runelite.api.InventoryID;
-import net.runelite.api.Item;
-import net.runelite.api.MenuAction;
-import net.runelite.api.NPC;
-import net.runelite.api.coords.LocalPoint;
-import net.runelite.api.coords.WorldPoint;
-import net.runelite.api.events.ActorDeath;
-import net.runelite.api.events.ChatMessage;
-import net.runelite.api.events.GameTick;
-import net.runelite.api.events.HitsplatApplied;
-import net.runelite.api.events.ItemContainerChanged;
-import net.runelite.api.events.MenuOptionClicked;
+import net.runelite.api.*;
+import net.runelite.api.coords.*;
+import net.runelite.api.events.*;
 import com.routeplanner.farming.FarmingTracker;
-import com.routeplanner.util.Herbs;
-import net.runelite.api.events.StatChanged;
-import net.runelite.api.gameval.InterfaceID;
-import net.runelite.api.gameval.VarbitID;
+import net.runelite.api.gameval.*;
 import net.runelite.api.widgets.Widget;
-import net.runelite.client.eventbus.EventBus;
-import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.eventbus.*;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.util.Text;
-
-import javax.inject.Inject;
-import javax.inject.Singleton;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import javax.inject.*;
+import java.util.*;
 import java.util.function.Predicate;
+import net.runelite.api.InventoryID;
 
 /**
  * Record mode: watches what the player does in game and turns it into draft route steps.
@@ -224,7 +193,6 @@ public class RouteRecorder {
         objects.start();
         recording = true;
         eventBus.register(this);
-        log.info("Route Planner: recording started on route '{}'", route.getName());
     }
 
     /**
@@ -241,7 +209,6 @@ public class RouteRecorder {
         if (config.recordAlwaysHighlight()) {
             for (RouteStep s : drafts) if (s.hasHighlight()) s.setHighlightEnabled(true);
         }
-        log.info("Route Planner: recording stopped, {} draft steps", drafts.size());
         List<RouteStep> out = new ArrayList<>(drafts);
         drafts.clear();
         return out;
@@ -407,8 +374,6 @@ public class RouteRecorder {
             Widget row = w != null && e.getParam0() >= 0 ? w.getChild(e.getParam0()) : null;
             String text = PortalNexus.rowText(client, row != null ? row : w);
             if (text == null) {
-                log.info("Route Planner: couldn't read Portal Nexus row text (widget {}, child {})",
-                    widgetId, e.getParam0());
                 return NEXUS_UNREAD;
             }
             return text;

@@ -1,32 +1,20 @@
 package com.routeplanner;
 
-import com.routeplanner.util.SceneObjects;
-import com.routeplanner.model.ItemMode;
-import com.routeplanner.model.RouteStep;
-import com.routeplanner.model.StepType;
-import com.routeplanner.util.NpcNames;
+import lombok.RequiredArgsConstructor;
+import com.routeplanner.util.*;
+import com.routeplanner.model.*;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.ChatMessageType;
-import net.runelite.api.Client;
-import net.runelite.api.GameObject;
-import net.runelite.api.KeyCode;
-import net.runelite.api.MenuAction;
-import net.runelite.api.MenuEntry;
-import net.runelite.api.NPC;
-import net.runelite.api.Tile;
+import net.runelite.api.*;
 import net.runelite.api.coords.WorldPoint;
-import net.runelite.api.events.MenuEntryAdded;
-import net.runelite.api.events.MenuOpened;
-import net.runelite.api.events.MenuOptionClicked;
+import net.runelite.api.events.*;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.game.ItemManager;
-
 import javax.inject.Inject;
 import javax.swing.*;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 @Slf4j
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class TileMenuHandler {
 
     private static final String ADD_LOCATION_STEP = "Add Location Step";
@@ -36,8 +24,6 @@ public class TileMenuHandler {
     private static final String CREATE_ITEM_STEP = "Create Item Step";
     private static final String CLEAR_SELECTION = "Clear Item Selection";
     private static final String MENU_TARGET = "Route Planner";
-    // Shop stock container widget: group 300, child 16
-    private static final int SHOP_STOCK_WIDGET_ID = (300 << 16) | 16;
 
     private final Client client;
     private final RoutePlannerPlugin plugin;
@@ -47,14 +33,6 @@ public class TileMenuHandler {
     private final List<String> pendingShopItems = new ArrayList<>();
     // Item name under the cursor when the menu was opened
     private String lastRightClickedShopItem = null;
-
-    @Inject
-    public TileMenuHandler(Client client, RoutePlannerPlugin plugin,
-                           ItemManager itemManager) {
-        this.client = client;
-        this.plugin = plugin;
-        this.itemManager = itemManager;
-    }
 
     public void startUp() {
     }
@@ -158,7 +136,6 @@ public class TileMenuHandler {
                     plugin.saveRoutes();
                     client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
                         "<col=00ff00>Route Planner:</col> transition object ID set to " + obj.getId(), null);
-                    log.info("Transition object ID set to {}", obj.getId());
                     break;
                 }
             }
@@ -173,7 +150,6 @@ public class TileMenuHandler {
             plugin.saveRoutes();
             client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
                 "<col=00ff00>Route Planner:</col> transition point set to " + raw, null);
-            log.info("Transition point set to {}", raw);
         } else if (opt.equals(ADD_LOCATION_STEP)) {
             Tile selectedTile = client.getTopLevelWorldView().getSelectedSceneTile();
             if (selectedTile == null) {
@@ -205,7 +181,6 @@ public class TileMenuHandler {
             step.setItemList(itemList);
             step.setItemMode(ItemMode.SHOP);
             plugin.addStep(plugin.getActiveRoute(), step);
-            log.info("Created shop item step with {} items: {}", snapshot.size(), itemList);
         });
     }
 
@@ -216,7 +191,6 @@ public class TileMenuHandler {
                 return;
             }
             new QuickStepDialog(plugin, plugin.getActiveRoute(), null, tile).setVisible(true);
-            log.info("Opened step editor seeded at {}", tile);
         });
     }
 }

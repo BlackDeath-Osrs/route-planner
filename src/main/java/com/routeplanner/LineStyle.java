@@ -1,6 +1,9 @@
 package com.routeplanner;
 
+import lombok.RequiredArgsConstructor;
+
 /** Stroke style for the waypoint line. */
+@RequiredArgsConstructor
 public enum LineStyle {
     SOLID("Solid"),
     DASHED("Dashed"),
@@ -9,6 +12,5 @@ public enum LineStyle {
     TRACER("Tracer");
 
     private final String label;
-    LineStyle(String label) { this.label = label; }
     @Override public String toString() { return label; }
 }

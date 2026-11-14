@@ -2,7 +2,6 @@ package com.routeplanner.sailing;
 
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.coords.WorldPoint;
-
 import java.io.InputStream;
 import java.util.*;
 
@@ -125,7 +124,6 @@ public final class ShoalRoutes {
         for (Integer id : paths.keySet()) {
             out.put(id, new Route(id, paths.get(id), stops.getOrDefault(id, Collections.emptyList())));
         }
-        log.info("Route Planner: {} shoal routes", out.size());
         return out;
     }
 

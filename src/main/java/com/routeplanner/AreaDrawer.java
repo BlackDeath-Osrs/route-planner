@@ -1,42 +1,23 @@
 package com.routeplanner;
 
+import lombok.RequiredArgsConstructor;
 import com.routeplanner.model.TileArea;
 import com.routeplanner.util.Strokes;
-import net.runelite.api.ChatMessageType;
-import net.runelite.api.Client;
-import net.runelite.api.Perspective;
-import net.runelite.api.Tile;
-import net.runelite.api.WorldView;
-import net.runelite.api.coords.LocalPoint;
-import net.runelite.api.coords.WorldArea;
-import net.runelite.api.coords.WorldPoint;
+import net.runelite.api.*;
+import net.runelite.api.coords.*;
 import net.runelite.client.callback.ClientThread;
-import net.runelite.client.input.KeyListener;
-import net.runelite.client.input.KeyManager;
-import net.runelite.client.input.MouseListener;
-import net.runelite.client.input.MouseManager;
-import net.runelite.client.ui.overlay.Overlay;
-import net.runelite.client.ui.overlay.OverlayLayer;
-import net.runelite.client.ui.overlay.OverlayPosition;
-
-import javax.inject.Inject;
-import javax.inject.Singleton;
+import net.runelite.client.input.*;
+import net.runelite.client.ui.overlay.*;
+import javax.inject.*;
 import javax.swing.SwingUtilities;
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.Graphics2D;
-import java.awt.Point;
-import java.awt.Polygon;
-import java.awt.event.KeyEvent;
-import java.awt.event.MouseEvent;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
+import java.awt.*;
+import java.awt.event.*;
+import java.util.*;
 import java.util.function.Consumer;
+import net.runelite.client.input.KeyListener;
+import java.util.List;
+import net.runelite.client.input.MouseListener;
+import java.awt.Point;
 
 /**
  * Marking a step's area in game. Dragging over the ground adds a box of tiles; holding Shift paints
@@ -121,9 +102,9 @@ public class AreaDrawer extends Overlay implements MouseListener, KeyListener {
     }
 
     /** What painting produced: {@code area} is null when every tile was erased. */
+    @RequiredArgsConstructor
     public static final class Result {
         public final TileArea area;
-        Result(TileArea area) { this.area = area; }
     }
 
     public void cancel() {

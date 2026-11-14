@@ -1,14 +1,8 @@
 package com.routeplanner.record;
 
-import com.routeplanner.model.Route;
-import com.routeplanner.model.RouteSection;
-import com.routeplanner.model.RouteStep;
+import com.routeplanner.model.*;
 import lombok.Getter;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Re-recording one section: the section's ticks from before, and which of its steps the route
@@ -33,10 +27,6 @@ public class ReRecordSession {
     /** The route ticked {@code step} off when {@code draftCount} steps had been recorded. */
     public void ticked(RouteStep step, int draftCount) {
         if (priorCompleted.containsKey(step)) tickedAt.putIfAbsent(step, draftCount);
-    }
-
-    public boolean wasTicked(RouteStep step) {
-        return tickedAt.containsKey(step);
     }
 
     /** Ticked before the re-record started, or ticked off during it. */

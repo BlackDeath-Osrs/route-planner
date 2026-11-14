@@ -1,41 +1,25 @@
 package com.routeplanner;
 
+import lombok.RequiredArgsConstructor;
 import com.routeplanner.model.RouteStep;
-import com.routeplanner.model.StepType;
 import com.routeplanner.sailing.Sailing;
 import com.routeplanner.teleport.Quetzals;
 import com.routeplanner.util.NpcNames;
-import net.runelite.api.Client;
-import net.runelite.api.NPC;
+import net.runelite.api.*;
 import net.runelite.api.coords.WorldPoint;
-import net.runelite.client.game.npcoverlay.HighlightedNpc;
-import net.runelite.client.game.npcoverlay.NpcOverlayService;
-
-import javax.inject.Inject;
-import javax.inject.Singleton;
-import java.awt.Color;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import net.runelite.client.game.npcoverlay.*;
+import javax.inject.*;
+import java.util.*;
 import java.util.function.Function;
 
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class SkillingNpcHighlighter {
-
 
     private final Client client;
     private final RoutePlannerPlugin plugin;
     private final NpcOverlayService npcOverlayService;
     private final Function<NPC, HighlightedNpc> highlightFunction = this::shouldHighlight;
-
-    @Inject
-    public SkillingNpcHighlighter(Client client, RoutePlannerPlugin plugin,
-                                   NpcOverlayService npcOverlayService) {
-        this.client = client;
-        this.plugin = plugin;
-        this.npcOverlayService = npcOverlayService;
-    }
 
     public void startUp() {
         npcOverlayService.registerHighlighter(highlightFunction);

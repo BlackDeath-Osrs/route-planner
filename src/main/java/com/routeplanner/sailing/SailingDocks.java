@@ -1,19 +1,14 @@
 package com.routeplanner.sailing;
 
+import lombok.RequiredArgsConstructor;
+import com.routeplanner.util.DataFiles;
 import com.routeplanner.RoutePlannerConfig;
 import com.routeplanner.transport.Transport;
-import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.Client;
-import net.runelite.api.Skill;
+import net.runelite.api.*;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.gameval.VarbitID;
 import net.runelite.client.config.ConfigManager;
-
-import javax.inject.Inject;
-import javax.inject.Singleton;
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import javax.inject.*;
 import java.util.*;
 
 /**
@@ -26,7 +21,6 @@ import java.util.*;
  * the player is at a dock, that value means that dock. Until every boat's port is known, any dock
  * the player's Sailing level allows can be boarded from.
  */
-@Slf4j
 @Singleton
 public class SailingDocks {
 
@@ -47,6 +41,7 @@ public class SailingDocks {
     /** How close to a dock the player must be for a port change to be credited to it. */
     private static final int LEARN_RADIUS = 12;
 
+    @RequiredArgsConstructor
     public static final class Dock {
         public final String name;
         public final int level;
@@ -55,29 +50,16 @@ public class SailingDocks {
         /** The game's id for the dock, a boat's port varbit while moored there; -1 if not known. */
         public final int portId;
 
-        Dock(String name, int level, WorldPoint land, WorldPoint sea, int portId) {
-            this.name = name;
-            this.level = level;
-            this.land = land;
-            this.sea = sea;
-            this.portId = portId;
-        }
     }
 
     /** A precomputed sea route between two moorings: its length and the straight legs that sail it. */
+    @RequiredArgsConstructor
     public static final class SeaRoute {
         public final WorldPoint from;
         public final WorldPoint to;
         public final int tiles;
         /** Turning points from {@code from} to {@code to}, both included. */
         public final List<WorldPoint> waypoints;
-
-        SeaRoute(WorldPoint from, WorldPoint to, int tiles, List<WorldPoint> waypoints) {
-            this.from = from;
-            this.to = to;
-            this.tiles = tiles;
-            this.waypoints = waypoints;
-        }
 
         SeaRoute reversed() {
             List<WorldPoint> back = new ArrayList<>(waypoints);
@@ -116,44 +98,25 @@ public class SailingDocks {
     public List<Dock> getDocks() { return docks; }
 
     private void load() {
-        try (InputStream is = getClass().getResourceAsStream("/com/routeplanner/sailing/docks.tsv")) {
-            if (is == null) { log.warn("Route Planner: docks.tsv not found"); return; }
-            BufferedReader br = new BufferedReader(new InputStreamReader(is));
-            String line;
-            while ((line = br.readLine()) != null) {
-                if (line.isEmpty() || line.startsWith("#")) continue;
-                String[] cols = line.split("\t");
-                if (cols.length < 4) continue;
-                WorldPoint land = parsePoint(cols[2]), sea = parsePoint(cols[3]);
-                if (land == null || sea == null) continue;
-                try {
-                    int portId = cols.length > 4 ? Integer.parseInt(cols[4].trim()) : -1;
-                    docks.add(new Dock(cols[0], Integer.parseInt(cols[1].trim()), land, sea, portId));
-                } catch (NumberFormatException ignored) {}
-            }
-        } catch (Exception e) {
-            log.warn("Route Planner: failed to load docks.tsv: {}", e.toString());
+        for (String[] cols : DataFiles.rowsAt("/com/routeplanner/sailing/docks.tsv")) {
+            if (cols.length < 4) continue;
+            WorldPoint land = DataFiles.point(cols[2]), sea = DataFiles.point(cols[3]);
+            if (land == null || sea == null) continue;
+            try {
+                int portId = DataFiles.col(cols, 4).isEmpty() ? -1 : DataFiles.num(cols[4]);
+                docks.add(new Dock(cols[0], DataFiles.num(cols[1]), land, sea, portId));
+            } catch (NumberFormatException ignored) {}
         }
-        log.info("Route Planner: {} sailing docks", docks.size());
         loadSeaLinks();
     }
 
     private void loadSeaLinks() {
-        try (InputStream is = getClass().getResourceAsStream("/com/routeplanner/sailing/sea_links.tsv")) {
-            if (is == null) return;
-            BufferedReader br = new BufferedReader(new InputStreamReader(is));
-            String line;
-            while ((line = br.readLine()) != null) {
-                if (line.isEmpty() || line.startsWith("#")) continue;
-                String[] cols = line.split("\t");
-                if (cols.length < 2) continue;
-                WorldPoint a = parsePoint(cols[0]), b = parsePoint(cols[1]);
-                if (a == null || b == null) continue;
-                seaLinks.computeIfAbsent(a, k -> new ArrayList<>()).add(b);
-                seaLinks.computeIfAbsent(b, k -> new ArrayList<>()).add(a);
-            }
-        } catch (Exception e) {
-            log.warn("Route Planner: failed to load sea_links.tsv: {}", e.toString());
+        for (String[] cols : DataFiles.rowsAt("/com/routeplanner/sailing/sea_links.tsv")) {
+            if (cols.length < 2) continue;
+            WorldPoint a = DataFiles.point(cols[0]), b = DataFiles.point(cols[1]);
+            if (a == null || b == null) continue;
+            seaLinks.computeIfAbsent(a, k -> new ArrayList<>()).add(b);
+            seaLinks.computeIfAbsent(b, k -> new ArrayList<>()).add(a);
         }
     }
 
@@ -188,35 +151,25 @@ public class SailingDocks {
     private Map<WorldPoint, List<SeaRoute>> loadSeaRoutes(String resource) {
         Map<WorldPoint, List<SeaRoute>> routes = new HashMap<>();
         int count = 0;
-        try (InputStream is = getClass().getResourceAsStream(resource)) {
-            if (is == null) { log.warn("Route Planner: {} not found", resource); return routes; }
-            BufferedReader br = new BufferedReader(new InputStreamReader(is));
-            String line;
-            while ((line = br.readLine()) != null) {
-                if (line.isEmpty() || line.startsWith("#")) continue;
-                String[] cols = line.split("\t");
-                if (cols.length < 4) continue;
-                WorldPoint from = parsePoint(cols[0]), to = parsePoint(cols[1]);
-                if (from == null || to == null) continue;
-                List<WorldPoint> waypoints = new ArrayList<>();
-                for (String wp : cols[3].split(";")) {
-                    WorldPoint p = parsePoint(wp + " " + from.getPlane());
-                    if (p != null) waypoints.add(p);
-                }
-                SeaRoute route;
-                try {
-                    route = new SeaRoute(from, to, Integer.parseInt(cols[2].trim()), waypoints);
-                } catch (NumberFormatException e) {
-                    continue;
-                }
-                routes.computeIfAbsent(from, k -> new ArrayList<>()).add(route);
-                routes.computeIfAbsent(to, k -> new ArrayList<>()).add(route.reversed());
-                count++;
+        for (String[] cols : DataFiles.rowsAt(resource)) {
+            if (cols.length < 4) continue;
+            WorldPoint from = DataFiles.point(cols[0]), to = DataFiles.point(cols[1]);
+            if (from == null || to == null) continue;
+            List<WorldPoint> waypoints = new ArrayList<>();
+            for (String wp : cols[3].split(";")) {
+                WorldPoint p = DataFiles.point(wp + " " + from.getPlane());
+                if (p != null) waypoints.add(p);
             }
-        } catch (Exception e) {
-            log.warn("Route Planner: failed to load {}: {}", resource, e.toString());
+            SeaRoute route;
+            try {
+                route = new SeaRoute(from, to, DataFiles.num(cols[2]), waypoints);
+            } catch (NumberFormatException e) {
+                continue;
+            }
+            routes.computeIfAbsent(from, k -> new ArrayList<>()).add(route);
+            routes.computeIfAbsent(to, k -> new ArrayList<>()).add(route.reversed());
+            count++;
         }
-        log.info("Route Planner: {} sea routes from {}", count, resource);
         return routes;
     }
 
@@ -272,7 +225,6 @@ public class SailingDocks {
                 if (dock != null && !dock.name.equals(learnedPorts.get(port))) {
                     learnedPorts.put(port, dock.name);
                     saveLearnedPorts();
-                    log.debug("Route Planner: sailing port {} is {}", port, dock.name);
                 }
             }
             lastPorts[i] = port;
@@ -392,15 +344,5 @@ public class SailingDocks {
             if (d.sea.equals(a) && d.land.equals(b)) return new Transport(a, b, DISEMBARK + " at " + d.name, -1);
         }
         return null;
-    }
-
-    private static WorldPoint parsePoint(String s) {
-        String[] parts = s.trim().split("\\s+");
-        if (parts.length < 3) return null;
-        try {
-            return new WorldPoint(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
-        } catch (NumberFormatException e) {
-            return null;
-        }
     }
 }

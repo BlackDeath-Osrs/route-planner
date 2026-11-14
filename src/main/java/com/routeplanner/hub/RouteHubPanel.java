@@ -1,28 +1,21 @@
 package com.routeplanner.hub;
 
+import static com.routeplanner.ui.Ui.*;
+
+import com.routeplanner.util.*;
 import com.routeplanner.RoutePlannerPlugin;
-import com.routeplanner.model.Route;
-import com.routeplanner.model.RouteSection;
-import com.routeplanner.model.RouteStep;
-import com.routeplanner.util.RouteTextValidator;
+import com.routeplanner.model.*;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.ui.ColorScheme;
-
 import javax.imageio.ImageIO;
-import javax.inject.Inject;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
+import javax.swing.event.*;
 import java.awt.*;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
+import java.awt.event.*;
 import java.io.ByteArrayInputStream;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
+import java.util.*;
 import java.util.List;
-import java.util.Map;
 
 /**
  * The Route Hub browse view: fetches the catalog of shared routes and lists them with their icons,
@@ -71,9 +64,8 @@ public class RouteHubPanel extends JPanel {
         header.add(back, BorderLayout.WEST);
         header.add(title, BorderLayout.CENTER);
 
-        JPanel topStack = new JPanel();
+        JPanel topStack = bare(new JPanel());
         topStack.setLayout(new BoxLayout(topStack, BoxLayout.Y_AXIS));
-        topStack.setOpaque(false);
         JTextField search = new JTextField();
         search.setBackground(ColorScheme.DARK_GRAY_COLOR.brighter());
         search.setForeground(Color.WHITE);
@@ -86,8 +78,7 @@ public class RouteHubPanel extends JPanel {
             public void removeUpdate(DocumentEvent e) { applyFilter(search.getText()); }
             public void changedUpdate(DocumentEvent e) { applyFilter(search.getText()); }
         });
-        JPanel searchWrap = new JPanel(new BorderLayout());
-        searchWrap.setOpaque(false);
+        JPanel searchWrap = bare(new JPanel(new BorderLayout()));
         searchWrap.setBorder(new EmptyBorder(6, 0, 0, 0));
         searchWrap.add(search, BorderLayout.CENTER);
 
@@ -118,9 +109,8 @@ public class RouteHubPanel extends JPanel {
         footerLabel.setToolTipText("The date the Route Hub catalog was last changed \u2014 "
             + "not necessarily this specific route.");
 
-        JPanel bottomStack = new JPanel();
+        JPanel bottomStack = bare(new JPanel());
         bottomStack.setLayout(new BoxLayout(bottomStack, BoxLayout.Y_AXIS));
-        bottomStack.setOpaque(false);
         bottomStack.add(footerLabel);
         bottomStack.add(buildWarningBanner());
         add(bottomStack, BorderLayout.SOUTH);
@@ -158,7 +148,6 @@ public class RouteHubPanel extends JPanel {
                     Image scaled = img.getScaledInstance(48, 48, Image.SCALE_SMOOTH);
                     return new ImageIcon(scaled);
                 } catch (Exception e) {
-                    log.debug("Icon load failed for {}: {}", entry.id, e.toString());
                     return null;
                 }
             }
@@ -341,8 +330,7 @@ public class RouteHubPanel extends JPanel {
         chevron.setBorder(new EmptyBorder(8, 4, 8, 10));
         chevron.setCursor(new Cursor(Cursor.HAND_CURSOR));
 
-        JPanel head = new JPanel(new BorderLayout());
-        head.setOpaque(false);
+        JPanel head = bare(new JPanel(new BorderLayout()));
         head.add(label, BorderLayout.WEST);
         head.add(chevron, BorderLayout.EAST);
         head.setCursor(new Cursor(Cursor.HAND_CURSOR));
@@ -400,8 +388,7 @@ public class RouteHubPanel extends JPanel {
         iconLabel.setHorizontalAlignment(SwingConstants.CENTER);
         iconLabel.setBorder(BorderFactory.createLineBorder(new Color(60, 70, 80), 1));
         loadIconInto(iconLabel, entry);
-        JPanel iconBox = new JPanel();
-        iconBox.setOpaque(false);
+        JPanel iconBox = bare(new JPanel());
         iconBox.setLayout(new BoxLayout(iconBox, BoxLayout.Y_AXIS));
         iconLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         iconLabel.setMaximumSize(new Dimension(48, 48));
@@ -411,16 +398,14 @@ public class RouteHubPanel extends JPanel {
         iconBox.add(Box.createVerticalStrut(6));
         // The install button goes under the icon (added below), leaving the text side its full width.
 
-        JLabel name = new JLabel(escape(entry.name));
+        JLabel name = left(new JLabel(HighlightColors.escapeHtml(entry.name)));
         name.setForeground(Color.WHITE);
         name.setFont(name.getFont().deriveFont(Font.BOLD, 13.5f));
-        name.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        JLabel desc = new JLabel(escape(entry.description));
+        JLabel desc = left(new JLabel(HighlightColors.escapeHtml(entry.description)));
         desc.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
         desc.setFont(desc.getFont().deriveFont(12f));
         desc.setBorder(new EmptyBorder(2, 0, 2, 0));
-        desc.setAlignmentX(Component.LEFT_ALIGNMENT);
         desc.setMaximumSize(new Dimension(Integer.MAX_VALUE, 16));
         desc.setPreferredSize(new Dimension(0, 16));
 
@@ -430,13 +415,12 @@ public class RouteHubPanel extends JPanel {
         String subInfo = "by " + entry.author + " \u00b7 " + entry.steps + " steps";
         name.setToolTipText(subInfo);
         // The description can be cut off, so its tooltip shows all of it.
-        desc.setToolTipText("<html><div style=\'width:220px;\'>" + escape(entry.description) + "</div></html>");
+        desc.setToolTipText("<html><div style=\'width:220px;\'>" + HighlightColors.escapeHtml(entry.description) + "</div></html>");
         installBtn.setToolTipText("Install this route (" + subInfo + ")");
         iconBox.add(installBtn);
 
-        JPanel textCol = new JPanel();
+        JPanel textCol = bare(new JPanel());
         textCol.setLayout(new BoxLayout(textCol, BoxLayout.Y_AXIS));
-        textCol.setOpaque(false);
         textCol.add(name);
         textCol.add(desc);
 
@@ -566,8 +550,4 @@ public class RouteHubPanel extends JPanel {
     }
 
     /** Escapes markup in catalog text, which is shown in HTML-rendering JLabels. */
-    private static String escape(String s) {
-        if (s == null) return "";
-        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
-    }
 }

@@ -1,20 +1,11 @@
 package com.routeplanner.record;
 
-import com.routeplanner.model.SkillGoalType;
-import com.routeplanner.model.ItemMode;
-import com.routeplanner.agility.AgilityCourse;
-import com.routeplanner.agility.AgilityCoursePresets;
-import com.routeplanner.agility.AgilityObstacle;
-import com.routeplanner.model.RouteStep;
-import com.routeplanner.util.LocationNames;
-import net.runelite.api.Client;
-import net.runelite.api.NPC;
-import net.runelite.api.ObjectComposition;
+import com.routeplanner.model.*;
+import com.routeplanner.agility.*;
+import com.routeplanner.util.*;
+import net.runelite.api.*;
 import com.routeplanner.farming.FarmingTracker;
-import com.routeplanner.util.Herbs;
-import net.runelite.api.Skill;
 import net.runelite.api.coords.WorldPoint;
-
 import java.util.*;
 
 /**

@@ -2,13 +2,10 @@ package com.routeplanner.util;
 
 import com.google.gson.*;
 import com.google.gson.reflect.TypeToken;
-import com.routeplanner.model.Route;
-import com.routeplanner.model.RouteStep;
+import com.routeplanner.model.*;
 import net.runelite.api.coords.WorldPoint;
-
 import java.lang.reflect.Type;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 public class RouteSerializer {
 

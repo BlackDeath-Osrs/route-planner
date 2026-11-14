@@ -1,19 +1,15 @@
 package com.routeplanner.dialog;
 
-import com.routeplanner.RoutePlannerConfig;
-import com.routeplanner.RoutePlannerPlugin;
-import com.routeplanner.model.Route;
-import com.routeplanner.model.RouteStep;
+import lombok.RequiredArgsConstructor;
+import com.routeplanner.*;
+import com.routeplanner.model.*;
 import net.runelite.api.Client;
-import net.runelite.api.widgets.JavaScriptCallback;
+import net.runelite.api.widgets.*;
 import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.gameval.InterfaceID;
-import net.runelite.api.widgets.Widget;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.Subscribe;
-
-import javax.inject.Inject;
-import javax.inject.Singleton;
+import javax.inject.*;
 import java.util.List;
 
 /**
@@ -22,6 +18,7 @@ import java.util.List;
  * when the mouse moves off it (the game would turn it back to black).
  */
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class DialogHighlighter {
 
     /** The game's colour for an option line. */
@@ -33,14 +30,6 @@ public class DialogHighlighter {
     private final RoutePlannerConfig config;
 
     private Widget highlighted;
-
-    @Inject
-    public DialogHighlighter(Client client, ClientThread clientThread, RoutePlannerPlugin plugin, RoutePlannerConfig config) {
-        this.client = client;
-        this.clientThread = clientThread;
-        this.plugin = plugin;
-        this.config = config;
-    }
 
     @Subscribe
     public void onWidgetLoaded(WidgetLoaded e) {

@@ -7,18 +7,10 @@ import net.runelite.api.Client;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.game.ItemManager;
-import net.runelite.client.ui.overlay.Overlay;
-import net.runelite.client.ui.overlay.OverlayLayer;
-import net.runelite.client.ui.overlay.OverlayPosition;
-
-import javax.inject.Inject;
-import javax.inject.Singleton;
-import java.awt.BasicStroke;
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.Graphics2D;
-import java.awt.Rectangle;
-import java.util.ArrayList;
+import net.runelite.client.ui.overlay.*;
+import javax.inject.*;
+import java.awt.*;
+import java.util.*;
 import java.util.List;
 
 /**
@@ -75,12 +67,6 @@ public class InventoryItemOverlay extends Overlay {
     }
 
     private void highlight(Graphics2D graphics, Rectangle b) {
-        if (b == null) return;
-        Color outline = plugin.getConfig().npcHighlightColor();
-        graphics.setColor(outline);
-        graphics.setStroke(new BasicStroke(2));
-        graphics.drawRect(b.x, b.y, b.width, b.height);
-        graphics.setColor(HighlightColors.fill(outline));
-        graphics.fillRect(b.x, b.y, b.width, b.height);
+        HighlightColors.paintSlot(graphics, b, plugin.getConfig().npcHighlightColor());
     }
 }

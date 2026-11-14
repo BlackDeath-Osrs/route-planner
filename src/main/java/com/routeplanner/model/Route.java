@@ -4,11 +4,7 @@ import com.google.gson.annotations.SerializedName;
 import com.routeplanner.agility.AgilityCoursePresets;
 import lombok.Data;
 import net.runelite.api.coords.WorldPoint;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
-import java.util.function.Predicate;
+import java.util.*;
 
 @Data
 public class Route {
@@ -146,13 +142,6 @@ public class Route {
         }
     }
 
-    public void removeStepsIf(Predicate<RouteStep> pred) {
-        if (sections == null) return;
-        for (RouteSection sec : sections) {
-            if (sec.getSteps() != null) sec.getSteps().removeIf(pred);
-        }
-    }
-
     public RouteStep getActiveStep() {
         if (testStep != null) return testStep;
         if (sections == null) return null;
@@ -165,10 +154,6 @@ public class Route {
             for (RouteStep s : sec.getSteps()) if (!s.isCompleted()) return s;
         }
         return null;
-    }
-
-    public boolean isComplete() {
-        return getAllSteps().stream().allMatch(RouteStep::isCompleted);
     }
 
     public void resetProgress() {

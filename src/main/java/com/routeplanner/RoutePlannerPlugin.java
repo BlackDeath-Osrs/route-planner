@@ -1,84 +1,41 @@
 package com.routeplanner;
 
-import com.routeplanner.util.SceneObjects;
+import com.routeplanner.util.*;
 import com.google.gson.Gson;
 import com.google.inject.Provides;
-import com.routeplanner.agility.AgilityCourse;
-import com.routeplanner.agility.AgilityCoursePresets;
-import com.routeplanner.agility.AgilityObstacle;
-import com.routeplanner.bank.BankFilterButton;
-import com.routeplanner.bank.BankItemManager;
-import com.routeplanner.ui.StepSprites;
-import com.routeplanner.bank.BankOverlay;
-import com.routeplanner.bank.GroundItemOverlay;
-import com.routeplanner.bank.InventoryItemOverlay;
-import com.routeplanner.bank.ShopOverlay;
+import com.routeplanner.agility.*;
+import com.routeplanner.bank.*;
+import com.routeplanner.ui.*;
 import com.routeplanner.dialog.DialogHighlighter;
 import com.routeplanner.hub.RouteHubCatalog;
-import com.routeplanner.model.ItemMode;
-import com.routeplanner.model.ProgressCheck;
-import com.routeplanner.model.Route;
-import com.routeplanner.model.RouteSection;
-import com.routeplanner.model.RouteStep;
-import com.routeplanner.model.SkillGoalType;
-import com.routeplanner.model.StepType;
-import com.routeplanner.model.TileArea;
+import com.routeplanner.model.*;
 import com.routeplanner.quest.QuestListOverlay;
-import com.routeplanner.record.ReRecordSession;
-import com.routeplanner.record.RecordingOverlay;
-import com.routeplanner.record.RouteRecorder;
-import com.routeplanner.sailing.CatchMessages;
-import com.routeplanner.sailing.NetDepthOverlay;
-import com.routeplanner.sailing.Sailing;
-import com.routeplanner.sailing.SailingDocks;
-import com.routeplanner.sailing.SailingTimers;
-import com.routeplanner.sailing.ShoalRouteOverlay;
+import com.routeplanner.record.*;
+import com.routeplanner.sailing.*;
 import com.routeplanner.farming.FarmingTracker;
 import com.routeplanner.skilling.StallHighlightOverlay;
-import com.routeplanner.teleport.MinigameTeleportOverlay;
-import com.routeplanner.teleport.NexusTeleportOverlay;
-import com.routeplanner.teleport.SpellbookOverlay;
-import com.routeplanner.teleport.TeleportItemOverlay;
-import com.routeplanner.teleport.TeleportItems;
-import com.routeplanner.ui.RouteIcon;
-import com.routeplanner.ui.StepLive;
-import com.routeplanner.util.NpcNames;
-import com.routeplanner.util.RouteSerializer;
+import com.routeplanner.teleport.*;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.*;
-import net.runelite.client.util.Text;
+import net.runelite.client.util.*;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.*;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
-import net.runelite.client.eventbus.EventBus;
-import net.runelite.client.eventbus.Subscribe;
-import net.runelite.client.events.ConfigChanged;
-import net.runelite.client.events.RuneScapeProfileChanged;
-import net.runelite.client.game.ItemManager;
-import net.runelite.client.game.SkillIconManager;
-import net.runelite.client.game.SpriteManager;
-import net.runelite.client.game.npcoverlay.NpcOverlayService;
-import net.runelite.client.plugins.Plugin;
-import net.runelite.client.plugins.PluginDescriptor;
-import net.runelite.client.ui.ClientToolbar;
-import net.runelite.client.ui.NavigationButton;
-import net.runelite.client.ui.overlay.Overlay;
-import net.runelite.client.ui.overlay.OverlayManager;
-import net.runelite.client.util.ColorUtil;
-import net.runelite.client.util.ImageUtil;
-
-import javax.inject.Inject;
-import javax.inject.Named;
+import net.runelite.client.eventbus.*;
+import net.runelite.client.events.*;
+import net.runelite.client.game.*;
+import net.runelite.client.plugins.*;
+import net.runelite.client.ui.*;
+import net.runelite.client.ui.overlay.*;
+import javax.inject.*;
 import javax.swing.SwingUtilities;
-import java.awt.Color;
-import java.awt.Dimension;
+import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.*;
 import java.util.List;
 
 @Slf4j
@@ -182,18 +139,6 @@ public class RoutePlannerPlugin extends Plugin {
         InterfaceID.Chatmenu.UNIVERSE, InterfaceID.ChatLeft.UNIVERSE,
         InterfaceID.ChatRight.UNIVERSE, InterfaceID.Messagebox.UNIVERSE,
         InterfaceID.LevelupDisplay.UNIVERSE
-    };
-
-    private static final Skill[] NPC_GOAL_SKILLS = {
-        Skill.THIEVING, Skill.ATTACK,
-        Skill.STRENGTH, Skill.DEFENCE,
-        Skill.RANGED, Skill.PRAYER,
-        Skill.MAGIC, Skill.HITPOINTS,
-        Skill.AGILITY, Skill.HERBLORE,
-        Skill.CRAFTING, Skill.FLETCHING,
-        Skill.SLAYER, Skill.FARMING,
-        Skill.RUNECRAFT, Skill.HUNTER,
-        Skill.CONSTRUCTION
     };
 
     public int getDialogProgress() {
@@ -619,11 +564,9 @@ public class RoutePlannerPlugin extends Plugin {
         if (argb != null) {
             Color base = new Color(argb, true); // decode ARGB, keep it opaque for the base
             Color solid = new Color(base.getRed(), base.getGreen(), base.getBlue());
-            log.info("HUD match: read overlayBackgroundColor = {},{},{}", solid.getRed(), solid.getGreen(), solid.getBlue());
             applyDerivedPalette(solid);
             return;
         }
-        log.info("HUD match: overlayBackgroundColor not set, falling back to sprite sampling");
         trySampleSprite(0);
     }
 
@@ -631,10 +574,7 @@ public class RoutePlannerPlugin extends Plugin {
     private static final int[] SAMPLE_SPRITE_IDS = { 297, 1035, 172, 173 };
 
     private void trySampleSprite(int idx) {
-        if (idx >= SAMPLE_SPRITE_IDS.length) {
-            log.info("HUD match: no usable sprite color found");
-            return;
-        }
+        if (idx >= SAMPLE_SPRITE_IDS.length) return;
         final int spriteId = SAMPLE_SPRITE_IDS[idx];
         spriteManager.getSpriteAsync(spriteId, 0, img -> {
             Color avg = averageColor(img);
@@ -701,7 +641,6 @@ public class RoutePlannerPlugin extends Plugin {
         setCol("hudDividerColor", divider);
         configManager.setConfiguration(RoutePlannerConfig.GROUP, "hudTheme", HudTheme.CUSTOM);
         refreshHighlights();
-        log.info("HUD match: derived palette from base {},{},{}", base.getRed(), base.getGreen(), base.getBlue());
     }
 
     private void setCol(String key, Color c) {
@@ -798,7 +737,6 @@ public class RoutePlannerPlugin extends Plugin {
         if (best == null) return; // not in the loaded scene yet; look again later
         snappedAgilityStep = step;
         if (current != null && current.getPlane() == best.getPlane() && current.distanceTo2D(best) <= 1) return;
-        log.info("Agility step '{}': start moved from {} to the {} at {}", step.getName(), current, first.getName(), best);
         step.setWorldPoint(best);
         pathfinderOverlay.clearPath();
         saveRoutes();
@@ -915,8 +853,6 @@ public class RoutePlannerPlugin extends Plugin {
         }
         return label;
     }
-
-    public void rebuildNpcHighlights() { skillingNpcHighlighter.rebuild(); }
 
     private static final String ACTIVE_ROUTE_KEY = "activeRoute";
     /** "true" when no route is active: the one under ACTIVE_ROUTE_KEY (if any) is paused. */
@@ -1253,24 +1189,19 @@ public class RoutePlannerPlugin extends Plugin {
         if (goalType == SkillGoalType.XP_GAIN) {
             if (step.getSkillingStartXp() <= 0) {
                 step.setSkillingStartXp(event.getXp());
-                log.debug("Skilling XP_GAIN start: {}", event.getXp());
                 return;
             }
             long gained = event.getXp() - step.getSkillingStartXp();
             step.setSkillingProgress(gained);
-            log.debug("Skilling XP gained: {}/{}", gained, step.getSkillingGoalValue());
             if (gained >= step.getSkillingGoalValue()) {
-                log.debug("Skilling XP gain goal reached!");
                 tryCompleteStep(step);
             }
             // No panel rebuild per XP drop: the step card's live progress already shows it.
         } else if (goalType == SkillGoalType.XP_TARGET) {
             if (event.getXp() >= step.getSkillingGoalValue()) {
-                log.debug("Skilling XP target reached: {}", event.getXp());
                 tryCompleteStep(step);
             }
         } else if (event.getLevel() >= step.getSkillingGoalValue()) {
-            log.debug("Skilling level goal reached: {}", event.getLevel());
             tryCompleteStep(step);
         }
     }
@@ -1326,7 +1257,6 @@ public class RoutePlannerPlugin extends Plugin {
             if (!NpcNames.matches(step.getNpcHighlight(), npc.getName())) continue;
             if (!killCredit.isMine(npc, client.getTickCount())) continue;
             step.setNpcKillProgress(step.getNpcKillProgress() + 1);
-            log.debug("Note kill {}/{}: {}", step.getNpcKillProgress(), step.getNpcKillCount(), npc.getName());
             counted = true;
         }
         if (!counted) return;

@@ -1,0 +1,19 @@
+# name	level	xp (per item)	materials
+Headless arrow	1	1.0	Arrow shaft, Feather
+Bronze arrow	1	1.3	Headless arrow, Bronze arrowtips
+Iron arrow	15	2.5	Headless arrow, Iron arrowtips
+Steel arrow	30	5.0	Headless arrow, Steel arrowtips
+Mithril arrow	45	7.5	Headless arrow, Mithril arrowtips
+Broad arrow	52	10.0	Headless arrow, Broad arrowheads
+Adamant arrow	60	10.0	Headless arrow, Adamant arrowtips
+Rune arrow	75	12.5	Headless arrow, Rune arrowtips
+Amethyst arrow	82	13.5	Headless arrow, Amethyst arrowtips
+Dragon arrow	90	15.0	Headless arrow, Dragon arrowtips
+Bronze dart	1	1.8	Bronze dart tip, Feather
+Iron dart	22	3.8	Iron dart tip, Feather
+Steel dart	37	7.5	Steel dart tip, Feather
+Mithril dart	52	11.2	Mithril dart tip, Feather
+Adamant dart	67	15.0	Adamant dart tip, Feather
+Rune dart	81	18.8	Rune dart tip, Feather
+Dragon dart	95	25.0	Dragon dart tip, Feather
+Broad bolts	55	3.0	Broad bolts (unf), Feather
