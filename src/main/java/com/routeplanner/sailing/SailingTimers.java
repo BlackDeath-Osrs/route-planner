@@ -29,6 +29,7 @@ import java.util.*;
  * Each counts down second by second from when it will end, rather than jumping a tick at a time.
  */
 @Singleton
+@lombok.extern.slf4j.Slf4j
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class SailingTimers {
 
@@ -151,6 +152,10 @@ public class SailingTimers {
             if (lp == null) return;
         }
         WorldPoint at = WorldPoint.fromLocalInstance(client, lp);
+        // Every tile the shoal moves to, so a changed route can be rebuilt (scripts/sailing/shoal_trace.py)
+        if (config.recordTrace() && !at.equals(shoalLast)) {
+            log.info("[RP-TRACE] SHOALPOS worldview={} tick={} at={},{},{}", id, tick, at.getX(), at.getY(), at.getPlane());
+        }
         if (shoalLast != null) {
             if (at.equals(shoalLast)) { stoppedTicks++; movingTicks = 0; }
             else { movingTicks++; stoppedTicks = 0; }
@@ -159,6 +164,9 @@ public class SailingTimers {
         if (shoalWasMoving && stoppedTicks >= 2) {
             int stay = ShoalRoutes.stopTicks(ShoalRoutes.find(id, at, 10));
             shoalMovesAt = stay > 0 ? System.currentTimeMillis() + (stay - 2) * TICK_MS : -1;
+            if (config.recordTrace()) {
+                log.info("[RP-TRACE] SHOALSTOP worldview={} tick={} at={},{},{}", id, tick, at.getX(), at.getY(), at.getPlane());
+            }
             shoalWasMoving = false;
         } else if (movingTicks >= 2) {
             shoalWasMoving = true;

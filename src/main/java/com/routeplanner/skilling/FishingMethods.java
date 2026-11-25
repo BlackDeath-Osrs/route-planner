@@ -16,6 +16,14 @@ public class FishingMethods {
 
     public static final List<Method> METHODS = DataFiles.load("fishing.tsv", r -> new Method(r[0], r[1], r[2]));
 
+    /** The Method dropdown label for trawling this fish ("Trawling \u2014 Marlin"), or null if it isn't listed. */
+    public static String trawlingLabel(String fish) {
+        for (Method m : METHODS) {
+            if (m.name.equals("Trawling") && com.routeplanner.sailing.CatchMessages.sameFish(m.catches, fish)) return m.toString();
+        }
+        return null;
+    }
+
     public static Method getByLabel(String label) {
         return METHODS.stream().filter(m -> m.toString().equals(label)).findFirst().orElse(null);
     }

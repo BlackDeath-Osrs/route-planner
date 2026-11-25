@@ -64,6 +64,14 @@ public class RouteRecorder {
     private WorldPoint anchor;          // where the last step was recorded (or recording started)
     private int idleTicks;
 
+    /** Quest progress vars (kind, id), from quest_vars.tsv. */
+    private static final List<String[]> QUEST_VARS = DataFiles.rows("quest_vars.tsv");
+    /** Each quest var's value as last seen ("varbit 3185" -> 4), so only a rise counts. */
+    private final Map<String, Integer> questVars = new HashMap<>();
+    /** The latest quest stage reached ("varbit 3185 >= 4"), not yet put on a step, and when. */
+    private String questCheck;
+    private int questCheckTick;
+
     /** The most recent click of any kind, so a jump can be explained by what caused it. */
     private Click lastClick;
     /** The most recent click that could start a teleport (a spell cast or a teleport item). */
@@ -191,6 +199,12 @@ public class RouteRecorder {
         activity.start();
         dialog.start();
         objects.start();
+        questCheck = null;
+        questVars.clear();
+        for (String[] r : QUEST_VARS) {
+            int id = Integer.parseInt(r[1]);
+            questVars.put(r[0] + " " + id, r[0].equals("varbit") ? client.getVarbitValue(id) : client.getVarpValue(id));
+        }
         recording = true;
         eventBus.register(this);
     }
@@ -417,6 +431,21 @@ public class RouteRecorder {
         if (dialog.onGameMessage(e.getMessage(), stepTile())) activity.onQuestComplete(client.getTickCount());
     }
 
+    /** A quest's progress var went up: its new stage becomes the progress check of the step done. */
+    @Subscribe
+    public void onVarbitChanged(VarbitChanged e) {
+        String var = e.getVarbitId() != -1 ? "varbit " + e.getVarbitId() : "varp " + e.getVarpId();
+        Integer was = questVars.get(var);
+        if (was == null) {
+            if (e.getValue() > 0) trace("VAR " + var + " = " + e.getValue());
+            return;
+        }
+        if (e.getValue() <= was) return;
+        questVars.put(var, e.getValue());
+        questCheck = var + " >= " + e.getValue();
+        questCheckTick = client.getTickCount();
+    }
+
     @Subscribe
     public void onStatChanged(StatChanged e) {
         trace("XP " + e.getSkill() + " xp=" + e.getXp());
@@ -453,6 +482,14 @@ public class RouteRecorder {
     @Subscribe
     public void onGameTick(GameTick tick) {
         settleKills();
+        // A quest stage reached last tick goes on the step made by then (one tick on, so a pickup or
+        // kill that raised it has its step).
+        if (questCheck != null && client.getTickCount() > questCheckTick) {
+            RouteStep s = lastDraft();
+            if (s != null) s.setProgressCheck(questCheck);
+            trace("QUEST " + questCheck + " -> " + describeStep(s));
+            questCheck = null;
+        }
         WorldPoint pos = playerPos();
         if (pos == null) return;
         WorldPoint prevTile = lastStepTile; // where the player stood last tick (null in instances)

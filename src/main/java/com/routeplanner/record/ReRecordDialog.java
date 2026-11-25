@@ -35,7 +35,7 @@ public class ReRecordDialog extends JDialog {
     public ReRecordDialog(RoutePlannerPlugin plugin, ReRecordSession session, List<RouteStep> drafts) {
         this.plugin = plugin;
         this.session = session;
-        this.rows = SectionDiff.compare(session.getOriginalSteps(), drafts, session.getTickedAt());
+        this.rows = SectionDiff.compare(session.getOriginalSteps(), drafts, session.getTickedAt(), session.wasDone());
 
         RouteSection section = session.getSection();
         setTitle("Re-recorded: " + section.getName());
@@ -183,8 +183,9 @@ public class ReRecordDialog extends JDialog {
                     merged.add(r.step);
             }
         }
+        List<RouteStep> byStage = QuestOrder.sorted(merged);
         // One swap, so the game never reads a half-built list
-        section.setSteps(merged);
+        section.setSteps(byStage != null ? byStage : merged);
         plugin.saveRoutes();
         plugin.refreshHighlights();
         dispose();

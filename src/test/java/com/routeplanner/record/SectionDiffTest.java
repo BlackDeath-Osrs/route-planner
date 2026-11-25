@@ -54,7 +54,7 @@ public class SectionDiffTest {
         Map<RouteStep, Integer> ticked = new HashMap<>();
         ticked.put(withdraw, 1);
 
-        List<SectionDiff.Row> rows = SectionDiff.compare(section, recorded, ticked);
+        List<SectionDiff.Row> rows = SectionDiff.compare(section, recorded, ticked, Collections.emptySet());
         assertEquals(5, rows.size());
         assertEquals(SectionDiff.Kind.SAME, rows.get(0).kind);
         assertEquals(SectionDiff.Kind.NEW, rows.get(1).kind);
@@ -84,7 +84,7 @@ public class SectionDiffTest {
     public void stepTickedWithNothingRecordedIsUnchangedNotUnseen() {
         RouteStep fletch = new RouteStep("Fletch", "FLETCHING", com.routeplanner.model.SkillGoalType.LEVEL, 10, 0);
         List<SectionDiff.Row> rows = SectionDiff.compare(Collections.singletonList(fletch), Collections.emptyList(),
-            Collections.singletonMap(fletch, 0));
+            Collections.singletonMap(fletch, 0), Collections.emptySet());
         assertEquals(SectionDiff.Kind.SAME, rows.get(0).kind);
     }
 
@@ -93,14 +93,66 @@ public class SectionDiffTest {
         RouteStep a = talk("Talk to Ned", "Ned", 3100, 3258);
         RouteStep b = talk("Talk to Hans", "Hans", 3221, 3219);
         List<SectionDiff.Row> rows = SectionDiff.compare(Collections.singletonList(a), Collections.singletonList(b),
-            Collections.emptyMap());
+            Collections.emptyMap(), Collections.emptySet());
         assertEquals(2, rows.size());
-        assertEquals(SectionDiff.Kind.UNSEEN, rows.get(0).kind);
-        assertEquals(SectionDiff.Kind.NEW, rows.get(1).kind);
+        assertEquals(SectionDiff.Kind.NEW, rows.get(0).kind);
+        assertEquals(SectionDiff.Kind.UNSEEN, rows.get(1).kind);
+    }
+
+    @Test
+    public void newStepsGoBeforeSectionStepsNotDoneYet() {
+        RouteStep carpet = talk("Carpet to Pollnivneach", "Rug Merchant", 3349, 3003);
+        RouteStep cont = talk("Continue The Feud", null, 3360, 2960);
+        RouteStep dung = talk("Collect 10 ugthanki dung", null, 3220, 2760);
+        RouteStep ali = talk("Talk to Drunken Ali", "Drunken Ali", 3361, 2957);
+        RouteStep thug = talk("Talk to Menaphite Thug", "Menaphite Thug", 3346, 2955);
+        List<SectionDiff.Row> rows = SectionDiff.compare(Arrays.asList(carpet, cont, dung), Arrays.asList(ali, thug),
+            Collections.singletonMap(carpet, 0), Collections.emptySet());
+        assertEquals(5, rows.size());
+        assertSame(carpet, rows.get(0).step);
+        assertSame(ali, rows.get(1).recorded);
+        assertSame(thug, rows.get(2).recorded);
+        assertSame(cont, rows.get(3).step);
+        assertSame(dung, rows.get(4).step);
     }
 
     @Test
     public void quantitiesDontCountAsDifferentItems() {
         assertEquals(SectionDiff.itemNames("3 Ball of wool, coins"), SectionDiff.itemNames("Ball of wool, 2 Coins"));
+    }
+
+    @Test
+    public void stepDoneBeforeRecordingIsNotPairedWithALaterTalk() {
+        RouteStep oldOperator = talk("Talk to Ali the Operator", "Ali the Operator", 3334, 2950);
+        RouteStep recOperator = talk("Talk to Ali the Operator", "Ali the Operator", 3335, 2948);
+        List<SectionDiff.Row> rows = SectionDiff.compare(Collections.singletonList(oldOperator),
+            Collections.singletonList(recOperator), Collections.singletonMap(oldOperator, SectionDiff.DONE_BEFORE), Collections.emptySet());
+        assertEquals(2, rows.size());
+        assertSame(oldOperator, rows.get(0).step);
+        assertEquals(SectionDiff.Kind.SAME, rows.get(0).kind);
+        assertEquals(SectionDiff.Kind.NEW, rows.get(1).kind);
+    }
+
+    @Test
+    public void differentStagesOfOneQuestAreNotPaired() {
+        RouteStep a = talk("Talk to Ali the Operator", "Ali the Operator", 3334, 2950);
+        a.setProgressCheck("varbit 334 >= 6");
+        RouteStep b = talk("Talk to Ali the Operator", "Ali the Operator", 3334, 2950);
+        b.setProgressCheck("varbit 334 >= 13");
+        assertEquals(0, SectionDiff.similarity(a, b, null, 0));
+        b.setProgressCheck("varbit 334 >= 6");
+        assertTrue(SectionDiff.similarity(a, b, null, 0) >= SectionDiff.MATCH_THRESHOLD);
+    }
+
+    @Test
+    public void stepsDoneBeforeTheRecordingStayAheadOfNewSteps() {
+        RouteStep doug = talk("Talk to Doug Deeping", "Doug Deeping", 3350, 9815);
+        RouteStep finish = talk("Finish The Dig Site", null, 3360, 3430);
+        RouteStep winch = talk("Operate Winch", null, 3370, 3430);
+        List<SectionDiff.Row> rows = SectionDiff.compare(Arrays.asList(doug, finish), Collections.singletonList(winch),
+            Collections.emptyMap(), Collections.singleton(doug));
+        assertSame(doug, rows.get(0).step);
+        assertSame(winch, rows.get(1).recorded);
+        assertSame(finish, rows.get(2).step);
     }
 }

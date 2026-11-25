@@ -29,6 +29,18 @@ public class ReRecordSession {
         if (priorCompleted.containsKey(step)) tickedAt.putIfAbsent(step, draftCount);
     }
 
+    /** Steps that were ticked off when the re-record started. */
+    public Set<RouteStep> wasDone() {
+        Set<RouteStep> out = new HashSet<>();
+        priorCompleted.forEach((s, done) -> { if (done) out.add(s); });
+        return out;
+    }
+
+    /** The game already shows {@code step} done, so it was done before this recording. */
+    public void doneAlready(RouteStep step) {
+        tickedAt.put(step, SectionDiff.DONE_BEFORE);
+    }
+
     /** Ticked before the re-record started, or ticked off during it. */
     public boolean doneBeforeOrDuring(RouteStep step) {
         return Boolean.TRUE.equals(priorCompleted.get(step)) || tickedAt.containsKey(step);

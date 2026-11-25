@@ -989,6 +989,19 @@ public class RoutePlannerPanel extends PluginPanel {
         reRecord.setToolTipText("Play this section again while recording, then compare and pick the changes");
         reRecord.setEnabled(!plugin.getRouteRecorder().isRecording() && !section.getSteps().isEmpty());
         reRecord.addActionListener(ev -> startReRecord(section));
+        JMenuItem byStage = menu.add("Sort by Quest Stage");
+        byStage.setToolTipText("Put steps with quest progress checks in stage order, with the steps leading up to each");
+        byStage.addActionListener(ev -> {
+            List<RouteStep> sorted = QuestOrder.sorted(section.getSteps());
+            if (sorted == null) {
+                JOptionPane.showMessageDialog(this, "The quest steps in \"" + section.getName() + "\" are already in order.");
+                return;
+            }
+            plugin.getRouteHistory().push(active, "Sort \"" + section.getName() + "\" by quest stage", plugin.getRouteGson());
+            section.setSteps(sorted);
+            plugin.saveRoutes();
+            plugin.refreshHighlights();
+        });
         menu.add("Delete Section").addActionListener(ev -> {
             int c = JOptionPane.showConfirmDialog(this, "Delete section \"" + section.getName() + "\" and its "
                 + section.getSteps().size() + " step(s)?", "Delete Section", JOptionPane.YES_NO_OPTION);

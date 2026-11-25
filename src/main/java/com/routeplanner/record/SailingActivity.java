@@ -3,6 +3,8 @@ package com.routeplanner.record;
 import lombok.RequiredArgsConstructor;
 import com.routeplanner.util.*;
 import com.routeplanner.model.RouteStep;
+import com.routeplanner.model.SkillGoalType;
+import com.routeplanner.skilling.FishingMethods;
 import com.routeplanner.sailing.*;
 import net.runelite.api.*;
 import net.runelite.api.coords.*;
@@ -14,8 +16,8 @@ import java.util.*;
  *
  *  - Salvaging: deploying a hook by a wreck; its XP is one "Merchant salvage" step while the boat stays.
  *  - Sorting salvage at a station: its own "Sort Opulent salvage" step (no tile at sea).
- *  - Trawling: the net's catches (the player's or a crewmate's) make one "Catch 120 Marlin" step at a
- *    stop on the shoal's route; its XP belongs to it and makes no step of its own.
+ *  - Trawling: one Fishing step per shoal, "Trawl Marlin", at a stop on the shoal's route. The catch
+ *    messages (the player's or a crewmate's) say which fish; its goal is the Fishing XP gained.
  *
  * Salvaging and sorting alternate (and the crew gets talked to in between), so each wreck keeps its
  * own two steps and the XP goes back to the right one. Sailing XP from travelling (wind motes, the helm,
@@ -57,6 +59,9 @@ final class SailingActivity {
     private int trawlXpTick = -1000;
     /** This wreck's Salvage and Sort steps, the trawl's step, and the XP on each so far. */
     private RouteStep salvageStep, sortStep, trawlStep;
+    /** The fish the trawl step is for, and Fishing XP that came before its first catch message. */
+    private String trawlFish;
+    private long trawlXpBeforeStep;
     private final Map<RouteStep, Long> sessionXp = new IdentityHashMap<>();
 
     void start() {
@@ -65,6 +70,8 @@ final class SailingActivity {
         sortingAt = null;
         trawling = false;
         salvageStep = sortStep = trawlStep = null;
+        trawlFish = null;
+        trawlXpBeforeStep = 0;
         sessionXp.clear();
     }
 
@@ -93,12 +100,20 @@ final class SailingActivity {
     }
 
     /**
-     * Whether XP of this skill belongs to the trawl (the net's Sailing XP, the catches' Fishing XP): it
-     * keeps the session going but makes no step, since the catches do (see onCatch).
+     * Whether XP of this skill belongs to the trawl: the net's Sailing XP keeps the session going, and
+     * the catches' Fishing XP goes on the trawl step's goal (see onCatch).
      */
-    boolean absorbTrawlXp(Skill s, int tick) {
+    boolean absorbTrawlXp(Skill s, long gained, int tick) {
         if ((s != Skill.SAILING && s != Skill.FISHING) || !trawling(tick)) return false;
         trawlXpTick = tick;
+        if (s == Skill.FISHING) {
+            if (trawlStep != null && host.hasDraft(trawlStep)) {
+                trawlStep.setSkillingGoalValue(trawlStep.getSkillingGoalValue() + gained);
+                host.trace("TRAWL Fishing XP+" + gained + " -> " + trawlStep.getSkillingGoalValue());
+            } else {
+                trawlXpBeforeStep += gained;
+            }
+        }
         return true;
     }
 
@@ -174,25 +189,29 @@ final class SailingActivity {
     }
 
     /**
-     * Fish caught by the trawling net (the player's or a crewmate's): they go on this trawl's step as a
-     * catch goal, "Catch 120 Giant krill". The step waits for the shoal at a stop on its route (the one
-     * nearest where the trawl began), since it swims on and comes back there. A catch means trawling,
-     * even if the nets were already down when recording started. Returns whether a new step was made.
+     * Fish caught by the trawling net (the player's or a crewmate's): they name this trawl's Fishing
+     * step, "Trawl Marlin", with the trawling method for that fish and a Fishing XP goal. The step waits
+     * for the shoal at a stop on its route (the one nearest where the trawl began), since it swims on
+     * and comes back there. A catch means trawling, even if the nets were already down when recording
+     * started. Returns whether a new step was made.
      */
     boolean onCatch(String fish, int count, WorldPoint pos, int tick) {
         startTrawling(tick);
         boolean fresh = trawlStep == null || !host.hasDraft(trawlStep)
-            || (trawlStep.getCatchFish() != null && !CatchMessages.sameFish(fish, trawlStep.getCatchFish()));
+            || (trawlFish != null && !CatchMessages.sameFish(fish, trawlFish));
         if (fresh) {
             WorldPoint meet = shoalStopNear(pos);
-            trawlStep = host.stepAt(meet, "Trawl" + LocationNames.at(meet), null);
+            trawlFish = fish;
+            trawlStep = host.stepAt(meet, "Trawl " + fish + LocationNames.at(meet), null);
             trawlStep.setNoteText(WAIT_FOR_SHOAL);
             trawlStep.setNoteAutoComplete(true);
-            trawlStep.setCatchFish(fish);
-            trawlStep.setCatchGoal(0);
+            trawlStep.setSkillingSkill(Skill.FISHING.name());
+            trawlStep.setSkillingGoalType(SkillGoalType.XP_GAIN);
+            trawlStep.setSkillingGoalValue(trawlXpBeforeStep);
+            trawlStep.setSkillingStartXp(0); // captured when the step becomes active during playback
+            trawlStep.setRecipeLabel(FishingMethods.trawlingLabel(fish));
+            trawlXpBeforeStep = 0;
         }
-        trawlStep.setCatchGoal(trawlStep.getCatchGoal() + count);
-        trawlStep.setName("Catch " + trawlStep.getCatchGoal() + " " + trawlStep.getCatchFish());
         host.trace("CATCH +" + count + " " + fish + " -> " + trawlStep.getName());
         return fresh;
     }
@@ -210,6 +229,8 @@ final class SailingActivity {
         host.trace("TRAWL session ended");
         trawling = false;
         trawlStep = null;
+        trawlFish = null;
+        trawlXpBeforeStep = 0;
         return false;
     }
 

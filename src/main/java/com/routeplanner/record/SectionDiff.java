@@ -51,13 +51,19 @@ public final class SectionDiff {
     /** Below this a pair isn't trusted; the two are shown as one unseen and one new step. */
     static final int MATCH_THRESHOLD = 3;
 
+    /** tickedAt value for a step the game showed done before the recording started. */
+    public static final int DONE_BEFORE = -3;
+
     private SectionDiff() {}
 
     /**
      * @param tickedAt section steps the route ticked off while recording, with the number of steps
-     *                 recorded at that moment
+     *                 recorded at that moment ({@link #DONE_BEFORE} for steps already done)
+     * @param wasDone  section steps that were ticked off when the recording started; unpaired, they
+     *                 stay ahead of new steps
      */
-    public static List<Row> compare(List<RouteStep> section, List<RouteStep> recorded, Map<RouteStep, Integer> tickedAt) {
+    public static List<Row> compare(List<RouteStep> section, List<RouteStep> recorded, Map<RouteStep, Integer> tickedAt,
+                                     Set<RouteStep> wasDone) {
         int n = section.size(), m = recorded.size();
         int[][] score = new int[n][m];
         for (int i = 0; i < n; i++) {
@@ -80,7 +86,9 @@ public final class SectionDiff {
                 rows.add(new Row(ch.isEmpty() ? Kind.SAME : Kind.CHANGED, section.get(i), recorded.get(j), ch));
                 i++;
                 j++;
-            } else if (i < n && (j >= m || best[i][j] == best[i + 1][j])) {
+            } else if (i < n && (j >= m || best[i][j] == best[i + 1][j])
+                && (j >= m || best[i][j] != best[i][j + 1] || wasDone.contains(section.get(i))
+                    || tickedBefore(tickedAt.get(section.get(i)), j))) {
                 RouteStep s = section.get(i++);
                 rows.add(new Row(tickedAt.containsKey(s) ? Kind.SAME : Kind.UNSEEN, s, null, Collections.emptyList()));
             } else {
@@ -90,10 +98,22 @@ public final class SectionDiff {
         return rows;
     }
 
+    /** When an unpaired section step and an unpaired recorded step could go either way, the
+     *  section step goes first only if the route ticked it off before that step was recorded. */
+    private static boolean tickedBefore(Integer tickedAtCount, int recordedIndex) {
+        return tickedAtCount != null && tickedAtCount <= recordedIndex;
+    }
+
     // ------------------------------------------------------------------ pairing
 
     static int similarity(RouteStep a, RouteStep b, Integer tickedAtCount, int recordedIndex) {
-        int s = 0;
+        // Ticked off well before this step was recorded, so it's a different step
+        if (tickedAtCount != null && recordedIndex > tickedAtCount + 2) return 0;
+        ProgressCheck pa = a.progress(), pb = b.progress();
+        boolean sameVar = pa != null && pb != null && pa.kind == pb.kind && pa.id == pb.id && pa.bit == pb.bit;
+        // Different stages of the same quest are different steps
+        if (sameVar && pa.atLeast != pb.atLeast) return 0;
+        int s = sameVar ? 3 : 0;
         String npcA = npc(a), npcB = npc(b);
         if (npcA != null && npcA.equalsIgnoreCase(npcB)) s += 3;
         if (notBlank(a.getSkillingTargetObject()) && a.getSkillingTargetObject().equalsIgnoreCase(b.getSkillingTargetObject())) s += 3;
@@ -172,6 +192,10 @@ public final class SectionDiff {
         if (rec.getNpcKillCount() > 0 && rec.getNpcKillCount() != step.getNpcKillCount()) {
             add(out, "Kills", step.getNpcKillCount() > 0 ? String.valueOf(step.getNpcKillCount()) : null,
                 String.valueOf(rec.getNpcKillCount()), (s, r) -> s.setNpcKillCount(r.getNpcKillCount()));
+        }
+        if (notBlank(rec.getProgressCheck()) && !rec.getProgressCheck().equals(step.getProgressCheck())) {
+            add(out, "Game progress", blankToNull(step.getProgressCheck()), rec.getProgressCheck(),
+                (s, r) -> s.setProgressCheck(r.getProgressCheck()));
         }
         // Fill only: a recorded XP gain, quest, boat or note doesn't replace one the step was given
         if (rec.hasSkillGoal() && !step.hasSkillGoal()) {

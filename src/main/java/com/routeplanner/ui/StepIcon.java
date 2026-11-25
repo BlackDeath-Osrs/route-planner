@@ -67,6 +67,7 @@ public final class StepIcon implements Icon {
         }
         if (s.hasFarmPatch()) return Kind.GATHER;
         if (s.hasSkillGoal()) return "AGILITY".equalsIgnoreCase(s.getSkillingSkill()) ? Kind.AGILITY : Kind.SKILL;
+        if (s.hasCatchGoal()) return Kind.SKILL; // trawling: a Fishing step
         if (s.getTeleportMethod() != null) return Kind.TELEPORT;
         if (s.hasNote()) return Kind.NOTE;
         return Kind.WALK;

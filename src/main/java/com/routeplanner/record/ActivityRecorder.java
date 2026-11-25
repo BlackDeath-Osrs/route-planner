@@ -129,9 +129,9 @@ class ActivityRecorder {
         sailing.onTargetClick(option, target, at, tick);
     }
 
-    /** Fish caught by a trawling net: they make the trawl's catch step (see SailingActivity). */
+    /** Fish caught by a trawling net: they make the trawl's Fishing step (see SailingActivity). */
     void onCatch(String fish, int count, WorldPoint pos, int tick) {
-        if (sailing.onCatch(fish, count, pos, tick)) step = null; // a catch step isn't an XP activity
+        if (sailing.onCatch(fish, count, pos, tick)) step = null; // the trawl step takes its own XP
     }
 
     /** "Lower net" in the Sailing panel: trawling is on. */
@@ -236,9 +236,8 @@ class ActivityRecorder {
             onCleaningXp(pos, tick);
             return;
         }
-        // Trawling: its XP (the net's Sailing, the catches' Fishing) belongs to it; the catches make the
-        // step (see onCatch), since the fish are the point and a crewmate's catches give no Fishing XP
-        if (sailing.absorbTrawlXp(s, tick)) return;
+        // Trawling: its XP belongs to it; the catches make the step (see onCatch), whose goal is the Fishing XP
+        if (sailing.absorbTrawlXp(s, gained, tick)) return;
         // Fighting at sea: the kills make the step ("Kill 3 Vampyre kraken"), like any combat XP
         if (s == Skill.SAILING && tick - combatTick <= TARGET_WINDOW_TICKS) {
             host.trace("XP+" + gained + " SAILING ignored (sea combat, recorded as kills)");

@@ -381,12 +381,10 @@ public class RoutePlannerPlugin extends Plugin {
         // Location: if worldPoint set, player must have reached it
         // (a catch step's tile is just where the shoal was met; it swims on, so catching anywhere counts)
         boolean locOk    = step.getWorldPoint() == null || step.isLocationReached() || step.hasCatchGoal();
-        // Note: if note present, it must be manually marked complete (locationReached used as the ack flag)
-        // Kill steps: enough kills, which also stands in for acknowledging the note.
         boolean killsOk  = step.getNpcKillCount() <= 0 || step.getNpcKillProgress() >= step.getNpcKillCount();
-        // (a catch step's note, "Wait here for the shoal.", is guidance; the catch completes it)
-        boolean noteOk   = !step.hasNote() || step.isLocationReached() || step.getNpcKillCount() > 0
-            || step.hasCatchGoal();
+        // Note: acknowledged by arriving (locationReached). On a step with its own goal (kills, XP,
+        // items, quest, ...) the note is guidance and the goal completes it.
+        boolean noteOk   = !step.hasNote() || step.isLocationReached() || hasOwnGoal(step);
         // Dialogue: every option in the sequence picked (arriving alone isn't enough).
         boolean dialogOk = step.getDialogOptions() == null || step.getDialogOptions().trim().isEmpty()
             || (step == lastDialogStep && dialogProgress >= step.getDialogOptions().split(",").length);
@@ -401,6 +399,13 @@ public class RoutePlannerPlugin extends Plugin {
         if (itemsOk && skillOk && locOk && noteOk && killsOk && dialogOk && questOk && boardOk && catchOk && farmOk) {
             completeStep(step);
         }
+    }
+
+    /** Whether something besides arriving and ticking can complete the step. */
+    private static boolean hasOwnGoal(RouteStep step) {
+        return step.getNpcKillCount() > 0 || step.hasCatchGoal() || step.hasSkillGoal() || step.hasItems()
+            || step.hasFarmPatch() || step.hasBoarding() || (step.hasQuest() && step.isQuestComplete())
+            || (step.getDialogOptions() != null && !step.getDialogOptions().trim().isEmpty());
     }
 
     private void takeBaselines(RouteStep step) {
@@ -506,9 +511,19 @@ public class RoutePlannerPlugin extends Plugin {
         if (route == null || section == null || routeRecorder.isRecording()) return;
         resumeRoute();
         reRecord = new ReRecordSession(route, section);
-        for (RouteStep s : section.getSteps()) {
-            s.setCompleted(false);
-            s.resetProgress();
+        // Steps up to the last one the game shows done (a quest stage already reached) stay done
+        List<RouteStep> steps = section.getSteps();
+        int done = -1;
+        for (int i = 0; i < steps.size(); i++) if (progressMet(steps.get(i))) done = i;
+        for (int i = 0; i < steps.size(); i++) {
+            RouteStep s = steps.get(i);
+            if (i <= done) {
+                s.setCompleted(true);
+                reRecord.doneAlready(s);
+            } else {
+                s.setCompleted(false);
+                s.resetProgress();
+            }
         }
         route.setFocusSection(section);
         autoAdvanceSections();
@@ -997,6 +1012,9 @@ public class RoutePlannerPlugin extends Plugin {
         }
         // Quest steps set to complete with the quest: check now and then (it runs a client script).
         if (step.hasQuest() && step.isQuestComplete() && client.getTickCount() % 3 == 0) tryCompleteStep(step);
+        // XP target / level goals already met (no XP drop is coming to trigger them).
+        else if (step.hasSkillGoal() && step.getSkillingGoalType() != SkillGoalType.XP_GAIN
+            && client.getTickCount() % 3 == 0 && skillGoalSatisfied(step)) tryCompleteStep(step);
         checkItems(step);
         startKillCount(step);
         trackDialogue(step);

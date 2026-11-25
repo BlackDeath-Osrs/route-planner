@@ -1,5 +1,7 @@
 package com.routeplanner;
 
+import com.routeplanner.skilling.FishingMethods;
+
 import static com.routeplanner.ui.Ui.*;
 
 import lombok.RequiredArgsConstructor;
@@ -1150,6 +1152,12 @@ public class QuickStepDialog extends JFrame {
             goalBox.setSelectedIndex(Math.max(0, gi));
             goalValue.setText(s.getSkillingGoalValue() > 0 ? String.valueOf(s.getSkillingGoalValue()) : "");
             fillRecipes(s.getRecipeLabel());
+        } else if (s.hasCatchGoal()) {
+            // A trawl recorded as a fish count: now a Fishing XP step, so its amount needs filling in
+            extraSkill = type != Type.SKILL;
+            skillBox.setSelectedItem("Fishing");
+            goalBox.setSelectedIndex(0);
+            fillRecipes(FishingMethods.trawlingLabel(s.getCatchFish()));
         } else {
             fillRecipes(null);
         }
@@ -1323,6 +1331,11 @@ public class QuickStepDialog extends JFrame {
             s.setBoardPoint(dock == null ? null : dock.land);
             s.setBoardObjectId(-1);
         }
+
+        // Old trawl steps counted fish; once edited they're Fishing XP steps
+        s.setCatchFish(null);
+        s.setCatchGoal(0);
+        s.setCatchProgress(0);
 
         // Note (kill steps need one for the HUD's kill counter)
         String note = noteArea.getText().trim();

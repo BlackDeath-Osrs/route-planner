@@ -63,7 +63,7 @@ public final class StepSprites {
         switch (kind) {
             case SKILL:
             case AGILITY: {
-                BufferedImage img = skill(s.skill());
+                BufferedImage img = skill(s.skill() == null && s.hasCatchGoal() ? Skill.FISHING : s.skill());
                 if (img != null) return img;
                 return kind == StepIcon.Kind.AGILITY ? sprite(SpriteID.Mapfunction.AGILITY_SHORT_CUT) : forKind(kind);
             }

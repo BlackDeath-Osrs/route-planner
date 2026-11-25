@@ -42,4 +42,14 @@ public class ProgressCheckTest {
         assertNull(ProgressCheck.parse("varp 99999999999 >= 1"));
         assertNull(ProgressCheck.parse("quest 12 >= 1"));
     }
+
+    @Test
+    public void everyQuestVarMakesACheck() {
+        java.util.List<String[]> rows = com.routeplanner.util.DataFiles.rows("quest_vars.tsv");
+        assertTrue(rows.size() > 200);
+        for (String[] r : rows) {
+            assertTrue(r[0].equals("varbit") || r[0].equals("varp"));
+            assertNotNull(String.join(" ", r), ProgressCheck.parse(r[0] + " " + r[1] + " >= 1"));
+        }
+    }
 }
